@@ -14,6 +14,7 @@ import { discoveryCommand } from "./commands/discovery.js";
 import { doctor } from "./commands/doctor.js";
 import { inspectFront } from "./commands/front.js";
 import { listInbox } from "./commands/inbox.js";
+import { memoryCommand } from "./commands/memory.js";
 import { mqCommand } from "./commands/mq.js";
 import {
   archiveConversation,
@@ -58,6 +59,7 @@ const commandTree: Record<string, CommandHandler | Record<string, CommandHandler
   },
   discovery: discoveryCommand,
   cache: cacheCommand,
+  memory: memoryCommand,
   mq: mqCommand,
   whoami,
   inbox: {
@@ -138,7 +140,7 @@ function usage() {
       "frontctl cookies inspect [--json]",
       "frontctl asar inspect [--json]",
       "frontctl onboarding [--json]",
-      "frontctl setup [--agent codex|claude|all] [--install-agents] [--yes] [--json]",
+      "frontctl setup [--agent codex|claude|all] [--install-agents] [--learn] [--yes] [--json]",
       "frontctl readiness [--json]",
       "frontctl agents check|paths|install --agent codex|claude|all [--yes] [--json]",
       "frontctl agents prompt --agent codex|claude|chatgpt|all [--json]",
@@ -158,6 +160,7 @@ function usage() {
       "frontctl discovery fixtures path|list|install ... [--json]",
       "frontctl sync [--live] [--limit 100] [--all] [--json]",
       "frontctl cache stats|search|read ... [--max-age-hours 12] [--format markdown|plain] [--json]",
+      "frontctl memory init|report|path [--live] [--all] [--limit 500] [--fresh] [--json]",
       "frontctl mq check|install|query|example [--json]",
       "frontctl whoami [--json]",
       "frontctl inbox list [--limit 20] [--all] [--format markdown|plain] [--json]",
@@ -166,11 +169,11 @@ function usage() {
       "frontctl triage [inbox] [--limit 20] [--all] [--live] [--format markdown|plain] [--json]",
       "frontctl search QUERY [--live] [--limit 20] [--format markdown|plain] [--json]",
       "frontctl open CONVERSATION_ID [--print-only|--web] [--json]",
-      "frontctl archive CONVERSATION_ID... [--yes] [--json]",
-      "frontctl snooze CONVERSATION_ID UNTIL [--yes] [--json]",
+      "frontctl archive CONVERSATION_ID... [--actor NAME] [--reason WHY] [--yes] [--json]",
+      "frontctl snooze CONVERSATION_ID UNTIL [--actor NAME] [--reason WHY] [--yes] [--json]",
       "frontctl tag list [--live] [--limit 100] [--json]",
-      "frontctl tag add|remove CONVERSATION_ID TAG [--live] [--yes] [--json]",
-      "frontctl comment add CONVERSATION_ID --body \"...\"|--body-file note.md [--yes] [--json]",
+      "frontctl tag add|remove CONVERSATION_ID TAG [--actor NAME] [--reason WHY] [--live] [--yes] [--json]",
+      "frontctl comment add CONVERSATION_ID --body \"...\"|--body-file note.md [--actor NAME] [--reason WHY] [--yes] [--json]",
       "frontctl draft list|read|discard ... [--yes] [--json]",
       "frontctl draft reply CONVERSATION_ID --body \"...\"|--body-file reply.md [--yes] [--json]",
       "frontctl draft compose [--to EMAIL] [--cc EMAIL] [--bcc EMAIL] [--subject \"...\"] --body \"...\"|--body-file draft.md [--yes] [--json]",

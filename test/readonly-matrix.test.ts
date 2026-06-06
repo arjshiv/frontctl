@@ -57,6 +57,7 @@ test("read-only CLI matrix stays JSON-safe and secret-free", async () => {
     ["tag", "list", "--json"],
     ["draft", "list", "--limit", "5", "--json"],
     ["sync", "--limit", "10", "--json"],
+    ["memory", "report", "--fresh", "--json"],
     ["cache", "stats", "--json"],
     ["cache", "search", "Deel", "--json"],
     ["cache", "read", "93727705553", "--json"],
@@ -114,6 +115,7 @@ function envForPaths(paths: FrontPaths): NodeJS.ProcessEnv {
     FRONTCTL_FRONT_PREFERENCES_PATH: paths.preferencesPath,
     FRONTCTL_SESSION_PATH: join(paths.supportPath, "frontctl-session.json"),
     FRONTCTL_STORE_PATH: join(paths.supportPath, "frontctl.sqlite"),
+    FRONTCTL_MEMORY_PATH: join(paths.supportPath, "memory.json"),
     FRONTCTL_AUDIT_PATH: join(paths.supportPath, "audit.jsonl"),
     FRONTCTL_DISCOVERY_FIXTURES_PATH: join(paths.supportPath, "discovery-fixtures"),
   };

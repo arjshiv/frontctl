@@ -5,6 +5,7 @@ import { defaultFrontPaths, type FrontPaths } from "../lib/paths.js";
 import { buildUserReadiness } from "../lib/readiness.js";
 import { agentsStatus, installAgentSkills, type AgentKind } from "./agents.js";
 import { doctor } from "./doctor.js";
+import { memoryCommand } from "./memory.js";
 
 export async function setupCommand(args: string[], paths: FrontPaths = defaultFrontPaths()) {
   const agent = readAgentFlag(args);
@@ -20,6 +21,9 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
     || Boolean(agentcookie.frontCookiesAvailable);
   const agentInstall = shouldInstallAgents
     ? await installAgentSkills(agent ?? "all", { write: args.includes("--yes") })
+    : undefined;
+  const memory = args.includes("--learn")
+    ? await memoryCommand(["init", "--live", "--all", "--limit", String(readNumberFlag(args, "--learn-limit") ?? 200)], paths)
     : undefined;
   const finalAgentStatus = agentInstall ? await agentsStatus(agent) : agentCheck;
   const frontAppInstalled = checkOk(doctorResult.checks, "frontApp");
@@ -63,6 +67,7 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
       issues: doctorResult.issues,
     },
     auth,
+    memory,
     authSources: {
       browsers: browserProfiles.map((profile) => ({
         browser: profile.browser,
@@ -86,6 +91,7 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
       ? doctorResult.ok
         ? [
           "frontctl inbox list --live --limit 20 --json",
+          "frontctl memory init --live --all --limit 200 --json",
           "frontctl triage inbox --live --limit 20 --json",
           "frontctl search \"query\" --live --json",
           "frontctl read CONVERSATION_ID --live --json",
@@ -94,6 +100,7 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
       : doctorResult.ok
         ? [
           "frontctl auth unlock --ttl-hours 12 --json",
+          "frontctl setup --learn --json",
           "frontctl triage inbox --limit 20 --json",
           "frontctl inbox list --live --limit 20 --json",
         ]
@@ -123,4 +130,10 @@ function readAgentFlag(args: string[]): AgentKind | "all" | undefined {
   const index = args.indexOf("--agent");
   const value = index >= 0 ? args[index + 1] : undefined;
   return value === "codex" || value === "claude" || value === "all" ? value : undefined;
+}
+
+function readNumberFlag(args: string[], flag: string): number | undefined {
+  const index = args.indexOf(flag);
+  const value = index >= 0 ? Number(args[index + 1]) : undefined;
+  return value !== undefined && Number.isFinite(value) && value > 0 ? value : undefined;
 }

@@ -599,6 +599,30 @@ test("CLI cache search/read/stats use the local SQLite store", async () => {
   assert.match(statsMarkdownStdout, /Fresh: yes/);
 });
 
+test("CLI memory init writes a local preference profile from the store", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-memory"));
+  await writeFakeFrontCacheFixture(paths);
+  const env = envForPaths(paths);
+
+  await execFileAsync("node", ["dist/src/cli.js", "sync", "--all", "--json"], { env });
+  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "memory", "init", "--json"], { env });
+  const result = JSON.parse(stdout) as {
+    written: boolean;
+    profile: {
+      privacy: { localOnly: boolean; storesRawTimelineBodies: boolean };
+      corpus: { conversations: number };
+      suggestedNextCommands: string[];
+    };
+  };
+
+  assert.equal(result.written, true);
+  assert.equal(result.profile.privacy.localOnly, true);
+  assert.equal(result.profile.privacy.storesRawTimelineBodies, false);
+  assert.ok(result.profile.corpus.conversations >= 1);
+  assert.ok(result.profile.suggestedNextCommands.some((command) => /memory init/.test(command)));
+  assert.doesNotMatch(stdout, /SECRET_COOKIE_VALUE|AUTHORIZATION|front.id/);
+});
+
 test("CLI discovery sanitize redacts captured Front network fixtures", async () => {
   const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-discovery"));
   const input = join(paths.supportPath, "capture.har");
@@ -932,6 +956,7 @@ function envForPaths(paths: FrontPaths): NodeJS.ProcessEnv {
     FRONTCTL_FRONT_PREFERENCES_PATH: paths.preferencesPath,
     FRONTCTL_SESSION_PATH: join(paths.supportPath, "frontctl-session.json"),
     FRONTCTL_STORE_PATH: join(paths.supportPath, "frontctl.sqlite"),
+    FRONTCTL_MEMORY_PATH: join(paths.supportPath, "memory.json"),
   };
 }
 
