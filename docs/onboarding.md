@@ -253,6 +253,19 @@ Timeline text is preserved up to 20,000 characters per item and marks clipped it
 Cache stats/search/read include freshness metadata. By default, cached index results are treated as
 fresh for 12 hours. Override with `--max-age-hours N` or `FRONTCTL_STORE_MAX_AGE_HOURS`.
 
+For first-run preference learning after setup:
+
+```bash
+frontctl sync --live --all --limit 200 --json
+frontctl memory init --limit 500 --json
+frontctl memory report --json
+```
+
+`memory init` writes `~/.frontctl/memory.json`. It is local-only and stores aggregate hypotheses:
+what looks like fast archive material, what tends to stay open, where tags might help, and which
+local sources were synced. It does not store cookies, auth headers, or raw timeline bodies. Agents
+should present memory output as suggestions, not autonomous rules.
+
 For readable output in chat or terminals:
 
 ```bash
@@ -305,9 +318,9 @@ Mutation execution requires explicit approval and known non-send route verificat
 frontctl discovery fixtures path --json
 frontctl discovery fixtures install sanitized.json --json
 frontctl discovery verify-writes --json
-frontctl archive CONVERSATION_ID --json
-frontctl archive CONVERSATION_ID ANOTHER_CONVERSATION_ID --json
-frontctl snooze CONVERSATION_ID tomorrow-9am --json
+frontctl archive CONVERSATION_ID --actor Claude --reason "User approved archive" --json
+frontctl archive CONVERSATION_ID ANOTHER_CONVERSATION_ID --actor Claude --reason "User approved batch archive" --json
+frontctl snooze CONVERSATION_ID tomorrow-9am --actor Claude --reason "User approved follow-up tomorrow" --json
 frontctl tag list --json
 frontctl comment add CONVERSATION_ID --body-file note.md --json
 frontctl audit list --conversation CONVERSATION_ID --json
@@ -315,6 +328,12 @@ frontctl audit list --conversation CONVERSATION_ID --json
 
 If `canExecute` is false, the assistant must not add `--yes`. The user should see the preview and
 the reason. `--dry-run` forces preview mode even if `--yes` is present.
+Agents should identify themselves with `--actor NAME` and a concise `--reason "..."` on state
+changes. This records identity in frontctl previews and audit logs without adding a visible Front
+comment. Do not add a comment only to identify the agent; that can change thread state and can undo
+archive/snooze UX. Add a Front comment only when the user explicitly asks for a visible internal
+comment. If the user wants a visible comment plus archive/snooze, add the comment first and run the
+archive/snooze last so the final command leaves the thread in the intended state.
 `FRONTCTL_REQUIRE_DISCOVERY_FIXTURES=1` restores strict local fixture-only execution, and
 `FRONTCTL_DISCOVERY_FIXTURES_PATH` can override the default fixture store only when needed.
 Snooze accepts ISO timestamps and safe shortcuts such as `in:30m`, `in:2h`, `later`, `tomorrow`,

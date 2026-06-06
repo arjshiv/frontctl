@@ -73,6 +73,18 @@ Browser onboarding should gracefully report the local state: no Front app instal
 when Chrome or Edge has a signed-in Front profile; Safari should explain that cookie import needs
 optional `agentcookie` support or a future signed helper.
 
+Agent identity should be visible without changing mailbox state. State-changing commands should
+accept `--actor NAME` and `--reason "..."`, record both in frontctl previews and audit logs, and not
+add a Front comment unless the user explicitly asked for a visible internal comment. This avoids the
+bad UX where an agent archives or snoozes a thread and then immediately changes the thread again by
+commenting on it.
+
+First-run learning should be explicit and local. After live mode is enabled, the setup app can offer
+`Learn Preferences`, backed by `frontctl setup --learn --json` or
+`frontctl memory init --live --all --limit 200 --json`. The memory profile should remain local,
+aggregate preference hypotheses such as fast-archive patterns and tag opportunities, and avoid
+cookies, auth headers, and raw timeline bodies.
+
 Future hardening can move unlock into a signed helper using Keychain and LocalAuthentication. That
 is a post-MVP improvement; the MVP should avoid making ordinary read commands depend on Keychain.
 

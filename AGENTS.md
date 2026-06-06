@@ -18,6 +18,7 @@ The first working loop exists:
 - cached and live private-session inbox reads
 - search, read, summarize, triage, attachment metadata, tags, drafts, and local SQLite/FTS cache
 - guarded archive, snooze, tag, comment, draft, and discard flows
+- local memory profiling for first-run preference learning
 - hard-blocked sending
 - Codex, Claude, and ChatGPT agent instructions
 - native macOS setup app
@@ -95,6 +96,11 @@ source of truth.
 Reading, summarizing, searching, triaging, tagging, commenting, archiving, snoozing, and drafting are
 useful enough. Sending is a different risk tier. Do not blur that line.
 
+When an agent takes an action, identity belongs in frontctl metadata first: pass `--actor NAME` and
+`--reason "..."`. Do not add a Front comment just to identify the agent. Comments are real mailbox
+state and can change archive/snooze behavior; only add a visible internal comment when the user
+explicitly asks for one.
+
 ### Make Prompting Rare
 
 The right Keychain model is one explicit unlock, then many non-prompting reads. If a future change
@@ -122,6 +128,7 @@ Good UX here means:
 - a setup app with obvious buttons
 - exactly one next action when setup is incomplete
 - copyable prompts for Claude, ChatGPT, and Codex
+- a local memory setup pass that learns aggregate preferences without exporting mail
 - support bundles that are safe to send
 - no scary terminal output as the primary experience
 - no repeated Keychain permission loops
@@ -208,6 +215,7 @@ npm run release:verify:strict
 - `src/lib/browserProfiles.ts`: Chrome/Edge/default-browser discovery
 - `src/lib/agentcookie.ts`: optional agentcookie plaintext cookie sidecar support
 - `src/commands/readiness.ts`: user-facing setup gates
+- `src/commands/memory.ts` and `src/lib/memory.ts`: local preference memory
 - `src/commands/mutations.ts`: guarded non-send write actions
 - `src/lib/writeVerification.ts`: route verification and fixture checks
 - `skills/codex/frontctl/SKILL.md`: Codex skill
@@ -227,6 +235,9 @@ Make the obvious agent assumption true:
 - `frontctl browser list --json` should identify Chrome/Edge profiles without printing cookie values.
 - `frontctl auth unlock --source default-browser --json` should use Chrome/Edge when macOS points
   to one of them.
+- `frontctl memory init --json` should write a local aggregate profile without cookies, auth
+  headers, or raw timeline bodies.
+- Mutation previews should include actor/reason identity without adding Front comments.
 - `frontctl inbox list --live --json` should use the unlocked local session.
 - `frontctl diagnose --json` should be safe to share.
 - `frontctl send --json` should fail.

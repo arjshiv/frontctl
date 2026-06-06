@@ -99,12 +99,18 @@ frontctl cache stats --max-age-hours 6 --json
 frontctl cache search "query" --limit 10 --json
 frontctl cache read CONVERSATION_ID --json
 frontctl cache read CONVERSATION_ID --format markdown
+frontctl memory init --limit 500 --json
+frontctl memory report --json
 ```
 
 After `frontctl auth unlock`, prefer `frontctl sync --live` before broad repeated searches. Then use
 `frontctl cache search/read` for fast follow-up work without repeated Front or Keychain access.
 Cache stats/search/read include `freshness`; if `freshness.fresh` is false, run
 `frontctl sync --live --limit 100 --json` before relying on the local index.
+After first setup or a broad live sync, run `frontctl memory init --limit 500 --json` to create the
+local preference profile. Use `frontctl memory report --json` before suggesting archive/tag/snooze
+rules. Memory is local-only and stores aggregate signals, not cookies, auth headers, or raw timeline
+bodies.
 Local index timeline text is bounded at 20,000 characters per item. If `textTruncated` is true,
 use `frontctl read CONVERSATION_ID --live --json` for the freshest available context.
 Use `--format markdown` or `--format plain` when the user wants readable output instead of a JSON
@@ -138,9 +144,9 @@ Guarded mutation pattern:
 
 ```bash
 frontctl --dry-run archive CONVERSATION_ID --yes --json
-frontctl archive CONVERSATION_ID --json
-frontctl archive CONVERSATION_ID ANOTHER_CONVERSATION_ID --yes --json
-frontctl snooze CONVERSATION_ID tomorrow-9am --json
+frontctl archive CONVERSATION_ID --actor Codex --reason "User approved archiving this low-priority thread" --json
+frontctl archive CONVERSATION_ID ANOTHER_CONVERSATION_ID --actor Codex --reason "User approved batch archive" --yes --json
+frontctl snooze CONVERSATION_ID tomorrow-9am --actor Codex --reason "User approved follow-up tomorrow" --json
 frontctl tag list --json
 frontctl tag add CONVERSATION_ID "Needs Reply" --json
 frontctl comment add CONVERSATION_ID --body "..." --json
@@ -152,6 +158,12 @@ Mutation execution requires `--yes`, an unlocked local session, and known non-se
 verification or a matching sanitized discovery fixture. `--dry-run` forces preview mode even when
 `--yes` is present. Drafting previews are allowed; sending is not. Do not use `--yes` unless the
 user explicitly asked for that exact state change and `canExecute` is true.
+When taking an action, pass `--actor Codex` and a concise `--reason "..."`. This records identity in
+the frontctl preview and audit log. Do not add a Front comment just to identify yourself; comments
+can alter thread state, including archived/snoozed workflows. Only run `frontctl comment add` when
+the user explicitly wants a visible internal Front comment. If the user wants both a visible comment
+and an archive/snooze, add the comment first, then run the archive/snooze last so the final state is
+the intended state.
 Use `frontctl audit list --json` when reviewing recent previews or attempts. Audit output is
 redacted metadata only: action, mode, route, body keys, and body hash, never raw comment or draft text.
 For snooze, inspect `details.normalizedUntil` in the preview and include that exact timestamp in

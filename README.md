@@ -57,9 +57,10 @@ flowchart TD
 
   live["Live private Front web requests"]
   cache["Local SQLite/FTS cache<br/>~/.frontctl/frontctl.sqlite"]
+  memory["Local preference memory<br/>~/.frontctl/memory.json"]
   readOnly["Read, search, summarize, triage, attachments"]
   guarded["Archive, snooze, tag, comment, draft"]
-  verifier["Dry-run, explicit --yes,<br/>non-send route verification, audit log"]
+  verifier["Dry-run, actor/reason receipt,<br/>explicit --yes, non-send verification, audit log"]
 
   blockedSend["send command blocked"]
   publicApi["Public Front API not used"]
@@ -91,7 +92,9 @@ flowchart TD
   session --> live
   live --> readOnly
   live --> cache
+  cache --> memory
   cache --> readOnly
+  memory --> readOnly
   live --> guarded
   guarded --> verifier
 
@@ -285,6 +288,23 @@ the installer only prints the command.
 `frontctl open CONVERSATION_ID` opens a Front deeplink with macOS `open`. Use `--web` to open the
 Front web URL instead, and `--print-only` to inspect targets without launching anything.
 
+Memory and preference learning:
+
+```bash
+frontctl sync --live --all --limit 200 --json
+frontctl memory init --limit 500 --json
+frontctl memory report --json
+frontctl memory report --fresh --json
+frontctl memory path --json
+```
+
+`memory init` writes a local preference profile to `~/.frontctl/memory.json`. It is designed for
+first-run learning after setup: which conversations look like fast archives, which ones stay open,
+where tags might help, and which local sources the user is working from. The profile is local-only
+and stores aggregate signals plus conversation IDs; it does not store cookies, auth headers, or raw
+timeline bodies. Agents should treat the output as hypotheses and ask before turning them into
+rules.
+
 Discovery and draft commands:
 
 ```bash
@@ -328,9 +348,9 @@ Guarded mutation previews:
 
 ```bash
 frontctl --dry-run archive CONVERSATION_ID --yes --json
-frontctl archive CONVERSATION_ID --json
-frontctl archive CONVERSATION_ID ANOTHER_CONVERSATION_ID --json
-frontctl snooze CONVERSATION_ID tomorrow-9am --json
+frontctl archive CONVERSATION_ID --actor Codex --reason "User approved archiving this low-priority thread" --json
+frontctl archive CONVERSATION_ID ANOTHER_CONVERSATION_ID --actor Codex --reason "User approved batch archive" --json
+frontctl snooze CONVERSATION_ID tomorrow-9am --actor Codex --reason "User approved follow-up tomorrow" --json
 frontctl tag list --json
 frontctl tag add CONVERSATION_ID "Needs Reply" --json
 frontctl comment add CONVERSATION_ID --body "Internal note" --json
@@ -347,7 +367,15 @@ Snooze accepts ISO timestamps plus deterministic shortcuts: `in:30m`, `in:2h`, `
 `tomorrow`, `tomorrow-9am`, and weekday forms such as `monday-9am`. Preview output includes
 `details.normalizedUntil` before any write.
 Use `frontctl audit list --json` to inspect recent mutation previews or attempts. Audit entries
-store action, mode, route, body keys, and a body hash; they do not store raw comment or draft text.
+store action, mode, actor, reason, route, body keys, and a body hash; they do not store raw comment
+or draft text.
+Agents should pass `--actor NAME` and `--reason "..."` when previewing or executing state changes.
+This identifies the action in frontctl output and audit logs without creating a Front-visible
+comment. Do not add a Front comment just for identity: comments can affect thread state and may
+undo the point of archive/snooze workflows. Use `frontctl comment add` only when the user explicitly
+wants a visible internal comment. If the user wants a visible comment plus archive/snooze, add the
+comment first and run the archive/snooze last so the final command leaves the thread in the intended
+state.
 `FRONTCTL_DISCOVERY_FIXTURES_PATH` can override the default store path.
 `frontctl send` is always blocked.
 

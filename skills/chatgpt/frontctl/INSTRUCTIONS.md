@@ -18,6 +18,12 @@ Requirements:
 - Never use the public Front API.
 - Never send email.
 - Never print cookies, auth headers, or raw private payloads.
+- After initial setup or a broad sync, run `frontctl memory init --limit 500 --json` so future
+  triage can use local aggregate preferences.
+- When taking an action, pass `--actor ChatGPT` and a concise `--reason "..."`. Do not add a Front
+  comment just to identify yourself; comments can change thread state. Only comment when the user
+  explicitly wants a visible internal Front comment. If the user wants a visible comment plus
+  archive/snooze, add the comment first and run the archive/snooze last.
 
 Safe starting commands:
 
@@ -41,6 +47,8 @@ frontctl triage inbox --live --limit 20 --json
 frontctl read CONVERSATION_ID --live --json
 frontctl sync --live --limit 100 --json
 frontctl cache search "query" --limit 10 --json
+frontctl memory init --limit 500 --json
+frontctl memory report --json
 ```
 
 Mutation rule:
