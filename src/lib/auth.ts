@@ -16,7 +16,8 @@ const SESSION_ENCRYPTION_MODE = "local-derived-v1";
 export interface FrontSessionSecurity {
   authorizationModel: "one-time-keychain-unlock";
   sessionEncryptionMode: typeof SESSION_ENCRYPTION_MODE;
-  keychainService: typeof FRONT_KEYCHAIN_SERVICE;
+  keychainService: string;
+  supportedSources: string[];
   keychainBackedSessionKey: false;
   promptsOnCheck: false;
   promptsOnUnlock: boolean;
@@ -30,6 +31,8 @@ export interface FrontSessionStatus {
   exists: boolean;
   valid: boolean;
   host?: string;
+  source?: string;
+  keychainServiceUsedForUnlock?: string;
   cookieNames?: string[];
   createdAt?: string;
   expiresAt?: string;
@@ -45,6 +48,8 @@ export interface FrontSessionUnlockResult extends FrontSessionStatus {
 
 export interface FrontSession {
   host: string;
+  source?: string;
+  keychainServiceUsedForUnlock?: string;
   cookieHeader: string;
   cookieNames: string[];
   createdAt: string;
@@ -58,6 +63,8 @@ interface SessionFile {
     keychainBackedSessionKey: false;
   };
   host: string;
+  source?: string;
+  keychainServiceUsedForUnlock?: string;
   cookieNames: string[];
   createdAt: string;
   expiresAt: string;
@@ -82,36 +89,43 @@ export function sessionSecurityStatus(): FrontSessionSecurity {
     authorizationModel: "one-time-keychain-unlock",
     sessionEncryptionMode: SESSION_ENCRYPTION_MODE,
     keychainService: FRONT_KEYCHAIN_SERVICE,
+    supportedSources: ["front-app", "chrome", "edge", "default-browser", "agentcookie"],
     keychainBackedSessionKey: false,
     promptsOnCheck: false,
     promptsOnUnlock: true,
     promptsOnLiveRead: false,
     touchIdOrPasswordExpected: true,
     note: [
-      "`frontctl auth unlock` may prompt once for the Front Safe Storage Keychain item.",
+      "`frontctl auth unlock` may prompt once for the selected local app or browser Keychain item.",
       "After unlock, frontctl reads its short-lived local session cache and normal status/live-read commands do not access Keychain.",
     ].join(" "),
   };
 }
 
 export async function checkFrontSession(sessionPath = defaultSessionPath()): Promise<FrontSessionStatus> {
-  const security = sessionSecurityStatus();
+  const defaultSecurity = sessionSecurityStatus();
   const session = await readFrontSession(sessionPath);
   if (!session) {
     return {
       sessionPath,
       exists: false,
       valid: false,
-      security,
+      security: defaultSecurity,
       note: "No unlocked frontctl session. Run `frontctl auth unlock` once before live private requests.",
     };
   }
+
+  const security = session.keychainServiceUsedForUnlock
+    ? { ...defaultSecurity, keychainService: session.keychainServiceUsedForUnlock }
+    : defaultSecurity;
 
   return {
     sessionPath,
     exists: true,
     valid: true,
     host: session.host,
+    source: session.source,
+    keychainServiceUsedForUnlock: session.keychainServiceUsedForUnlock,
     cookieNames: session.cookieNames,
     createdAt: session.createdAt,
     expiresAt: session.expiresAt,
@@ -122,7 +136,14 @@ export async function checkFrontSession(sessionPath = defaultSessionPath()): Pro
 
 export async function unlockFrontSession(
   cookiesPath: string,
-  options: { sessionPath?: string; ttlHours?: number; force?: boolean } = {},
+  options: {
+    sessionPath?: string;
+    ttlHours?: number;
+    force?: boolean;
+    keychainService?: string;
+    source?: string;
+    note?: string;
+  } = {},
 ): Promise<FrontSessionUnlockResult> {
   const sessionPath = options.sessionPath ?? defaultSessionPath();
   if (!options.force) {
@@ -139,7 +160,8 @@ export async function unlockFrontSession(
   }
 
   const rows = await readEncryptedFrontCookies(cookiesPath);
-  const password = readKeychainPassword(FRONT_KEYCHAIN_SERVICE);
+  const keychainService = options.keychainService ?? FRONT_KEYCHAIN_SERVICE;
+  const password = readKeychainPassword(keychainService);
   const cookieParts: string[] = [];
   const cookieNames: string[] = [];
   const expirations: number[] = [];
@@ -163,6 +185,8 @@ export async function unlockFrontSession(
   const expiresAtMs = Math.min(createdAtMs + ttlMs, ...expirations);
   const session: FrontSession = {
     host: FRONT_COOKIE_HOST,
+    source: options.source ?? "front-app",
+    keychainServiceUsedForUnlock: keychainService,
     cookieHeader: cookieParts.join("; "),
     cookieNames,
     createdAt: new Date(createdAtMs).toISOString(),
@@ -175,6 +199,51 @@ export async function unlockFrontSession(
     unlocked: true,
     keychainAccessed: true,
     reusedExisting: false,
+    note: options.note ?? `Unlocked Front session from ${options.source ?? "front-app"}. Cookie values are not printed.`,
+  };
+}
+
+export async function unlockFrontSessionFromPlainCookies(
+  rows: Array<{ host_key: string; name: string; value: string; expires_utc: number }>,
+  options: { sessionPath?: string; ttlHours?: number; force?: boolean; source?: string } = {},
+): Promise<FrontSessionUnlockResult> {
+  const sessionPath = options.sessionPath ?? defaultSessionPath();
+  if (!options.force) {
+    const existing = await checkFrontSession(sessionPath);
+    if (existing.valid) {
+      return {
+        ...existing,
+        unlocked: true,
+        keychainAccessed: false,
+        reusedExisting: true,
+        note: "Unlocked session cache is already valid. Keychain was not accessed.",
+      };
+    }
+  }
+
+  const selected = selectFrontCookieRows(rows);
+  const createdAtMs = Date.now();
+  const ttlMs = Math.max(1, options.ttlHours ?? 12) * 60 * 60 * 1000;
+  const expirations = selected
+    .map((row) => chromeTimeToUnixMs(row.expires_utc))
+    .filter((expiresAt): expiresAt is number => Boolean(expiresAt && expiresAt > Date.now()));
+  const expiresAtMs = Math.min(createdAtMs + ttlMs, ...expirations);
+  const session: FrontSession = {
+    host: FRONT_COOKIE_HOST,
+    source: options.source ?? "plain-cookie-source",
+    cookieHeader: selected.map((row) => `${row.name}=${row.value}`).join("; "),
+    cookieNames: selected.map((row) => row.name),
+    createdAt: new Date(createdAtMs).toISOString(),
+    expiresAt: new Date(expiresAtMs).toISOString(),
+  };
+
+  await writeFrontSession(sessionPath, session);
+  return {
+    ...(await checkFrontSession(sessionPath)),
+    unlocked: true,
+    keychainAccessed: false,
+    reusedExisting: false,
+    note: `Unlocked Front session from ${options.source ?? "plain-cookie-source"}. Cookie values are not printed.`,
   };
 }
 
@@ -209,6 +278,8 @@ export async function readFrontSession(sessionPath = defaultSessionPath()): Prom
     const payload = JSON.parse(plaintext) as { cookieHeader: string };
     return {
       host: raw.host,
+      source: raw.source,
+      keychainServiceUsedForUnlock: raw.keychainServiceUsedForUnlock,
       cookieHeader: payload.cookieHeader,
       cookieNames: raw.cookieNames,
       createdAt: raw.createdAt,
@@ -252,18 +323,35 @@ async function readEncryptedFrontCookies(cookiesPath: string): Promise<CookieSec
     const sql = [
       "select host_key, name, hex(encrypted_value) as encrypted_value, expires_utc",
       "from cookies",
-      `where host_key = '${FRONT_COOKIE_HOST}' and name in ('front.id', 'front.id.sig')`,
-      "order by name;",
+      `where host_key in ('${FRONT_COOKIE_HOST}', '.frontapp.com') and name in ('front.id', 'front.id.sig')`,
+      "order by name, expires_utc desc;",
     ].join(" ");
     const { stdout } = await run("sqlite3", ["-json", copiedPath, sql], 1024 * 1024);
     const rows = stdout.trim() ? (JSON.parse(stdout) as CookieSecretRow[]) : [];
-    if (rows.length < 2) {
+    const selected = selectFrontCookieRows(rows);
+    if (selected.length < 2) {
       throw new Error("Front session cookies were not found. Open Front and sign in, then rerun `frontctl auth unlock`.");
     }
-    return rows;
+    return selected;
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+}
+
+function selectFrontCookieRows<T extends { host_key: string; name: string; expires_utc: number }>(rows: T[]): T[] {
+  const byName = new Map<string, T>();
+  for (const row of rows) {
+    if (row.name !== "front.id" && row.name !== "front.id.sig") {
+      continue;
+    }
+    const existing = byName.get(row.name);
+    if (!existing || row.expires_utc > existing.expires_utc || row.host_key === FRONT_COOKIE_HOST) {
+      byName.set(row.name, row);
+    }
+  }
+  return ["front.id", "front.id.sig"]
+    .map((name) => byName.get(name))
+    .filter((row): row is T => Boolean(row));
 }
 
 function readKeychainPassword(service: string) {
@@ -294,6 +382,8 @@ async function writeFrontSession(sessionPath: string, session: FrontSession) {
       keychainBackedSessionKey: false,
     },
     host: session.host,
+    source: session.source,
+    keychainServiceUsedForUnlock: session.keychainServiceUsedForUnlock,
     cookieNames: session.cookieNames,
     createdAt: session.createdAt,
     expiresAt: session.expiresAt,

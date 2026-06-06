@@ -60,12 +60,18 @@ The expected prompt model is:
 - `frontctl auth check --json`: no Keychain prompt.
 - `frontctl inbox list --live --json`: no Keychain prompt after unlock.
 - `frontctl auth unlock --ttl-hours 12 --json`: may prompt once for Touch ID or password.
+- `frontctl auth unlock --source default-browser --ttl-hours 12 --json`: may prompt once for the
+  signed-in Chrome or Microsoft Edge safe-storage item, then reuses the frontctl cache.
 - `frontctl auth unlock --force --ttl-hours 12 --json`: may prompt because the user explicitly
   requested a refresh.
 
 Repeated Keychain prompts during setup checks or live reads are a product bug. The fix is to use the
 short-lived encrypted session cache written by `auth unlock`, not to train the user to keep
 approving prompts.
+
+Browser onboarding should gracefully report the local state: no Front app installed is acceptable
+when Chrome or Edge has a signed-in Front profile; Safari should explain that cookie import needs
+optional `agentcookie` support or a future signed helper.
 
 Future hardening can move unlock into a signed helper using Keychain and LocalAuthentication. That
 is a post-MVP improvement; the MVP should avoid making ordinary read commands depend on Keychain.

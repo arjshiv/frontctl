@@ -1,4 +1,6 @@
 import { checkFrontSession } from "../lib/auth.js";
+import { agentcookieStatus } from "../lib/agentcookie.js";
+import { listBrowserProfiles } from "../lib/browserProfiles.js";
 import { defaultFrontPaths, type FrontPaths } from "../lib/paths.js";
 import { buildUserReadiness } from "../lib/readiness.js";
 import { agentsStatus, installAgentSkills, type AgentKind } from "./agents.js";
@@ -7,11 +9,15 @@ import { doctor } from "./doctor.js";
 export async function setupCommand(args: string[], paths: FrontPaths = defaultFrontPaths()) {
   const agent = readAgentFlag(args);
   const shouldInstallAgents = args.includes("--yes") || args.includes("--install-agents");
-  const [doctorResult, auth, agentCheck] = await Promise.all([
+  const [doctorResult, auth, agentCheck, agentcookie] = await Promise.all([
     doctor(paths),
     checkFrontSession(),
     agentsStatus(agent),
+    agentcookieStatus(),
   ]);
+  const browserProfiles = listBrowserProfiles();
+  const browserSessionAvailable = browserProfiles.some((profile) => profile.cookiesExists)
+    || Boolean(agentcookie.frontCookiesAvailable);
   const agentInstall = shouldInstallAgents
     ? await installAgentSkills(agent ?? "all", { write: args.includes("--yes") })
     : undefined;
@@ -21,6 +27,7 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
   const userReadiness = buildUserReadiness({
     frontAppInstalled,
     localProfileVisible,
+    browserSessionAvailable,
     authValid: auth.valid,
     agentsInstalled: finalAgentStatus.allInstalled,
   });
@@ -56,6 +63,19 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
       issues: doctorResult.issues,
     },
     auth,
+    authSources: {
+      browsers: browserProfiles.map((profile) => ({
+        browser: profile.browser,
+        profile: profile.profile,
+        cookiesExists: profile.cookiesExists,
+        supportsCookieImport: profile.supportsCookieImport,
+      })),
+      agentcookie: {
+        installed: agentcookie.installed,
+        plainCookiesExists: agentcookie.plainCookiesExists,
+        frontCookiesAvailable: agentcookie.frontCookiesAvailable,
+      },
+    },
     agents: {
       status: finalAgentStatus,
       install: agentInstall,

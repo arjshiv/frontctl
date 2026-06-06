@@ -34,6 +34,8 @@ test("package metadata publishes the frontctl bin and build lifecycle", async ()
   assert.equal(pkg.scripts?.["release:verify:strict"], "script/verify_release_ready.sh --strict");
   assert.ok(pkg.files?.includes("dist/src"));
   assert.ok(pkg.files?.includes("skills"));
+  assert.ok(pkg.files?.includes("AGENTS.md"));
+  assert.ok(pkg.files?.includes("agentcookie.toml"));
   assert.ok(pkg.files?.includes(".github/workflows"));
   assert.ok(pkg.files?.includes("script"));
   assert.ok(pkg.files?.includes("packaging"));
@@ -145,6 +147,17 @@ test("package metadata publishes the frontctl bin and build lifecycle", async ()
   const readme = await readFile("README.md", "utf8");
   assert.match(readme, /docs\/signing-notarization-setup\.md/);
   assert.match(readme, /docs\/github-preview-release\.md/);
+  assert.match(readme, /frontctl browser list --json/);
+  assert.match(readme, /--source default-browser/);
+  assert.match(readme, /agentcookie\.toml/);
+
+  const agents = await readFile("AGENTS.md", "utf8");
+  assert.match(agents, /Chrome\/Edge\/default-browser session unlock/);
+  assert.match(agents, /Do not force-refresh browser cookies/);
+
+  const agentcookieManifest = await readFile("agentcookie.toml", "utf8");
+  assert.match(agentcookieManifest, /app\.frontapp\.com/);
+  assert.match(agentcookieManifest, /~\/\.frontctl\/session\.json/);
 
   const postinstall = await readFile("packaging/pkg-scripts/postinstall", "utf8");
   assert.match(postinstall, /missing \/opt\/frontctl\/runtime\/node/);

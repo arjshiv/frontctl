@@ -23,8 +23,12 @@ run `frontctl readiness --json`. For a readiness report plus local skill install
 When reporting setup state, prefer `userReadiness.ready`, `userReadiness.state`, and
 `userReadiness.nextAction` from `frontctl readiness --json`, `frontctl setup --json`, or
 `frontctl diagnose --json`.
-For live private reads, run `frontctl auth check --json`; if it is not valid, ask before running
-`frontctl auth unlock --ttl-hours 12 --json` because the first unlock may touch macOS Keychain.
+For live private reads, run `frontctl auth check --json`; if it is not valid, inspect
+`frontctl browser list --json` and prefer
+`frontctl auth unlock --source default-browser --ttl-hours 12 --json` when the user is signed into
+Front in Chrome or Microsoft Edge. Otherwise ask before running
+`frontctl auth unlock --source front-app --ttl-hours 12 --json` because the first unlock may touch
+macOS Keychain.
 Never rerun unlock just to be safe when `auth check` is valid. `auth unlock` reuses a valid cache,
 and `--force` should be used only when the user explicitly wants to refresh the Front cookies.
 
@@ -49,6 +53,8 @@ frontctl cookies inspect --json
 frontctl asar inspect --json
 frontctl onboarding --json
 frontctl readiness --json
+frontctl browser list --json
+frontctl browser inspect --browser edge --json
 frontctl discovery launch --remote-debugging-port 9222 --print-only --json
 frontctl discovery guide --json
 frontctl discovery guide ACTION --json

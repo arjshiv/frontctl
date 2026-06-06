@@ -39,6 +39,8 @@ test("read-only CLI matrix stays JSON-safe and secret-free", async () => {
     ["readiness", "--json"],
     ["auth", "check", "--json"],
     ["auth", "security", "--json"],
+    ["browser", "list", "--json"],
+    ["browser", "inspect", "--browser", "edge", "--json"],
     ["front", "inspect", "--json"],
     ["cookies", "inspect", "--json"],
     ["asar", "inspect", "--json"],

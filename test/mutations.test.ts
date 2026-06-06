@@ -217,6 +217,7 @@ test("commentConversation audit log hashes body instead of storing raw text", as
 
 test("snooze and draft dry-runs remain non-sending and ready for explicit execution", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-gated");
+  process.env.FRONTCTL_NOW = "2026-06-05T16:00:00.000Z";
 
   const snooze = await snoozeConversation(["conversation-1", "tomorrow-9am"], paths);
   const draft = await draftCommand(["reply", "conversation-1", "--body", "Draft only"], paths) as any;
@@ -330,8 +331,9 @@ test("snooze executes only after matching fixture and unlocked session", async (
   process.env.FRONTCTL_DISCOVERY_FIXTURES_PATH = fixturePath;
   await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
 
+  const snoozeUntil = "2030-06-06T09:00:00.000Z";
   const request = await withMockedFrontRequest(async () => {
-    const result = await snoozeConversation(["conversation-1", "2026-06-06T09:00:00.000Z", "--yes"], paths) as any;
+    const result = await snoozeConversation(["conversation-1", snoozeUntil, "--yes"], paths) as any;
     assert.equal(result.mode, "execute");
     assert.equal(result.canExecute, true);
     assert.deepEqual(result.result, { ok: true });
@@ -339,7 +341,7 @@ test("snooze executes only after matching fixture and unlocked session", async (
 
   assert.equal(request.method, "POST");
   assert.match(request.url, /\/conversations\/conversation-1\/status\/snoozed$/);
-  assert.deepEqual(request.body, { until: "2026-06-06T09:00:00.000Z" });
+  assert.deepEqual(request.body, { until: snoozeUntil });
 });
 
 test("draft reply and compose become executable with matching non-send fixtures", async () => {

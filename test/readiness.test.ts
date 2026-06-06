@@ -16,6 +16,22 @@ test("buildUserReadiness reports ready only when every user gate passes", () => 
   assert.match(result.nextAction, /Do not send email/);
 });
 
+test("buildUserReadiness accepts browser session access without Front.app", () => {
+  const result = buildUserReadiness({
+    frontAppInstalled: false,
+    localProfileVisible: false,
+    browserSessionAvailable: true,
+    authValid: false,
+    agentsInstalled: true,
+  });
+
+  assert.equal(result.ready, false);
+  assert.equal(result.state, "live-mode-locked");
+  assert.equal(result.gates.find((gate) => gate.name === "frontApp")?.ok, true);
+  assert.equal(result.gates.find((gate) => gate.name === "frontSignIn")?.ok, true);
+  assert.match(result.nextAction, /auth unlock/);
+});
+
 test("buildUserReadiness returns the first actionable missing setup gate", () => {
   assert.equal(buildUserReadiness({
     frontAppInstalled: false,

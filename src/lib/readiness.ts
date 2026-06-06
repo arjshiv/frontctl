@@ -16,21 +16,24 @@ export interface UserReadiness {
 export function buildUserReadiness(input: {
   frontAppInstalled: boolean;
   localProfileVisible: boolean;
+  browserSessionAvailable?: boolean;
   authValid: boolean;
   agentsInstalled: boolean;
 }): UserReadiness {
+  const frontAccessAvailable = input.frontAppInstalled || Boolean(input.browserSessionAvailable) || input.authValid;
+  const signedInSessionAvailable = input.localProfileVisible || Boolean(input.browserSessionAvailable) || input.authValid;
   const gates: ReadinessGate[] = [
     {
       name: "frontApp",
-      ok: input.frontAppInstalled,
-      label: "Front app",
-      userAction: "Install Front for macOS.",
+      ok: frontAccessAvailable,
+      label: "Front access",
+      userAction: "Install Front for macOS, or sign into Front in Chrome or Microsoft Edge.",
     },
     {
       name: "frontSignIn",
-      ok: input.localProfileVisible,
+      ok: signedInSessionAvailable,
       label: "Front sign-in",
-      userAction: "Open Front and sign in, then wait for the inbox to load.",
+      userAction: "Open Front, Chrome, or Microsoft Edge and sign into Front, then wait for the inbox to load.",
     },
     {
       name: "liveMode",

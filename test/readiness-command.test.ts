@@ -49,8 +49,14 @@ async function withHome<T>(home: string, fn: () => Promise<T>) {
   const previousHome = process.env.HOME;
   const previousUserProfile = process.env.USERPROFILE;
   const previousSessionPath = process.env.FRONTCTL_SESSION_PATH;
+  const previousChromeRoot = process.env.FRONTCTL_CHROME_USER_DATA_DIR;
+  const previousEdgeRoot = process.env.FRONTCTL_EDGE_USER_DATA_DIR;
+  const previousAgentcookiePath = process.env.FRONTCTL_AGENTCOOKIE_COOKIES_PATH;
   process.env.HOME = home;
   process.env.USERPROFILE = home;
+  process.env.FRONTCTL_CHROME_USER_DATA_DIR = join(home, "Chrome");
+  process.env.FRONTCTL_EDGE_USER_DATA_DIR = join(home, "Edge");
+  process.env.FRONTCTL_AGENTCOOKIE_COOKIES_PATH = join(home, ".agentcookie", "cookies-plain.db");
   try {
     return await fn();
   } finally {
@@ -60,5 +66,11 @@ async function withHome<T>(home: string, fn: () => Promise<T>) {
     else process.env.USERPROFILE = previousUserProfile;
     if (previousSessionPath === undefined) delete process.env.FRONTCTL_SESSION_PATH;
     else process.env.FRONTCTL_SESSION_PATH = previousSessionPath;
+    if (previousChromeRoot === undefined) delete process.env.FRONTCTL_CHROME_USER_DATA_DIR;
+    else process.env.FRONTCTL_CHROME_USER_DATA_DIR = previousChromeRoot;
+    if (previousEdgeRoot === undefined) delete process.env.FRONTCTL_EDGE_USER_DATA_DIR;
+    else process.env.FRONTCTL_EDGE_USER_DATA_DIR = previousEdgeRoot;
+    if (previousAgentcookiePath === undefined) delete process.env.FRONTCTL_AGENTCOOKIE_COOKIES_PATH;
+    else process.env.FRONTCTL_AGENTCOOKIE_COOKIES_PATH = previousAgentcookiePath;
   }
 }

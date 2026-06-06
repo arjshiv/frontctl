@@ -1,0 +1,14 @@
+schema_version = 2
+name = "frontctl"
+display_name = "Frontctl"
+
+[cookies]
+domains = [
+  "app.frontapp.com",
+  ".frontapp.com"
+]
+
+[adapter.session_file]
+path = "~/.frontctl/session.json"
+format = "frontctl-session-v1"
+

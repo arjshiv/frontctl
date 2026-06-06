@@ -147,6 +147,44 @@ test("CLI auth unlock reuses an existing session without touching Keychain", asy
   assert.match(result.note, /Keychain was not accessed/);
 });
 
+test("CLI browser list reports default browser and sanitized profiles", async () => {
+  const root = await makeTempDir("frontctl-cli-browser");
+  const chromeRoot = join(root, "Chrome");
+  const edgeRoot = join(root, "Edge");
+  await mkdir(join(edgeRoot, "Default"), { recursive: true });
+  await mkdir(join(chromeRoot, "Default", "Network"), { recursive: true });
+  await writeFile(join(edgeRoot, "Default", "Cookies"), "SECRET_EDGE_COOKIE_DB");
+  await writeFile(join(chromeRoot, "Default", "Network", "Cookies"), "SECRET_CHROME_COOKIE_DB");
+
+  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "browser", "list", "--json"], {
+    env: {
+      ...process.env,
+      FRONTCTL_DEFAULT_BROWSER: "edge",
+      FRONTCTL_EDGE_USER_DATA_DIR: edgeRoot,
+      FRONTCTL_CHROME_USER_DATA_DIR: chromeRoot,
+    },
+  });
+  const result = JSON.parse(stdout) as {
+    defaultBrowser: { browser: string };
+    profiles: Array<{ browser: string; cookiesExists: boolean }>;
+  };
+
+  assert.equal(result.defaultBrowser.browser, "edge");
+  assert.ok(result.profiles.some((profile) => profile.browser === "edge" && profile.cookiesExists));
+  assert.ok(result.profiles.some((profile) => profile.browser === "chrome" && profile.cookiesExists));
+  assert.doesNotMatch(stdout, /SECRET_EDGE_COOKIE_DB|SECRET_CHROME_COOKIE_DB/);
+});
+
+test("CLI browser inspect reports Safari as open-only", async () => {
+  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "browser", "inspect", "--browser", "safari", "--json"]);
+  const result = JSON.parse(stdout) as {
+    profiles: Array<{ browser: string; supportsCookieImport: boolean }>;
+  };
+
+  assert.equal(result.profiles[0].browser, "safari");
+  assert.equal(result.profiles[0].supportsCookieImport, false);
+});
+
 test("CLI inbox list reads cached Front conversations without leaking cache tokens", async () => {
   const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-inbox"));
   await writeFakeFrontCacheFixture(paths);

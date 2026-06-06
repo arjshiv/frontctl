@@ -13,6 +13,7 @@ The first working loop exists:
 
 - local Front app/profile discovery
 - one-time `auth unlock` with a short-lived encrypted session cache
+- Chrome/Edge/default-browser session unlock, with optional agentcookie cookie-source support
 - non-prompting `auth check` and `readiness`
 - cached and live private-session inbox reads
 - search, read, summarize, triage, attachment metadata, tags, drafts, and local SQLite/FTS cache
@@ -69,6 +70,8 @@ is to avoid that class of setup.
   mailbox payloads, or screenshots of private mail.
 - Do not make normal read commands touch Keychain.
 - Do not reintroduce repeated Keychain prompts as an acceptable UX.
+- Do not force-refresh browser cookies unless the user explicitly needs it. Reuse the frontctl
+  session cache whenever it is valid.
 - Do not execute mutations without explicit user approval and a verified non-send route contract.
 - Keep support bundles redacted.
 - Keep agent output machine-readable with `--json` where possible.
@@ -96,6 +99,10 @@ useful enough. Sending is a different risk tier. Do not blur that line.
 
 The right Keychain model is one explicit unlock, then many non-prompting reads. If a future change
 makes every inbox read ask for Keychain access, treat it as a regression.
+
+This applies equally to browser sessions. `frontctl auth unlock --source edge` or
+`--source default-browser` may ask once for the browser safe-storage item. After that,
+`auth check`, `readiness`, and live reads must use the frontctl session cache without prompting.
 
 ### Design For Agents Installing This For Users
 
@@ -198,6 +205,8 @@ npm run release:verify:strict
 
 - `src/cli.ts`: command router
 - `src/lib/auth.ts`: local session unlock/cache behavior
+- `src/lib/browserProfiles.ts`: Chrome/Edge/default-browser discovery
+- `src/lib/agentcookie.ts`: optional agentcookie plaintext cookie sidecar support
 - `src/commands/readiness.ts`: user-facing setup gates
 - `src/commands/mutations.ts`: guarded non-send write actions
 - `src/lib/writeVerification.ts`: route verification and fixture checks
@@ -215,6 +224,9 @@ Make the obvious agent assumption true:
 
 - `frontctl readiness --json` should tell an agent exactly what to do next.
 - `frontctl auth check --json` should never prompt.
+- `frontctl browser list --json` should identify Chrome/Edge profiles without printing cookie values.
+- `frontctl auth unlock --source default-browser --json` should use Chrome/Edge when macOS points
+  to one of them.
 - `frontctl inbox list --live --json` should use the unlocked local session.
 - `frontctl diagnose --json` should be safe to share.
 - `frontctl send --json` should fail.

@@ -83,6 +83,23 @@ export async function makeCookieDb(path: string) {
   await execFileAsync("sqlite3", [path, sql]);
 }
 
+export async function makePlainCookieDb(path: string) {
+  await mkdir(join(path, ".."), { recursive: true });
+  const sql = `
+    CREATE TABLE cookies(
+      host_key TEXT NOT NULL,
+      name TEXT NOT NULL,
+      value TEXT NOT NULL,
+      expires_utc INTEGER NOT NULL
+    );
+    INSERT INTO cookies VALUES
+      ('app.frontapp.com', 'front.id', 'SECRET_COOKIE_VALUE', 20000000000000000),
+      ('app.frontapp.com', 'front.id.sig', 'SECRET_SIG_VALUE', 20000000000000000),
+      ('example.com', 'not-front', 'NOPE', 20000000000000000);
+  `;
+  await execFileAsync("sqlite3", [path, sql]);
+}
+
 export async function writeFakeFrontCacheFixture(paths: FrontPaths) {
   const inbox = {
     fetch_at: Date.parse("2026-06-05T18:26:22.041Z"),

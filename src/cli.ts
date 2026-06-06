@@ -5,6 +5,7 @@ import { inspectAsar } from "./commands/asar.js";
 import { attachmentsCommand } from "./commands/attachments.js";
 import { auditCommand } from "./commands/audit.js";
 import { authCommand } from "./commands/auth.js";
+import { browserCommand } from "./commands/browser.js";
 import { cacheCommand } from "./commands/cache.js";
 import { inspectCookies } from "./commands/cookies.js";
 import { readConversation } from "./commands/conversation.js";
@@ -49,6 +50,7 @@ const commandTree: Record<string, CommandHandler | Record<string, CommandHandler
     inspect: async () => inspectFront(),
   },
   auth: authCommand,
+  browser: browserCommand,
   audit: auditCommand,
   diagnose: diagnoseCommand,
   attachments: {
@@ -143,6 +145,9 @@ function usage() {
       "frontctl diagnose [--output support.json] [--json]",
       "frontctl uninstall [--yes] [--keep-agents] [--keep-data] [--json]",
       "frontctl auth check|security|unlock [--ttl-hours 12] [--force]|clear [--json]",
+      "frontctl auth unlock --source front-app|chrome|edge|default-browser|agentcookie [--profile Default] [--ttl-hours 12] [--force] [--json]",
+      "frontctl browser list [--json]",
+      "frontctl browser inspect --browser chrome|edge|safari [--json]",
       "frontctl audit list [--limit 50] [--action ACTION] [--conversation ID] [--mode dry-run|execute] [--json]",
       "frontctl attachments list CONVERSATION_ID [--live] [--json]",
       "frontctl discovery launch [--remote-debugging-port 9222] [--print-only] [--json]",

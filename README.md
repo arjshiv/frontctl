@@ -148,8 +148,11 @@ Live private-session commands:
 
 ```bash
 frontctl auth unlock --ttl-hours 12 --json
+frontctl auth unlock --source default-browser --ttl-hours 12 --json
+frontctl auth unlock --source edge --profile Default --ttl-hours 12 --json
 frontctl auth check --json
 frontctl auth security --json
+frontctl browser list --json
 frontctl whoami --json
 frontctl inbox list --live --limit 20 --json
 frontctl triage inbox --live --limit 20 --json
@@ -162,11 +165,27 @@ frontctl open CONVERSATION_ID --web --print-only --json
 ```
 
 `auth unlock` is the only command that should touch macOS Keychain. It may ask for Touch ID or the
-account password once to read Front Safe Storage, then writes a short-lived encrypted session cache
-at `~/.frontctl/session.json` with `0600` permissions so normal commands do not repeatedly trigger
-Keychain prompts. `auth security --json` reports this prompt model for agents and support tooling.
+account password once to read the selected local app or browser safe-storage item, then writes a
+short-lived encrypted session cache at `~/.frontctl/session.json` with `0600` permissions so normal
+commands do not repeatedly trigger Keychain prompts. Supported unlock sources are `front-app`,
+`chrome`, `edge`, `default-browser`, and optional `agentcookie`. `auth security --json` reports this
+prompt model for agents and support tooling.
 If that cache is still valid, rerunning `auth unlock` reuses it without touching Keychain; pass
 `--force` only when you intentionally want to refresh the Front cookies.
+
+Browser session commands:
+
+```bash
+frontctl browser list --json
+frontctl browser inspect --browser edge --json
+frontctl browser inspect --browser chrome --json
+frontctl auth unlock --source default-browser --ttl-hours 12 --json
+frontctl auth unlock --source agentcookie --ttl-hours 12 --json
+```
+
+`default-browser` auto-detects the macOS HTTPS handler and supports Chrome or Microsoft Edge cookie
+profiles. Safari is currently open-only unless `agentcookie` or a future signed helper provides the
+Front cookies. Optional `agentcookie` support is declared in `agentcookie.toml`.
 
 Local index commands:
 

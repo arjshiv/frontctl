@@ -9,7 +9,12 @@ Requirements:
 - Use `frontctl readiness --json`, `frontctl setup --json`, or `frontctl diagnose --json` and
   prefer `userReadiness.nextAction` when explaining setup status.
 - Run `frontctl auth check --json` before live private reads.
-- If live mode is locked, ask the user before running `frontctl auth unlock --ttl-hours 12 --json`.
+- If live mode is locked, inspect `frontctl browser list --json` and prefer
+  `frontctl auth unlock --source default-browser --ttl-hours 12 --json` when the user is signed into
+  Front in Chrome or Microsoft Edge. Otherwise ask the user before running
+  `frontctl auth unlock --source front-app --ttl-hours 12 --json`.
+- Never rerun unlock just to be safe when `auth check` is valid. Unlock reuses the valid session
+  cache and should not repeatedly prompt for Keychain access.
 - Never use the public Front API.
 - Never send email.
 - Never print cookies, auth headers, or raw private payloads.
@@ -19,6 +24,7 @@ Safe starting commands:
 ```bash
 frontctl doctor --json
 frontctl readiness --json
+frontctl browser list --json
 frontctl agents prompt --agent chatgpt --json
 frontctl inbox list --limit 20 --json
 frontctl triage inbox --limit 20 --json

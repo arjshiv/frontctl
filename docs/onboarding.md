@@ -146,11 +146,22 @@ For live private Front requests, run:
 frontctl auth unlock --ttl-hours 12 --json
 ```
 
+If the user is signed into Front in their default browser, prefer the browser source:
+
+```bash
+frontctl browser list --json
+frontctl auth unlock --source default-browser --ttl-hours 12 --json
+```
+
 This is the only setup step that may ask for macOS Keychain access. After it succeeds, regular
 commands use the short-lived encrypted frontctl session cache and should not keep asking for
 Keychain permission. Rerunning `frontctl auth unlock` while the cache is valid reuses the cache and
 does not touch Keychain. Use `frontctl auth unlock --force --ttl-hours 12 --json` only when the
 cached Front session has expired or you need to refresh it deliberately.
+
+`--source default-browser` auto-detects Chrome or Microsoft Edge from macOS Launch Services and
+uses the signed-in browser profile. Safari is open-only for the MVP; use optional `agentcookie`
+support or a future signed helper for Safari cookie import.
 
 Check it later without prompting, and inspect the prompt/security model:
 
