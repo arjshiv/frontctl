@@ -8,6 +8,34 @@ summaries, sanitized attachment metadata, local SQLite/FTS cache search, draft i
 approved archive/snooze/tag/comment/draft actions, sanitized endpoint discovery, and audit review.
 Sending email is blocked.
 
+## Motivation
+
+Front is an excellent shared-inbox product, but its public API is shaped around workspace and team
+inbox automation. That leaves a frustrating gap for people who do a lot of real work from a personal
+Front inbox: the official API cannot simply act like a local mail client for that signed-in user.
+
+The result is that agents and scripts can often manage Gmail, local mail stores, or browser sessions
+more directly than they can manage Front, even when the Front desktop app is already open and fully
+authenticated on the user's Mac. For personal inbox workflows, that feels backwards. The data and
+permissions are present locally, but the API boundary prevents useful everyday automation such as:
+
+- listing and triaging personal inbox conversations
+- reading and summarizing threads
+- archiving or snoozing messages
+- applying tags and adding internal comments
+- drafting replies without sending them
+- searching recent mail without copying private payloads into an external service
+
+`frontctl` exists to close that local-user gap. It treats the signed-in Front desktop app as the
+source of authority, uses the user's existing local session, and avoids the public Front API
+entirely. The goal is to make Front manageable from Claude, ChatGPT, Codex, or a normal terminal in
+the same way users expect from other mail clients: local, scriptable, personal-inbox aware, and safe
+by default.
+
+The safety boundary is deliberate. `frontctl` can inspect, summarize, organize, comment, tag, snooze,
+and draft, but it must not send email. Outbound sending should remain a human-controlled action until
+the review and approval model is much more mature.
+
 Current local install from this repo:
 
 ```bash
