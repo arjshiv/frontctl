@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+
+if [ ! -x /opt/frontctl/runtime/node ]; then
+  echo "frontctl install failed: missing /opt/frontctl/runtime/node" >&2
+  exit 1
+fi
+
+if [ ! -f /opt/frontctl/dist/src/cli.js ]; then
+  echo "frontctl install failed: missing /opt/frontctl/dist/src/cli.js" >&2
+  exit 1
+fi
+
+if [ ! -x /opt/frontctl/bin/frontctl ]; then
+  echo "frontctl install failed: missing /opt/frontctl/bin/frontctl" >&2
+  exit 1
+fi
+
+mkdir -p /usr/local/bin
+ln -sf /opt/frontctl/bin/frontctl /usr/local/bin/frontctl
+
+/usr/local/bin/frontctl --version >/dev/null
+
+exit 0
