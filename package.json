@@ -1,0 +1,46 @@
+{
+  "name": "frontctl",
+  "version": "0.1.0",
+  "description": "Local-session CLI for controlling Front desktop without the public Front API.",
+  "type": "module",
+  "files": [
+    "dist/src",
+    "skills",
+    "docs",
+    "README.md",
+    ".github/workflows",
+    "script",
+    "packaging",
+    "macos/FrontctlSetup/Package.swift",
+    "macos/FrontctlSetup/Sources"
+  ],
+  "bin": {
+    "frontctl": "./dist/src/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test dist/**/*.test.js",
+    "test:readonly": "npm run build && node --test dist/test/readonly-matrix.test.js",
+    "pretest": "npm run build",
+    "start": "node dist/src/cli.js",
+    "prepack": "npm run build",
+    "prepare": "npm run build",
+    "build:package": "script/build_package.sh",
+    "build:setup-app": "script/build_setup_app.sh",
+    "release:doctor": "script/check_signing_prereqs.sh",
+    "release:doctor:json": "script/check_signing_prereqs.sh --json",
+    "release:check": "script/check_release.sh",
+    "release:check:local": "script/check_release.sh --allow-unsigned",
+    "release:homebrew-cask": "script/generate_homebrew_cask.sh",
+    "release:verify:local": "script/verify_release_ready.sh --local",
+    "release:verify:strict": "script/verify_release_ready.sh --strict"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.0"
+  }
+}
