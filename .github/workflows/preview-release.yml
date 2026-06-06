@@ -1,0 +1,45 @@
+name: Preview Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Preview release tag, for example v0.1.0-preview.1"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  github-preview-release:
+    runs-on: macos-15
+    env:
+      FRONTCTL_DOWNLOAD_BASE_URL: "https://github.com/${{ github.repository }}/releases/download/${{ inputs.tag }}"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: npm
+      - run: npm ci
+      - run: npm run release:verify:local
+      - run: npm run release:homebrew-cask
+      - name: Upload unsigned preview artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          prerelease: true
+          generate_release_notes: true
+          body: |
+            Unsigned preview build for early testing.
+
+            This release is distributed through GitHub Releases, not the Mac App Store. Because it is
+            unsigned, macOS Gatekeeper may require users to right-click and choose Open or approve it
+            from System Settings. Use the signed release workflow once Developer ID certificates and
+            notarization credentials are configured.
+          files: |
+            dist/package/frontctl-*.pkg
+            dist/package/frontctl-*.dmg
+            dist/package/frontctl-*-manifest.json
+            dist/package/frontctl.rb
