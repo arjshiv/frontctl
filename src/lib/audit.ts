@@ -7,9 +7,17 @@ export interface MutationAuditEvent {
   action: string;
   mode: "dry-run" | "execute";
   conversationId?: string;
+  actor?: MutationActor;
+  reason?: string;
   method?: string;
   path?: string;
   body?: unknown;
+}
+
+export interface MutationActor {
+  name: string;
+  client?: string;
+  runId?: string;
 }
 
 export interface MutationAuditEntry {
@@ -17,6 +25,8 @@ export interface MutationAuditEntry {
   action?: string;
   mode?: "dry-run" | "execute";
   conversationId?: string;
+  actor?: MutationActor;
+  reason?: string;
   method?: string;
   path?: string;
   bodyKeys?: string[];
@@ -34,6 +44,8 @@ export async function auditMutation(event: MutationAuditEvent, auditPath = defau
     action: event.action,
     mode: event.mode,
     conversationId: event.conversationId,
+    actor: event.actor,
+    reason: event.reason,
     method: event.method,
     path: event.path,
     bodyKeys: bodyKeys(event.body),
@@ -91,6 +103,8 @@ function parseAuditLine(line: string): MutationAuditEntry | undefined {
       action: stringField(entry.action),
       mode: entry.mode === "dry-run" || entry.mode === "execute" ? entry.mode : undefined,
       conversationId: stringField(entry.conversationId),
+      actor: actorField(entry.actor),
+      reason: stringField(entry.reason),
       method: stringField(entry.method),
       path: stringField(entry.path),
       bodyKeys: Array.isArray(entry.bodyKeys) ? entry.bodyKeys.map(String).sort() : undefined,
@@ -99,6 +113,22 @@ function parseAuditLine(line: string): MutationAuditEntry | undefined {
   } catch {
     return undefined;
   }
+}
+
+function actorField(value: unknown): MutationActor | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const raw = value as Record<string, unknown>;
+  const name = stringField(raw.name);
+  if (!name) {
+    return undefined;
+  }
+  return {
+    name,
+    client: stringField(raw.client),
+    runId: stringField(raw.runId),
+  };
 }
 
 function bodyKeys(body: unknown) {

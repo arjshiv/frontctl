@@ -11,6 +11,8 @@ test("listAuditEntries returns redacted newest-first mutation entries", async ()
     action: "comment.add",
     mode: "dry-run",
     conversationId: "conversation-1",
+    actor: { name: "Claude", client: "claude", runId: "run-1" },
+    reason: "User asked me to leave a note",
     method: "POST",
     path: "/comments",
     body: { body: "SECRET COMMENT BODY" },
@@ -33,6 +35,8 @@ test("listAuditEntries returns redacted newest-first mutation entries", async ()
   assert.deepEqual(result.entries.map((entry) => entry.action), ["tag.add", "comment.add"]);
   assert.equal(commentOnly.count, 1);
   assert.equal(commentOnly.entries[0].conversationId, "conversation-1");
+  assert.deepEqual(commentOnly.entries[0].actor, { name: "Claude", client: "claude", runId: "run-1" });
+  assert.equal(commentOnly.entries[0].reason, "User asked me to leave a note");
   assert.deepEqual(commentOnly.entries[0].bodyKeys, ["body"]);
   assert.match(commentOnly.entries[0].bodySha256 ?? "", /^[a-f0-9]{64}$/);
   assert.equal(conversationOnly.count, 1);

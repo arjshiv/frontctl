@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { auditMutation } from "../lib/audit.js";
+import { auditMutation, type MutationActor } from "../lib/audit.js";
 import { CliError } from "../lib/cli.js";
 import { listCachedDrafts, readCachedDraft } from "../lib/draftCache.js";
 import { createFrontPrivateClient, getBoot } from "../lib/frontPrivate.js";
@@ -13,6 +13,8 @@ type MutationMode = "dry-run" | "execute";
 interface MutationSpec {
   action: string;
   conversationId?: string;
+  actor?: MutationActor;
+  reason?: string;
   method?: string;
   url?: string;
   body?: unknown;
@@ -193,31 +195,40 @@ export async function draftCommand(args: string[], paths: FrontPaths = defaultFr
 async function runMutation(args: string[], spec: MutationSpec, _paths: FrontPaths) {
   const mode: MutationMode = args.includes("--yes") && !args.includes("--dry-run") ? "execute" : "dry-run";
   const path = spec.url ? new URL(spec.url).pathname : undefined;
+  const actor = actorFromArgs(args);
+  const reason = readStringFlag(args, "--reason");
+  const identifiedSpec = {
+    ...spec,
+    actor,
+    reason,
+  };
   await auditMutation({
-    action: spec.action,
+    action: identifiedSpec.action,
     mode,
-    conversationId: spec.conversationId,
-    method: spec.method,
+    conversationId: identifiedSpec.conversationId,
+    actor,
+    reason,
+    method: identifiedSpec.method,
     path,
-    body: spec.body,
+    body: identifiedSpec.body,
   });
 
   if (mode === "dry-run") {
-    return preview(spec, mode);
+    return preview(identifiedSpec, mode);
   }
 
-  if (!spec.canExecute) {
-    throw new CliError(spec.note ?? `${spec.action} execution is not enabled yet.`, 69);
+  if (!identifiedSpec.canExecute) {
+    throw new CliError(identifiedSpec.note ?? `${identifiedSpec.action} execution is not enabled yet.`, 69);
   }
 
-  if (!spec.url || !spec.method) {
-    throw new CliError(`Missing route for ${spec.action}`, 69);
+  if (!identifiedSpec.url || !identifiedSpec.method) {
+    throw new CliError(`Missing route for ${identifiedSpec.action}`, 69);
   }
 
   const client = await createFrontPrivateClient(_paths);
-  const result = await client.requestJson(spec.url, { method: spec.method, body: spec.body });
+  const result = await client.requestJson(identifiedSpec.url, { method: identifiedSpec.method, body: identifiedSpec.body });
   return {
-    ...preview(spec, mode),
+    ...preview(identifiedSpec, mode),
     result,
   };
 }
@@ -229,6 +240,12 @@ function preview(spec: MutationSpec, mode: MutationMode) {
     sendsEmail: false,
     mode,
     action: spec.action,
+    actor: spec.actor,
+    reason: spec.reason,
+    identity: {
+      frontVisibleComment: false,
+      note: "Action identity is recorded in frontctl preview/audit metadata. No Front comment is added automatically, so archive/snooze state is not disturbed.",
+    },
     canExecute: spec.canExecute,
     verification: spec.verification,
     conversationId: spec.conversationId,
@@ -239,6 +256,14 @@ function preview(spec: MutationSpec, mode: MutationMode) {
     },
     details: spec.details,
     note: noteFor(spec, mode),
+  };
+}
+
+function actorFromArgs(args: string[]): MutationActor {
+  return {
+    name: readStringFlag(args, "--actor") ?? readStringFlag(args, "--agent-name") ?? process.env.FRONTCTL_ACTOR_NAME ?? "frontctl agent",
+    client: readStringFlag(args, "--client") ?? process.env.FRONTCTL_ACTOR_CLIENT,
+    runId: readStringFlag(args, "--run-id") ?? process.env.FRONTCTL_RUN_ID,
   };
 }
 
@@ -269,15 +294,7 @@ function positional(args: string[]) {
   const values: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (arg === "--body") {
-      index += 1;
-      continue;
-    }
-    if (arg === "--body-file") {
-      index += 1;
-      continue;
-    }
-    if (arg === "--limit") {
+    if (["--body", "--body-file", "--limit", "--actor", "--agent-name", "--client", "--run-id", "--reason"].includes(arg)) {
       index += 1;
       continue;
     }

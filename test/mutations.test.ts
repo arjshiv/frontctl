@@ -14,10 +14,23 @@ import { makeFakeFrontInstall, makeTempDir, writeFakeFrontSession } from "./help
 test("archiveConversation dry-run builds discovered private route without unlocked auth", async () => {
   const { paths, auditPath } = await fakeMutationContext("frontctl-mutation-archive");
 
-  const result = await archiveConversation(["conversation-1"], paths);
+  const result = await archiveConversation([
+    "conversation-1",
+    "--actor",
+    "Codex",
+    "--client",
+    "codex",
+    "--run-id",
+    "run-123",
+    "--reason",
+    "Low-value automated notification",
+  ], paths);
 
   assert.equal(result.mode, "dry-run");
   assert.equal(result.action, "archive");
+  assert.deepEqual(result.actor, { name: "Codex", client: "codex", runId: "run-123" });
+  assert.equal(result.reason, "Low-value automated notification");
+  assert.equal(result.identity.frontVisibleComment, false);
   assert.equal(result.canExecute, true);
   assert.equal(result.request.method, "POST");
   assert.match(result.request.path ?? "", /\/conversation_batch\/archive$/);
@@ -25,7 +38,10 @@ test("archiveConversation dry-run builds discovered private route without unlock
   assert.ok(result.verification);
   assert.equal(result.verification.verified, true);
   assert.equal(result.verification.source, "known-route");
-  assert.match(await readFile(auditPath, "utf8"), /"action":"archive"/);
+  const audit = await readFile(auditPath, "utf8");
+  assert.match(audit, /"action":"archive"/);
+  assert.match(audit, /"actor":\{"name":"Codex","client":"codex","runId":"run-123"\}/);
+  assert.match(audit, /Low-value automated notification/);
 });
 
 test("archiveConversation can execute only after a matching sanitized fixture exists", async () => {
@@ -209,6 +225,8 @@ test("commentConversation audit log hashes body instead of storing raw text", as
   const audit = await readFile(auditPath, "utf8");
 
   assert.equal(result.mode, "dry-run");
+  assert.equal(result.actor.name, "frontctl agent");
+  assert.equal(result.identity.frontVisibleComment, false);
   assert.equal(result.canExecute, true);
   assert.deepEqual(result.request.body, { body: "SECRET COMMENT BODY" });
   assert.doesNotMatch(audit, /SECRET COMMENT BODY/);
