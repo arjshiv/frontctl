@@ -1,0 +1,255 @@
+# frontctl
+
+Local-session CLI for controlling Front desktop mail without the public Front API.
+
+This project is intentionally scoped around the authenticated local Front app profile. The current
+milestone supports diagnostics, cached and live inbox listing, conversation reads, search,
+summaries, sanitized attachment metadata, local SQLite/FTS cache search, draft inspection,
+approved archive/snooze/tag/comment/draft actions, sanitized endpoint discovery, and audit review.
+Sending email is blocked.
+
+Current local install from this repo:
+
+```bash
+npm install
+npm run build
+npm run test:readonly
+npm link
+frontctl doctor --json
+frontctl inbox list --json
+```
+
+Non-technical macOS install path:
+
+1. Open `frontctl-<version>.dmg`.
+2. Run `frontctl-<version>.pkg`.
+3. Open `Frontctl Setup.app` from the DMG.
+4. Click `Check Setup`, then `Install Agent Skills`, then `Enable Live Mode`.
+5. Copy the short agent prompt into Claude/Codex, or copy ChatGPT instructions from the setup app.
+
+Verify the CLI after installation:
+
+```bash
+frontctl --version
+frontctl version --json
+frontctl doctor --json
+frontctl readiness --json
+```
+
+Build local macOS distribution artifacts:
+
+```bash
+npm run build:setup-app
+npm run build:package
+npm run release:check:local
+```
+
+Build and publish an unsigned GitHub prerelease for early testers:
+
+```bash
+npm run release:verify:local
+# or run the GitHub Actions "Preview Release" workflow with a preview tag
+```
+
+Generate a Homebrew cask from the built DMG manifest:
+
+```bash
+FRONTCTL_DOWNLOAD_BASE_URL=https://example.com/frontctl/v0.1.0 npm run release:homebrew-cask
+```
+
+After the package is published to npm, the developer install path is:
+
+```bash
+npm install -g frontctl
+frontctl --version
+frontctl doctor --json
+frontctl setup --agent all --yes --json
+```
+
+Without `npm link` during development, run commands through Node:
+
+```bash
+node dist/src/cli.js inbox list --json
+```
+
+Agent skill install:
+
+```bash
+frontctl setup --agent all --yes --json
+frontctl agents check --json
+frontctl agents install --agent codex --yes --json
+frontctl agents install --agent claude --yes --json
+frontctl agents prompt --agent chatgpt --json
+```
+
+Without `--yes`, `frontctl setup --install-agents` and `frontctl agents install` are dry runs that
+print the source and destination path without copying anything. Use `--agent all` to install both
+local skills.
+ChatGPT does not have the same local skill directory as Codex/Claude; use
+`frontctl agents prompt --agent chatgpt --json` and paste the instructions into a ChatGPT session
+that has local terminal or Codex-style command execution access.
+
+Support and uninstall:
+
+```bash
+frontctl diagnose --output frontctl-support.json --json
+frontctl uninstall --json
+frontctl uninstall --yes --json
+```
+
+`diagnose` writes a redacted support bundle with setup status, route verification, storage
+metadata, and the same `userReadiness` gate summary returned by `frontctl setup --json`. It does not
+include cookie values, auth headers, mailbox bodies, email subjects, or signed attachment URLs.
+`uninstall` is a dry run unless `--yes` is present.
+For a short non-prompting readiness check, use `frontctl readiness --json`; it reports setup gates
+and one next action without reading mailbox contents or Keychain.
+
+Useful read-only commands:
+
+```bash
+frontctl inbox list --limit 20 --json
+frontctl inbox list --all --limit 50 --json
+frontctl triage inbox --limit 20 --json
+frontctl search "ResiDesk" --json
+frontctl read CONVERSATION_ID --json
+frontctl read CONVERSATION_ID --format markdown
+frontctl summarize CONVERSATION_ID --format plain
+```
+
+Live private-session commands:
+
+```bash
+frontctl auth unlock --ttl-hours 12 --json
+frontctl auth check --json
+frontctl auth security --json
+frontctl whoami --json
+frontctl inbox list --live --limit 20 --json
+frontctl triage inbox --live --limit 20 --json
+frontctl search "ResiDesk" --live --json
+frontctl read CONVERSATION_ID --live --json
+frontctl summarize CONVERSATION_ID --live --json
+frontctl attachments list CONVERSATION_ID --live --json
+frontctl open CONVERSATION_ID --print-only --json
+frontctl open CONVERSATION_ID --web --print-only --json
+```
+
+`auth unlock` is the only command that should touch macOS Keychain. It may ask for Touch ID or the
+account password once to read Front Safe Storage, then writes a short-lived encrypted session cache
+at `~/.frontctl/session.json` with `0600` permissions so normal commands do not repeatedly trigger
+Keychain prompts. `auth security --json` reports this prompt model for agents and support tooling.
+If that cache is still valid, rerunning `auth unlock` reuses it without touching Keychain; pass
+`--force` only when you intentionally want to refresh the Front cookies.
+
+Local index commands:
+
+```bash
+frontctl sync --live --limit 100 --json
+frontctl cache stats --json
+frontctl cache stats --max-age-hours 6 --json
+frontctl cache search "ResiDesk" --limit 10 --json
+frontctl cache read CONVERSATION_ID --json
+frontctl cache read CONVERSATION_ID --format markdown
+```
+
+The local index lives at `~/.frontctl/frontctl.sqlite` by default. It contains normalized mailbox
+metadata, sanitized attachment metadata, and bounded timeline text for search/read; it does not
+store cookies or auth headers. Timeline text is preserved up to 20,000 characters per item and
+marks clipped items with `textTruncated` plus `textLength`.
+Cache stats/search/read include `freshness` metadata. By default, index results are considered
+fresh for 12 hours; override with `--max-age-hours N` or `FRONTCTL_STORE_MAX_AGE_HOURS`.
+For agent-readable output, `inbox list`, `search`, `read`, and `summarize` support
+`--format markdown` and `--format plain`.
+
+Optional Markdown querying with [`mq`](https://github.com/harehare/mq):
+
+```bash
+frontctl mq check --json
+frontctl mq install --print-only --json
+frontctl read CONVERSATION_ID --format markdown > conversation.md
+frontctl mq query --query '.h' --input conversation.md --output-format text
+```
+
+`mq` is optional. `frontctl mq install --yes --json` installs it with Homebrew; without `--yes`,
+the installer only prints the command.
+
+`frontctl open CONVERSATION_ID` opens a Front deeplink with macOS `open`. Use `--web` to open the
+Front web URL instead, and `--print-only` to inspect targets without launching anything.
+
+Discovery and draft commands:
+
+```bash
+frontctl discovery launch --remote-debugging-port 9222 --json
+frontctl discovery guide --json
+frontctl discovery guide comment.add --json
+frontctl discovery capture --remote-debugging-port 9222 --duration-ms 15000 --install --name comment --json
+frontctl discovery capture --remote-debugging-port 9222 --duration-ms 15000 --output sanitized.json --json
+frontctl discovery sanitize --input capture.har --output sanitized.json --json
+frontctl discovery fixtures install sanitized.json --json
+frontctl discovery fixtures list --json
+frontctl discovery verify-writes --json
+frontctl audit list --json
+frontctl triage inbox --json
+frontctl tag list --json
+frontctl tag list --live --json
+frontctl draft list --limit 20 --json
+frontctl draft read DRAFT_ID --json
+frontctl draft reply CONVERSATION_ID --body-file reply.md --json
+frontctl draft compose --to person@example.com --subject "Draft subject" --body-file draft.md --json
+frontctl draft discard DRAFT_ID --json
+```
+
+Discovery output is sanitized by default. Draft list/read scans Front's local IndexedDB cache.
+Draft reply/compose/discard do not send. Compose accepts optional `--to`, `--cc`, `--bcc`, and
+`--subject` fields for draft creation. Draft writes require a preview plus explicit `--yes`; they
+use frontctl's built-in non-send route contract unless you opt into strict local discovery fixtures.
+`frontctl tag list` returns sanitized tag metadata (`id`, `alias`, `name`, and `color`) so agents
+can choose a real tag before previewing tag add/remove. `tag add/remove` accepts an alias, id, or
+unique name from the tag catalog and shows `details.tag.resolvedAlias` in preview. Ambiguous names
+fail instead of guessing.
+For optional write-route recapture on a new Front version, run `frontctl discovery launch`, perform
+exactly one safe write-like action inside Front, then run
+`frontctl discovery capture --install --name ACTION`. Use `frontctl discovery guide [ACTION] --json`
+for action-specific safe steps and capture commands.
+The installed fixture
+stores method, route shape, and body shape only; it does not store cookies, auth headers, query
+tokens, body text, subjects, email addresses, or signed attachment URLs.
+
+Guarded mutation previews:
+
+```bash
+frontctl --dry-run archive CONVERSATION_ID --yes --json
+frontctl archive CONVERSATION_ID --json
+frontctl archive CONVERSATION_ID ANOTHER_CONVERSATION_ID --json
+frontctl snooze CONVERSATION_ID tomorrow-9am --json
+frontctl tag list --json
+frontctl tag add CONVERSATION_ID "Needs Reply" --json
+frontctl comment add CONVERSATION_ID --body "Internal note" --json
+frontctl comment add CONVERSATION_ID --body-file note.md --json
+frontctl draft reply CONVERSATION_ID --body "Draft text" --json
+frontctl draft compose --to person@example.com --subject "Draft subject" --body "Draft text" --json
+```
+
+Mutation execution requires explicit `--yes`, an unlocked local session, and either frontctl's
+built-in known non-send route contract or a matching sanitized discovery fixture. `--dry-run` can
+appear before or after a mutation command and forces preview mode even if `--yes` is present. Set
+`FRONTCTL_REQUIRE_DISCOVERY_FIXTURES=1` to require local recaptured fixtures before writes.
+Snooze accepts ISO timestamps plus deterministic shortcuts: `in:30m`, `in:2h`, `later`,
+`tomorrow`, `tomorrow-9am`, and weekday forms such as `monday-9am`. Preview output includes
+`details.normalizedUntil` before any write.
+Use `frontctl audit list --json` to inspect recent mutation previews or attempts. Audit entries
+store action, mode, route, body keys, and a body hash; they do not store raw comment or draft text.
+`FRONTCTL_DISCOVERY_FIXTURES_PATH` can override the default store path.
+`frontctl send` is always blocked.
+
+See [docs/implementation-plan.md](docs/implementation-plan.md) for the architecture, milestones,
+and safety rules.
+
+For the intended non-technical setup flow, see [docs/onboarding.md](docs/onboarding.md).
+For macOS package and GitHub self-distribution, see
+[docs/distribution.md](docs/distribution.md) and
+[docs/github-preview-release.md](docs/github-preview-release.md). For the consumer product,
+failure handling, and security UX contract, see [docs/product-packaging.md](docs/product-packaging.md).
+For the go/no-go release gates before handing a DMG to a non-technical user, see
+[docs/release-checklist.md](docs/release-checklist.md). For Apple Developer ID certificates,
+notarization credentials, and GitHub release secrets, see
+[docs/signing-notarization-setup.md](docs/signing-notarization-setup.md).
