@@ -1,0 +1,465 @@
+import { createHash } from "node:crypto";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { basename, join } from "node:path";
+import { sanitizeDiscoveryInput } from "./discovery.js";
+
+export interface WriteVerification {
+  verified: boolean;
+  action: string;
+  expectedRouteKind: string;
+  source?: "discovery-fixture" | "known-route";
+  fixturePath?: string;
+  requestBodyShapeMatched?: boolean;
+  reason?: string;
+}
+
+export interface WriteCaptureGuide {
+  action: string;
+  verified: boolean;
+  expectedRouteKind: string;
+  fixturePath?: string;
+  safeFrontAction: string;
+  previewCommand: string;
+  captureName: string;
+  captureCommand: string;
+  verifyCommand: string;
+  notes: string[];
+}
+
+interface SanitizedEntry {
+  method?: string;
+  path?: string;
+  routeKind?: string;
+  requestBodyShape?: unknown;
+}
+
+const ACTION_ROUTE_KIND: Record<string, string> = {
+  archive: "archive",
+  "tag.add": "tag.add",
+  "tag.remove": "tag.remove",
+  "comment.add": "comment.add",
+  snooze: "snooze",
+  "draft.reply": "message-or-draft",
+  "draft.compose": "message-or-draft",
+  "draft.discard": "draft.discard",
+};
+
+const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" | "expectedRouteKind" | "fixturePath" | "captureCommand" | "verifyCommand">> = {
+  archive: {
+    action: "archive",
+    safeFrontAction: "Archive exactly one low-risk conversation in Front, then optionally unarchive it manually after capture.",
+    previewCommand: "frontctl archive CONVERSATION_ID --json",
+    captureName: "archive",
+    notes: [
+      "Use a test or low-risk conversation because archive changes mailbox state.",
+      "Capture only one archive action during the capture window.",
+    ],
+  },
+  "tag.add": {
+    action: "tag.add",
+    safeFrontAction: "Apply one harmless test tag to one conversation in Front.",
+    previewCommand: "frontctl tag add CONVERSATION_ID TAG_ALIAS --json",
+    captureName: "tag.add",
+    notes: [
+      "Use a dedicated temporary tag when possible.",
+      "Capture tag add separately from tag remove.",
+    ],
+  },
+  "tag.remove": {
+    action: "tag.remove",
+    safeFrontAction: "Remove one harmless test tag from one conversation in Front.",
+    previewCommand: "frontctl tag remove CONVERSATION_ID TAG_ALIAS --json",
+    captureName: "tag.remove",
+    notes: [
+      "Apply the tag before capture if the conversation does not already have it.",
+      "Capture tag remove separately from tag add.",
+    ],
+  },
+  "comment.add": {
+    action: "comment.add",
+    safeFrontAction: "Add one private internal comment such as 'frontctl discovery test' to a low-risk conversation.",
+    previewCommand: "frontctl comment add CONVERSATION_ID --body \"frontctl discovery test\" --json",
+    captureName: "comment.add",
+    notes: [
+      "Use a private internal comment, not an email reply.",
+      "Do not capture message send/finalize/deliver actions.",
+    ],
+  },
+  snooze: {
+    action: "snooze",
+    safeFrontAction: "Snooze one low-risk conversation to a short future time in Front.",
+    previewCommand: "frontctl snooze CONVERSATION_ID tomorrow-9am --json",
+    captureName: "snooze",
+    notes: [
+      "Use a low-risk conversation because snooze changes mailbox state.",
+      "Pick a short future snooze time so manual cleanup is easy.",
+    ],
+  },
+  "draft.reply": {
+    action: "draft.reply",
+    safeFrontAction: "Create or update one draft reply in Front without sending it.",
+    previewCommand: "frontctl draft reply CONVERSATION_ID --body \"Draft only\" --json",
+    captureName: "draft.reply",
+    notes: [
+      "Do not click send.",
+      "Capture draft save/update separately from discard.",
+    ],
+  },
+  "draft.compose": {
+    action: "draft.compose",
+    safeFrontAction: "Create one new draft compose in Front without sending it.",
+    previewCommand: "frontctl draft compose --to test@example.com --subject \"frontctl draft test\" --body \"Draft only\" --json",
+    captureName: "draft.compose",
+    notes: [
+      "Do not click send.",
+      "Use a harmless recipient and subject so compose recipient and subject payload shape can be verified.",
+    ],
+  },
+  "draft.discard": {
+    action: "draft.discard",
+    safeFrontAction: "Discard one existing test draft in Front.",
+    previewCommand: "frontctl draft discard DRAFT_ID --json",
+    captureName: "draft.discard",
+    notes: [
+      "Create a harmless draft first, then capture only the discard action.",
+      "Do not capture send/finalize/deliver routes.",
+    ],
+  },
+};
+
+export const WRITE_ACTION_SPECS = [
+  {
+    action: "archive",
+    method: "POST",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversation_batch/archive",
+    body: { conversation_ids: ["conversation-placeholder"] },
+  },
+  {
+    action: "tag.add",
+    method: "POST",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/conversation-placeholder/tag/tag-placeholder",
+  },
+  {
+    action: "tag.remove",
+    method: "POST",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/conversation-placeholder/untag/tag-placeholder",
+  },
+  {
+    action: "comment.add",
+    method: "POST",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/conversation-placeholder/comments",
+    body: { body: "comment-placeholder" },
+  },
+  {
+    action: "snooze",
+    method: "POST",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/conversation-placeholder/status/snoozed",
+    body: { until: "2026-06-06T09:00:00.000Z" },
+  },
+  {
+    action: "draft.reply",
+    method: "POST",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/conversation-placeholder/messages",
+    body: { body: "draft-placeholder", draft: true },
+  },
+  {
+    action: "draft.compose",
+    method: "POST",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
+    body: {
+      body: "draft-placeholder",
+      draft: true,
+      kind: "compose",
+      to: ["test@example.com"],
+      subject: "frontctl draft test",
+      cc: ["team@example.com"],
+      bcc: ["audit@example.com"],
+    },
+  },
+  {
+    action: "draft.discard",
+    method: "DELETE",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/messages/message-placeholder",
+  },
+] as const;
+
+export async function verifyAllWriteFixtures(env: NodeJS.ProcessEnv = process.env) {
+  const fixturePath = discoveryFixtureRoot(env);
+  const actions = await Promise.all(
+    WRITE_ACTION_SPECS.map((spec) => verifyWriteFixture({ ...spec, env })),
+  );
+  return {
+    fixturePath,
+    count: actions.length,
+    verifiedCount: actions.filter((action) => action.verified).length,
+    allVerified: actions.every((action) => action.verified),
+    actions,
+  };
+}
+
+export async function writeCaptureGuide(options: {
+  action?: string;
+  remoteDebuggingPort?: number;
+  env?: NodeJS.ProcessEnv;
+} = {}) {
+  const actions = options.action ? [options.action] : WRITE_ACTION_SPECS.map((spec) => spec.action);
+  const unknown = actions.filter((action) => !ACTION_CAPTURE_GUIDES[action]);
+  if (unknown.length) {
+    throw new Error(`Unknown write action: ${unknown.join(", ")}`);
+  }
+  const port = options.remoteDebuggingPort ?? 9222;
+  const guides = await Promise.all(actions.map(async (action) => {
+    const spec = WRITE_ACTION_SPECS.find((candidate) => candidate.action === action);
+    const verification = await verifyWriteFixture({ ...spec, action, env: options.env });
+    const guide = ACTION_CAPTURE_GUIDES[action];
+    return {
+      ...guide,
+      verified: verification.verified,
+      expectedRouteKind: verification.expectedRouteKind,
+      fixturePath: verification.fixturePath,
+      captureCommand: `frontctl discovery capture --remote-debugging-port ${port} --duration-ms 15000 --install --name ${guide.captureName} --json`,
+      verifyCommand: "frontctl discovery verify-writes --json",
+    } satisfies WriteCaptureGuide;
+  }));
+  return {
+    fixtureRoot: discoveryFixtureRoot(options.env ?? process.env),
+    remoteDebuggingPort: port,
+    launchCommand: `frontctl discovery launch --remote-debugging-port ${port} --json`,
+    count: guides.length,
+    verifiedCount: guides.filter((guide) => guide.verified).length,
+    nextUnverified: guides.find((guide) => !guide.verified)?.action,
+    guides,
+  };
+}
+
+export async function verifyWriteFixture(options: {
+  action: string;
+  method?: string;
+  path?: string;
+  body?: unknown;
+  env?: NodeJS.ProcessEnv;
+}): Promise<WriteVerification> {
+  const expectedRouteKind = ACTION_ROUTE_KIND[options.action] ?? options.action;
+  const fixtureRoot = discoveryFixtureRoot(options.env ?? process.env);
+  const strictFixtures = (options.env ?? process.env).FRONTCTL_REQUIRE_DISCOVERY_FIXTURES === "1";
+
+  const fixtures = await readFixtureFiles(fixtureRoot);
+  if (!fixtures.length && strictFixtures) {
+    return {
+      verified: false,
+      action: options.action,
+      expectedRouteKind,
+      reason: `No sanitized write fixtures found in ${fixtureRoot}. Run frontctl discovery launch, perform one safe action in Front, then run frontctl discovery capture --install --name ${safeFixtureName(options.action)} --json.`,
+    };
+  }
+  for (const fixturePath of fixtures) {
+    const entries = await readSanitizedEntries(fixturePath);
+    const match = entries.find((entry) => {
+      const routeMatched = entry.routeKind === expectedRouteKind &&
+      (!options.method || entry.method?.toUpperCase() === options.method.toUpperCase()) &&
+      (!options.path || pathShape(entry.path) === pathShape(options.path));
+      if (!routeMatched) {
+        return false;
+      }
+      return bodyShapeMatches(entry.requestBodyShape, shapeOfCommandBody(options.body));
+    });
+    if (match) {
+      return {
+        verified: true,
+        action: options.action,
+        expectedRouteKind,
+        source: "discovery-fixture",
+        fixturePath,
+        requestBodyShapeMatched: true,
+      };
+    }
+  }
+
+  if (!strictFixtures && knownWriteRouteMatches(options)) {
+    return {
+      verified: true,
+      action: options.action,
+      expectedRouteKind,
+      source: "known-route",
+      requestBodyShapeMatched: true,
+      reason: fixtures.length
+        ? "No installed discovery fixture matched, but the request matches frontctl's built-in non-send route contract."
+        : "No installed discovery fixture found; using frontctl's built-in non-send route contract.",
+    };
+  }
+
+  return {
+    verified: false,
+    action: options.action,
+    expectedRouteKind,
+    requestBodyShapeMatched: false,
+    reason: `No sanitized fixture matched ${options.method ?? "*"} ${pathShape(options.path)} as ${expectedRouteKind} with the expected request body shape.`,
+  };
+}
+
+function knownWriteRouteMatches(options: {
+  action: string;
+  method?: string;
+  path?: string;
+  body?: unknown;
+}) {
+  const spec = WRITE_ACTION_SPECS.find((candidate) => candidate.action === options.action);
+  if (!spec) {
+    return false;
+  }
+  if (options.method && spec.method.toUpperCase() !== options.method.toUpperCase()) {
+    return false;
+  }
+  if (options.path && pathShape(spec.path) !== pathShape(options.path)) {
+    return false;
+  }
+  const specBody = "body" in spec ? spec.body : undefined;
+  return bodyShapeMatches(shapeOfCommandBody(specBody), shapeOfCommandBody(options.body));
+}
+
+export function discoveryFixtureRoot(env: NodeJS.ProcessEnv = process.env) {
+  return env.FRONTCTL_DISCOVERY_FIXTURES_PATH ?? join(homedir(), ".frontctl", "discovery-fixtures");
+}
+
+export async function installDiscoveryFixture(inputPath: string, options: { name?: string; env?: NodeJS.ProcessEnv } = {}) {
+  const raw = JSON.parse(await readFile(inputPath, "utf8")) as unknown;
+  const sanitized = isSanitizedFixture(raw) ? raw : sanitizeDiscoveryInput(raw);
+  return installSanitizedDiscoveryFixture(sanitized, {
+    ...options,
+    name: options.name ?? basename(inputPath).replace(/\.[^.]+$/, ""),
+  });
+}
+
+export async function installSanitizedDiscoveryFixture(
+  sanitized: unknown,
+  options: { name?: string; env?: NodeJS.ProcessEnv } = {},
+) {
+  if (!isSanitizedFixture(sanitized)) {
+    throw new Error("Discovery fixture install expected sanitized discovery output with redacted entries.");
+  }
+  const env = options.env ?? process.env;
+  const root = discoveryFixtureRoot(env);
+  await mkdir(root, { recursive: true, mode: 0o700 });
+  const serialized = JSON.stringify(sanitized, null, 2);
+  const safeName = safeFixtureName(options.name ?? "front-write-fixture");
+  const digest = createHash("sha256").update(serialized).digest("hex").slice(0, 10);
+  const outputPath = join(root, `${safeName}-${digest}.json`);
+  await writeFile(outputPath, serialized, { mode: 0o600 });
+  const entries = await readSanitizedEntries(outputPath);
+  return {
+    fixturePath: outputPath,
+    fixtureRoot: root,
+    installed: true,
+    count: entries.length,
+    routeKinds: [...new Set(entries.map((entry) => entry.routeKind).filter(Boolean))].sort(),
+  };
+}
+
+export async function listDiscoveryFixtures(env: NodeJS.ProcessEnv = process.env) {
+  const fixtureRoot = discoveryFixtureRoot(env);
+  const files = await readFixtureFiles(fixtureRoot);
+  const fixtures = await Promise.all(files.map(async (fixturePath) => {
+    const entries = await readSanitizedEntries(fixturePath);
+    return {
+      fixturePath,
+      count: entries.length,
+      routeKinds: [...new Set(entries.map((entry) => entry.routeKind).filter(Boolean))].sort(),
+    };
+  }));
+  return {
+    fixtureRoot,
+    count: fixtures.length,
+    fixtures,
+  };
+}
+
+async function readFixtureFiles(path: string) {
+  const info = await stat(path).catch(() => undefined);
+  if (!info) {
+    return [];
+  }
+  if (info.isFile()) {
+    return [path];
+  }
+  if (!info.isDirectory()) {
+    return [];
+  }
+  const names = await readdir(path);
+  return names
+    .filter((name) => /\.json$/i.test(name))
+    .map((name) => join(path, name));
+}
+
+async function readSanitizedEntries(path: string): Promise<SanitizedEntry[]> {
+  try {
+    const parsed = JSON.parse(await readFile(path, "utf8")) as unknown;
+    if (isObject(parsed) && Array.isArray(parsed.entries)) {
+      return parsed.entries.filter(isObject) as SanitizedEntry[];
+    }
+    if (Array.isArray(parsed)) {
+      return parsed.filter(isObject) as SanitizedEntry[];
+    }
+  } catch {
+    return [];
+  }
+  return [];
+}
+
+function pathShape(path: string | undefined) {
+  if (!path) {
+    return undefined;
+  }
+  return path
+    .replace(/^\/cell-[^/]+/, "/cell/:cell")
+    .replace(/\/companies\/[^/]+/, "/companies/:company")
+    .replace(/\/team\/[^/]+/, "/team/:team")
+    .replace(/\/conversations\/[^/]+/, "/conversations/:conversation")
+    .replace(/\/messages\/[^/]+/, "/messages/:message")
+    .replace(/\/tag\/[^/]+/, "/tag/:tag")
+    .replace(/\/untag\/[^/]+/, "/untag/:tag");
+}
+
+function bodyShapeMatches(fixtureShape: unknown, commandShape: unknown): boolean {
+  if (commandShape === undefined) {
+    return true;
+  }
+  if (fixtureShape === undefined) {
+    return false;
+  }
+  if (typeof commandShape === "string") {
+    return typeof fixtureShape === "string";
+  }
+  if (Array.isArray(commandShape)) {
+    return Array.isArray(fixtureShape);
+  }
+  if (!isObject(commandShape) || !isObject(fixtureShape)) {
+    return typeof commandShape === typeof fixtureShape;
+  }
+  return Object.entries(commandShape).every(([key, value]) => key in fixtureShape && bodyShapeMatches(fixtureShape[key], value));
+}
+
+function shapeOfCommandBody(value: unknown): unknown {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (Array.isArray(value)) {
+    return value.length ? [shapeOfCommandBody(value[0])] : [];
+  }
+  if (isObject(value)) {
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, shapeOfCommandBody(child)]));
+  }
+  return typeof value;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isSanitizedFixture(value: unknown): value is Record<string, unknown> {
+  return isObject(value) && value.redacted === true && Array.isArray(value.entries);
+}
+
+function safeFixtureName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "front-write-fixture";
+}
