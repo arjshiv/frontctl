@@ -36,6 +36,69 @@ The safety boundary is deliberate. `frontctl` can inspect, summarize, organize, 
 and draft, but it must not send email. Outbound sending should remain a human-controlled action until
 the review and approval model is much more mature.
 
+## How It Works
+
+```mermaid
+flowchart TD
+  user["User signed into Front"]
+  agent["Claude, ChatGPT, Codex, or terminal"]
+  cli["frontctl CLI"]
+
+  frontApp["Front.app local profile"]
+  chrome["Chrome profile"]
+  edge["Microsoft Edge profile"]
+  safari["Safari"]
+  agentcookie["Optional agentcookie sidecar"]
+
+  browserList["browser list / readiness"]
+  unlock["auth unlock"]
+  keychain["macOS Keychain prompt once"]
+  session["Short-lived encrypted session cache<br/>~/.frontctl/session.json"]
+
+  live["Live private Front web requests"]
+  cache["Local SQLite/FTS cache<br/>~/.frontctl/frontctl.sqlite"]
+  readOnly["Read, search, summarize, triage, attachments"]
+  guarded["Archive, snooze, tag, comment, draft"]
+  verifier["Dry-run, explicit --yes,<br/>non-send route verification, audit log"]
+
+  blockedSend["send command blocked"]
+  publicApi["Public Front API not used"]
+
+  user --> frontApp
+  user --> chrome
+  user --> edge
+  user --> safari
+  agent --> cli
+
+  cli --> browserList
+  browserList --> frontApp
+  browserList --> chrome
+  browserList --> edge
+  browserList --> safari
+  browserList --> agentcookie
+
+  cli --> unlock
+  unlock --> frontApp
+  unlock --> chrome
+  unlock --> edge
+  unlock --> agentcookie
+  safari -->|"open-only today"| browserList
+  unlock --> keychain
+  keychain --> session
+  agentcookie -->|"plaintext cookie source, no Keychain"| session
+
+  cli --> session
+  session --> live
+  live --> readOnly
+  live --> cache
+  cache --> readOnly
+  live --> guarded
+  guarded --> verifier
+
+  cli -.-> blockedSend
+  cli -.-> publicApi
+```
+
 Current local install from this repo:
 
 ```bash
