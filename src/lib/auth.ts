@@ -4,6 +4,7 @@ import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, unlink, writeFile } from
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { run } from "./process.js";
+import { cookieSecretRowSchema, frontSessionFileSchema, frontSessionPayloadSchema, plainFrontCookieRowSchema } from "./schemas.js";
 
 const CHROME_MAC_SALT = "saltysalt";
 const CHROME_MAC_ITERATIONS = 1003;
@@ -238,7 +239,7 @@ export async function unlockFrontSessionFromPlainCookies(
     }
   }
 
-  const selected = selectFrontCookieRows(rows);
+  const selected = selectFrontCookieRows(rows.map((row) => plainFrontCookieRowSchema.parse(row)));
   const csrfToken = selected.find((row) => row.name === "front.csrf")?.value;
   const createdAtMs = Date.now();
   const ttlMs = Math.max(1, options.ttlHours ?? 12) * 60 * 60 * 1000;
@@ -277,7 +278,7 @@ export async function clearFrontSession(sessionPath = defaultSessionPath()) {
 export async function readFrontSession(sessionPath = defaultSessionPath()): Promise<FrontSession | undefined> {
   let raw: SessionFile;
   try {
-    raw = JSON.parse(await readFile(sessionPath, "utf8")) as SessionFile;
+    raw = frontSessionFileSchema.parse(JSON.parse(await readFile(sessionPath, "utf8"))) as SessionFile;
   } catch {
     return undefined;
   }
@@ -294,7 +295,7 @@ export async function readFrontSession(sessionPath = defaultSessionPath()): Prom
       decipher.update(Buffer.from(raw.ciphertext, "base64")),
       decipher.final(),
     ]).toString("utf8");
-    const payload = JSON.parse(plaintext) as { cookieHeader: string; csrfToken?: string };
+    const payload = frontSessionPayloadSchema.parse(JSON.parse(plaintext));
     return {
       host: raw.host,
       source: raw.source,
@@ -347,7 +348,9 @@ async function readEncryptedFrontCookies(cookiesPath: string): Promise<CookieSec
       "order by name, expires_utc desc;",
     ].join(" ");
     const { stdout } = await run("sqlite3", ["-json", copiedPath, sql], 1024 * 1024);
-    const rows = stdout.trim() ? (JSON.parse(stdout) as CookieSecretRow[]) : [];
+    const rows = stdout.trim()
+      ? (JSON.parse(stdout) as unknown[]).map((row) => cookieSecretRowSchema.parse(row)) as CookieSecretRow[]
+      : [];
     const selected = selectFrontCookieRows(rows);
     if (!hasRequiredFrontCookies(selected)) {
       throw new Error("Front session cookies were not found. Open Front and sign in, then rerun `frontctl auth unlock`.");
@@ -403,7 +406,7 @@ async function writeFrontSession(sessionPath: string, session: FrontSession) {
     }), "utf8"),
     cipher.final(),
   ]);
-  const file: SessionFile = {
+  const file: SessionFile = frontSessionFileSchema.parse({
     version: SESSION_CRYPTO_VERSION,
     encryption: {
       mode: SESSION_ENCRYPTION_MODE,
@@ -418,7 +421,7 @@ async function writeFrontSession(sessionPath: string, session: FrontSession) {
     nonce: nonce.toString("base64"),
     tag: cipher.getAuthTag().toString("base64"),
     ciphertext: ciphertext.toString("base64"),
-  };
+  }) as SessionFile;
   await writeFile(sessionPath, JSON.stringify(file, null, 2), { mode: 0o600 });
   await chmod(sessionPath, 0o600);
 }
