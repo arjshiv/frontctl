@@ -62,3 +62,28 @@ Mutation rule:
 
 Run a dry-run preview first. Use `--yes` only after the user explicitly approves the exact action.
 Drafting is allowed, but `frontctl send` is intentionally blocked.
+When the user asks for proof on a real low-risk thread, run
+`frontctl discovery verify-live-writes CONVERSATION_ID --yes --json`; add `--leave-proof-comment`
+only if the user explicitly wants a visible Front comment left behind.
+
+Browser route discovery:
+
+Use `frontctl discovery browser-status --json` to find a reachable local DevTools port. CDP
+reachability does not prove the browser is signed into Front. Before relying on browser capture, run
+`frontctl discovery browser-probe CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --json`.
+If the probe reports `authentication_required`, ask the user to sign into Front in that browser
+profile, or use `frontctl discovery browser-seed --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --yes --json`
+when `frontctl auth check --json` is already valid. This seeds the selected browser tab from the
+short-lived local `frontctl` session without printing cookie values or touching Keychain. Capture
+output must stay sanitized:
+
+```bash
+frontctl discovery capture --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --reload --duration-ms 15000 --json
+```
+
+For browser-backed proof on a low-risk real conversation, choose a numeric tag id from
+`frontctl tag list --live --json`, then run:
+
+```bash
+frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json
+```
