@@ -24,6 +24,12 @@ fi
 
 echo
 echo "Removing package-installed files. macOS may ask for your password."
+if [ -e "$HOME/.local/bin/frontctl" ] || [ -L "$HOME/.local/bin/frontctl" ]; then
+  rm -f "$HOME/.local/bin/frontctl"
+fi
+if [ -d "$HOME/.local/share/frontctl" ]; then
+  rm -rf "$HOME/.local/share/frontctl"
+fi
 if [ -e /usr/local/bin/frontctl ] || [ -L /usr/local/bin/frontctl ]; then
   sudo rm -f /usr/local/bin/frontctl
 fi
