@@ -3,6 +3,12 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { sanitizeDiscoveryInput } from "./discovery.js";
+import {
+  sanitizedDiscoveryEntrySchema,
+  sanitizedDiscoveryFixtureSchema,
+  validateMutationPayload,
+  type SanitizedDiscoveryEntry,
+} from "./schemas.js";
 
 export interface WriteVerification {
   verified: boolean;
@@ -25,13 +31,6 @@ export interface WriteCaptureGuide {
   captureCommand: string;
   verifyCommand: string;
   notes: string[];
-}
-
-interface SanitizedEntry {
-  method?: string;
-  path?: string;
-  routeKind?: string;
-  requestBodyShape?: unknown;
 }
 
 const ACTION_ROUTE_KIND: Record<string, string> = {
@@ -336,6 +335,7 @@ export async function verifyWriteFixture(options: {
   body?: unknown;
   env?: NodeJS.ProcessEnv;
 }): Promise<WriteVerification> {
+  const body = options.body === undefined ? undefined : validateMutationPayload(options.action, options.body);
   const expectedRouteKind = ACTION_ROUTE_KIND[options.action] ?? options.action;
   const fixtureRoot = discoveryFixtureRoot(options.env ?? process.env);
   const strictFixtures = (options.env ?? process.env).FRONTCTL_REQUIRE_DISCOVERY_FIXTURES === "1";
@@ -358,7 +358,7 @@ export async function verifyWriteFixture(options: {
       if (!routeMatched) {
         return false;
       }
-      return bodyShapeMatches(entry.requestBodyShape, shapeOfCommandBody(options.body));
+      return bodyShapeMatches(entry.requestBodyShape, shapeOfCommandBody(body));
     });
     if (match) {
       return {
@@ -413,8 +413,9 @@ function knownWriteRouteMatches(options: {
   if (options.path && pathShape(spec.path) !== pathShape(options.path)) {
     return false;
   }
-  const specBody = "body" in spec ? spec.body : undefined;
-  return bodyShapeMatches(shapeOfCommandBody(specBody), shapeOfCommandBody(options.body));
+  const specBody = "body" in spec ? validateMutationPayload(spec.action, spec.body) : undefined;
+  const body = options.body === undefined ? undefined : validateMutationPayload(options.action, options.body);
+  return bodyShapeMatches(shapeOfCommandBody(specBody), shapeOfCommandBody(body));
 }
 
 export function discoveryFixtureRoot(env: NodeJS.ProcessEnv = process.env) {
@@ -490,14 +491,18 @@ async function readFixtureFiles(path: string) {
     .map((name) => join(path, name));
 }
 
-async function readSanitizedEntries(path: string): Promise<SanitizedEntry[]> {
+async function readSanitizedEntries(path: string): Promise<SanitizedDiscoveryEntry[]> {
   try {
     const parsed = JSON.parse(await readFile(path, "utf8")) as unknown;
-    if (isObject(parsed) && Array.isArray(parsed.entries)) {
-      return parsed.entries.filter(isObject) as SanitizedEntry[];
+    const fixture = sanitizedDiscoveryFixtureSchema.safeParse(parsed);
+    if (fixture.success) {
+      return fixture.data.entries;
     }
     if (Array.isArray(parsed)) {
-      return parsed.filter(isObject) as SanitizedEntry[];
+      return parsed
+        .map((entry) => sanitizedDiscoveryEntrySchema.safeParse(entry))
+        .filter((entry) => entry.success)
+        .map((entry) => entry.data);
     }
   } catch {
     return [];
@@ -557,7 +562,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 function isSanitizedFixture(value: unknown): value is Record<string, unknown> {
-  return isObject(value) && value.redacted === true && Array.isArray(value.entries);
+  return sanitizedDiscoveryFixtureSchema.safeParse(value).success;
 }
 
 function safeFixtureName(value: string) {
