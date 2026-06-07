@@ -111,7 +111,9 @@ frontctl archive CONVERSATION_ID --reason "User approved" --yes --json
 
 When a state-changing command executes, frontctl writes a visible agent identity comment first and
 then applies the requested action last. Agents should pass `--actor NAME` and `--reason "..."`; they
-do not need to manually add a separate identity comment.
+do not need to manually add a separate identity comment. If the identity comment cannot be written,
+the mutation does not run. If the final action fails after the comment is written, the error includes
+the Front comment UID/activity ID so the user can inspect the visible trail and decide what to do.
 
 `frontctl send` is always blocked.
 

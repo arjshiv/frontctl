@@ -172,7 +172,8 @@ When taking an action, pass `--actor Claude` and a concise `--reason "..."`. For
 conversation state change, frontctl itself writes a visible identity comment before the action and
 then applies the requested action last. Do not manually add a separate identity comment. Only run
 `frontctl comment add` when the user wants an additional internal note beyond the automatic action
-trail.
+trail. If a command fails after writing the identity comment, report the returned comment UID or
+activity ID and inspect the thread before retrying.
 Use `frontctl audit list --json` when reviewing recent previews or attempts. Audit output is
 redacted metadata only: action, mode, route, body keys, and body hash, never raw comment or draft text.
 For snooze, inspect `details.normalizedUntil` in the preview and include that exact timestamp in

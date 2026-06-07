@@ -376,7 +376,9 @@ Agents should identify themselves with `--actor NAME` and a concise `--reason ".
 changes. frontctl writes the visible Front identity comment first, then applies the requested action
 last so archive/snooze UX ends in the intended state. This is enforced by the CLI mutation layer,
 not left to each agent. Add a separate Front comment only when the user wants an additional internal
-note beyond the automatic action trail.
+note beyond the automatic action trail. If the identity comment write fails, frontctl blocks the
+state change. If the final state change fails after the identity comment succeeds, the error includes
+the comment UID/activity ID so the agent can report the partial trail instead of retrying blindly.
 `FRONTCTL_REQUIRE_DISCOVERY_FIXTURES=1` restores strict local fixture-only execution, and
 `FRONTCTL_DISCOVERY_FIXTURES_PATH` can override the default fixture store only when needed.
 Snooze accepts ISO timestamps and safe shortcuts such as `in:30m`, `in:2h`, `later`, `tomorrow`,

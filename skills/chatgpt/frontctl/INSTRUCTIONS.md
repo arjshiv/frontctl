@@ -25,7 +25,9 @@ Requirements:
   triage can use local aggregate preferences.
 - When taking an action, pass `--actor ChatGPT` and a concise `--reason "..."`. frontctl itself
   writes a visible identity comment before executable conversation state changes, then applies the
-  requested action last. Do not manually add a separate identity comment.
+  requested action last. Do not manually add a separate identity comment. If a command fails after
+  writing the identity comment, report the returned comment UID or activity ID and inspect the
+  thread before retrying.
 
 Safe starting commands:
 
