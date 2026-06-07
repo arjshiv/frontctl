@@ -151,12 +151,14 @@ test("package metadata publishes the frontctl bin and build lifecycle", async ()
   assert.match(readme, /--source default-browser/);
   assert.match(readme, /agentcookie\.toml/);
   assert.match(readme, /frontctl memory init --limit 500 --json/);
+  assert.match(readme, /frontctl workflows daily --actor Codex --json/);
   assert.match(readme, /--actor Codex --reason/);
 
   const agents = await readFile("AGENTS.md", "utf8");
   assert.match(agents, /Chrome\/Edge\/default-browser session unlock/);
   assert.match(agents, /Do not force-refresh browser cookies/);
   assert.match(agents, /local memory profiling/);
+  assert.match(agents, /local daily workflows/);
   assert.match(agents, /--actor NAME/);
 
   const agentcookieManifest = await readFile("agentcookie.toml", "utf8");
@@ -173,6 +175,7 @@ test("package metadata publishes the frontctl bin and build lifecycle", async ()
   assert.match(chatgptPrompt, /local terminal or Codex-style command execution access/);
   assert.match(chatgptPrompt, /frontctl readiness --json/);
   assert.match(chatgptPrompt, /frontctl memory init --limit 500 --json/);
+  assert.match(chatgptPrompt, /frontctl workflows daily --actor ChatGPT --json/);
   assert.match(chatgptPrompt, /--actor ChatGPT/);
 });
 

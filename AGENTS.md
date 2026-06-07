@@ -19,6 +19,7 @@ The first working loop exists:
 - search, read, summarize, triage, attachment metadata, tags, drafts, and local SQLite/FTS cache
 - guarded archive, snooze, tag, comment, draft, and discard flows
 - local memory profiling for first-run preference learning
+- local daily workflows for triage, noise review, follow-up, tag hygiene, and ops/risk alerts
 - hard-blocked sending
 - Codex, Claude, and ChatGPT agent instructions
 - native macOS setup app
@@ -216,6 +217,7 @@ npm run release:verify:strict
 - `src/lib/agentcookie.ts`: optional agentcookie plaintext cookie sidecar support
 - `src/commands/readiness.ts`: user-facing setup gates
 - `src/commands/memory.ts` and `src/lib/memory.ts`: local preference memory
+- `src/commands/workflows.ts` and `src/lib/workflows.ts`: agent-ready workflow affordances
 - `src/commands/mutations.ts`: guarded non-send write actions
 - `src/lib/writeVerification.ts`: route verification and fixture checks
 - `skills/codex/frontctl/SKILL.md`: Codex skill
@@ -237,6 +239,8 @@ Make the obvious agent assumption true:
   to one of them.
 - `frontctl memory init --json` should write a local aggregate profile without cookies, auth
   headers, or raw timeline bodies.
+- `frontctl workflows daily --json` should produce one simple agent-facing workflow report rather
+  than many competing automations.
 - Mutation previews should include actor/reason identity without adding Front comments.
 - `frontctl inbox list --live --json` should use the unlocked local session.
 - `frontctl diagnose --json` should be safe to share.

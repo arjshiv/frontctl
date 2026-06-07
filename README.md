@@ -296,6 +296,8 @@ frontctl memory init --limit 500 --json
 frontctl memory report --json
 frontctl memory report --fresh --json
 frontctl memory path --json
+frontctl workflows list --json
+frontctl workflows daily --actor Codex --json
 ```
 
 `memory init` writes a local preference profile to `~/.frontctl/memory.json`. It is designed for
@@ -304,6 +306,11 @@ where tags might help, and which local sources the user is working from. The pro
 and stores aggregate signals plus conversation IDs; it does not store cookies, auth headers, or raw
 timeline bodies. Agents should treat the output as hypotheses and ask before turning them into
 rules.
+
+`workflows daily` is the simple product surface for agents. It reads the local store and memory,
+then returns queues for daily triage, noise review, follow-up, tag hygiene, and ops/risk alerts.
+Each queue includes safe read/summarize commands and, where appropriate, archive/snooze/tag preview
+commands with `--actor` and `--reason` already filled in. It does not execute state changes.
 
 Discovery and draft commands:
 

@@ -49,7 +49,12 @@ frontctl sync --live --limit 100 --json
 frontctl cache search "query" --limit 10 --json
 frontctl memory init --limit 500 --json
 frontctl memory report --json
+frontctl workflows daily --actor ChatGPT --json
 ```
+
+For normal product use after memory exists, prefer `frontctl workflows daily --actor ChatGPT --json`.
+It returns daily triage, noise review, follow-up, tag hygiene, and ops/risk queues with safe preview
+commands. Do not execute state changes unless the user explicitly approves them.
 
 Mutation rule:
 

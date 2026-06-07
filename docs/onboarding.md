@@ -259,12 +259,15 @@ For first-run preference learning after setup:
 frontctl sync --live --all --limit 200 --json
 frontctl memory init --limit 500 --json
 frontctl memory report --json
+frontctl workflows daily --actor Claude --json
 ```
 
 `memory init` writes `~/.frontctl/memory.json`. It is local-only and stores aggregate hypotheses:
 what looks like fast archive material, what tends to stay open, where tags might help, and which
 local sources were synced. It does not store cookies, auth headers, or raw timeline bodies. Agents
 should present memory output as suggestions, not autonomous rules.
+`workflows daily` is the default agent-friendly view over that memory and store data: it returns
+daily triage, noise review, follow-up, tag hygiene, and ops/risk queues with preview commands.
 
 For readable output in chat or terminals:
 

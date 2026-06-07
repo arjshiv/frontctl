@@ -101,6 +101,7 @@ frontctl cache read CONVERSATION_ID --json
 frontctl cache read CONVERSATION_ID --format markdown
 frontctl memory init --limit 500 --json
 frontctl memory report --json
+frontctl workflows daily --actor Codex --json
 ```
 
 After `frontctl auth unlock`, prefer `frontctl sync --live` before broad repeated searches. Then use
@@ -111,6 +112,10 @@ After first setup or a broad live sync, run `frontctl memory init --limit 500 --
 local preference profile. Use `frontctl memory report --json` before suggesting archive/tag/snooze
 rules. Memory is local-only and stores aggregate signals, not cookies, auth headers, or raw timeline
 bodies.
+For normal product use, prefer `frontctl workflows daily --actor Codex --json` after memory exists.
+It returns the common queues the user actually needs: daily triage, noise review, follow-up, tag
+hygiene, and ops/risk alerts. Treat its archive/snooze/tag commands as previews unless the user
+explicitly approves execution.
 Local index timeline text is bounded at 20,000 characters per item. If `textTruncated` is true,
 use `frontctl read CONVERSATION_ID --live --json` for the freshest available context.
 Use `--format markdown` or `--format plain` when the user wants readable output instead of a JSON
