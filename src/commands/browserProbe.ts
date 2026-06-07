@@ -2,6 +2,7 @@ import { CliError } from "../lib/cli.js";
 import { selectFrontDevToolsTarget, sanitizeDevToolsTarget } from "../lib/discovery.js";
 import { buildFrontRoutes, discoverFrontRouteContext } from "../lib/frontRoutes.js";
 import type { FrontPaths } from "../lib/paths.js";
+import { browserProbeRuntimeSchema } from "../lib/schemas.js";
 
 export async function browserProbeCommand(args: string[], paths: FrontPaths) {
   const conversationId = args.find((arg) => !arg.startsWith("--") && args[args.indexOf(arg) - 1] !== "--remote-debugging-port" && args[args.indexOf(arg) - 1] !== "--target-url-contains");
@@ -24,7 +25,9 @@ export async function browserProbeCommand(args: string[], paths: FrontPaths) {
     throw new CliError("No usable Front browser tab with a DevTools websocket URL was found.", 69);
   }
 
-  const probe = await runBrowserConversationProbe(target.webSocketDebuggerUrl, new URL(route).pathname);
+  const probe = browserProbeRuntimeSchema.parse(
+    await runBrowserConversationProbe(target.webSocketDebuggerUrl, new URL(route).pathname),
+  );
   const status = typeof probe.status === "string" ? probe.status : undefined;
   const authenticated = probe.ok === true && status !== "authentication_required";
   return {
