@@ -128,6 +128,32 @@ test("archiveConversation writes visible agent identity comment before archive e
   assert.deepEqual(writes[2].body, { conversations: [{ id: "conversation-1", status: "archived" }] });
 });
 
+test("archiveConversation reports identity comment refs if requested action fails after commenting", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-archive-comment-then-fail");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const requests = await withMockedFrontRequests(async () => {
+    await assert.rejects(
+      archiveConversation(["conversation-1", "--actor", "Codex", "--reason", "Archive failure test", "--yes"], paths),
+      /Wrote the visible agent identity comment, but archive failed.*commentUid=[a-f0-9]{32}.*activityId=activity-1.*HTTP 500/,
+    );
+  }, (input: string | URL | Request, init?: RequestInit) => {
+    if (init?.method === "PATCH" && String(input).endsWith("/conversations")) {
+      return new Response(JSON.stringify({ ok: false }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return { ok: true, id: "activity-1" };
+  });
+
+  const writes = requests.filter((request) => request.method !== "GET");
+  assert.equal(writes.length, 3);
+  assert.equal(writes[0].method, "PUT");
+  assert.equal(writes[1].method, "POST");
+  assert.equal(writes[2].method, "PATCH");
+});
+
 test("archiveConversation rejects batch archive until a batch route is verified", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-archive-batch");
 
@@ -784,7 +810,7 @@ function draftReplyMockResponse(input: string | URL | Request) {
 
 async function withMockedFrontRequest(
   fn: () => Promise<void>,
-  responseBody: unknown | ((input: string | URL | Request, init?: RequestInit) => unknown) = { ok: true },
+  responseBody: unknown | ((input: string | URL | Request, init?: RequestInit) => unknown | Response) = { ok: true },
 ) {
   const requests = await withMockedFrontRequests(fn, responseBody);
   return requests.at(-1)!;
@@ -792,7 +818,7 @@ async function withMockedFrontRequest(
 
 async function withMockedFrontRequests(
   fn: () => Promise<void>,
-  responseBody: unknown | ((input: string | URL | Request, init?: RequestInit) => unknown) = { ok: true },
+  responseBody: unknown | ((input: string | URL | Request, init?: RequestInit) => unknown | Response) = { ok: true },
 ) {
   const previousFetch = globalThis.fetch;
   const requests: Array<{ url: string; method: string; body?: unknown }> = [];
@@ -803,6 +829,9 @@ async function withMockedFrontRequests(
       body: typeof init?.body === "string" ? JSON.parse(init.body) as unknown : undefined,
     });
     const body = typeof responseBody === "function" ? responseBody(input, init) : responseBody;
+    if (body instanceof Response) {
+      return body;
+    }
     return new Response(JSON.stringify(body), {
       status: 200,
       headers: { "content-type": "application/json" },

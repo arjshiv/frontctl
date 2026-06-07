@@ -384,9 +384,14 @@ async function runMutation(args: string[], spec: MutationSpec, _paths: FrontPath
   const agentComment = shouldWriteAgentIdentityComment(identifiedSpec)
     ? await addAgentIdentityComment(client, identifiedSpec)
     : undefined;
-  const result = identifiedSpec.execute
-    ? await identifiedSpec.execute(client)
-    : await client.requestJson(identifiedSpec.url, { method: identifiedSpec.method, body: identifiedSpec.body });
+  let result: unknown;
+  try {
+    result = identifiedSpec.execute
+      ? await identifiedSpec.execute(client)
+      : await client.requestJson(identifiedSpec.url, { method: identifiedSpec.method, body: identifiedSpec.body });
+  } catch (error) {
+    throw mutationFailedAfterIdentityComment(error, identifiedSpec, agentComment);
+  }
   return {
     ...preview(identifiedSpec, mode, agentComment),
     result: summarizeMutationResult(result),
@@ -498,6 +503,19 @@ function agentIdentityCommentBody(spec: MutationSpec) {
     "Note: this comment was written before the requested action so the action can set the final thread state.",
   ].filter((line): line is string => Boolean(line));
   return lines.join("\n");
+}
+
+function mutationFailedAfterIdentityComment(error: unknown, spec: MutationSpec, agentComment?: AgentIdentityComment) {
+  if (!agentComment) {
+    return error;
+  }
+  const cause = error instanceof Error ? error.message : String(error);
+  const refs = [
+    `commentUid=${agentComment.commentUid}`,
+    agentComment.activityId === undefined ? undefined : `activityId=${agentComment.activityId}`,
+  ].filter(Boolean).join(" ");
+  const message = `Wrote the visible agent identity comment, but ${spec.action} failed before the requested action completed. ${refs}. Cause: ${cause}`;
+  return new CliError(message, error instanceof CliError ? error.exitCode : 69);
 }
 
 function actorFromArgs(args: string[]): MutationActor {
