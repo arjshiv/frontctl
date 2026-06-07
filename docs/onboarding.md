@@ -300,18 +300,48 @@ frontctl draft list --limit 20 --json
 frontctl draft read DRAFT_ID --json
 frontctl draft reply CONVERSATION_ID --body-file reply.md --json
 frontctl draft compose --to person@example.com --subject "Draft subject" --body-file draft.md --json
+frontctl draft discard CONVERSATION_ID MESSAGE_UID --json
 frontctl tag list --json
 frontctl audit list --json
 frontctl discovery sanitize --input capture.har --output sanitized.json --json
 frontctl discovery fixtures install sanitized.json --json
+frontctl discovery browser-status --remote-debugging-port 9222 --json
+frontctl discovery browser-probe CONVERSATION_ID --remote-debugging-port 9222 --target-url-contains conversations/CONVERSATION_ID --json
+frontctl discovery browser-seed --remote-debugging-port 9222 --target-url-contains conversations/CONVERSATION_ID --yes --json
+frontctl discovery relaunch-front --remote-debugging-port 9222 --json
 frontctl discovery verify-writes --json
+frontctl discovery verify-live-writes CONVERSATION_ID --yes --json
+frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json
 ```
 
-Draft list/read are local read-only IndexedDB scans. Draft compose accepts optional `--to`, `--cc`,
-`--bcc`, and `--subject` fields, but still only creates a draft and never sends. Draft write/discard
-commands default to preview and require explicit `--yes` before they can write through Front's
-private routes. Optional endpoint discovery must write sanitized fixtures only; do not share raw HAR
+Draft list/read are local read-only IndexedDB scans. Draft reply returns `result.messageUid` and
+`result.discardCommand` for deleting the saved draft. Standalone draft compose accepts optional
+`--to`, `--cc`, `--bcc`, and `--subject` fields for preview only until its private route is captured
+and implemented; it rejects `--yes`. Reply draft and discard commands default to preview and require
+explicit `--yes` before they can write through Front's private routes. Optional endpoint discovery must write sanitized fixtures only; do not share raw HAR
 files.
+`frontctl discovery verify-writes --json` reports the deployable v1 thread-action scope separately
+from preview-only commands. A ready install should show `allVerified: true`; standalone compose, if
+present, should appear in `blockedActions` until implemented.
+`frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` mutates one real low-risk
+conversation to prove those actions work live, then cleans up temporary tag/comment/draft artifacts
+and archives the conversation last. Use `--leave-proof-comment` only when the user wants visible
+proof inside Front.
+If browser capture is unavailable, `frontctl discovery browser-status --json` reports whether the
+local DevTools endpoint is reachable and whether Front or Edge were launched with remote debugging.
+If it finds a usable browser port, run `frontctl discovery browser-probe CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --json`
+before capturing routes. The probe distinguishes an attachable browser from an authenticated Front
+browser session and reports `authentication_required` without printing cookies, headers, or message
+body text.
+When `auth check` is valid but the browser profile is not authenticated, `frontctl discovery browser-seed --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --yes --json`
+can copy the existing short-lived `frontctl` session into the selected browser tab without printing
+cookie values or touching Keychain. After the probe is authenticated, use
+`frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json`
+to prove archive/unarchive, snooze/unsnooze, tag add/remove, comment add/remove, and reply
+draft/discard from the browser runtime itself.
+Only with user approval, `frontctl discovery relaunch-front --remote-debugging-port 9222 --yes --json`
+quits and reopens Front with remote debugging enabled for browser/network capture. It checks the
+local draft cache first and requires `--allow-existing-drafts` if potential drafts are present.
 Tag list returns sanitized tag metadata only. Use it before `tag add` or `tag remove` so the
 assistant does not guess. Tag mutations accept an alias, id, or unique name and show
 `details.tag.resolvedAlias` in preview; ambiguous names fail.
@@ -325,7 +355,7 @@ frontctl discovery fixtures path --json
 frontctl discovery fixtures install sanitized.json --json
 frontctl discovery verify-writes --json
 frontctl archive CONVERSATION_ID --actor Claude --reason "User approved archive" --json
-frontctl archive CONVERSATION_ID ANOTHER_CONVERSATION_ID --actor Claude --reason "User approved batch archive" --json
+frontctl unarchive CONVERSATION_ID --actor Claude --reason "User approved restore after archive" --json
 frontctl snooze CONVERSATION_ID tomorrow-9am --actor Claude --reason "User approved follow-up tomorrow" --json
 frontctl tag list --json
 frontctl comment add CONVERSATION_ID --body-file note.md --json
