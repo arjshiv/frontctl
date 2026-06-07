@@ -24,6 +24,7 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "node --test dist/**/*.test.js",
     "test:readonly": "npm run build && node --test dist/test/readonly-matrix.test.js",
+    "test:live:writes": "npm run build && node script/verify_live_writes.mjs",
     "pretest": "npm run build",
     "start": "node dist/src/cli.js",
     "prepack": "npm run build",
