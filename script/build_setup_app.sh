@@ -8,7 +8,11 @@ APP_DIR="$ROOT_DIR/dist/$APP_NAME.app"
 EXECUTABLE="$PACKAGE_DIR/.build/release/FrontctlSetup"
 
 cd "$PACKAGE_DIR"
-swift build -c release
+if ! swift build -c release; then
+  echo "Swift setup app build failed. Clearing local SwiftPM cache and retrying once." >&2
+  rm -rf "$PACKAGE_DIR/.build"
+  swift build -c release
+fi
 
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
