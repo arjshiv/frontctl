@@ -650,7 +650,7 @@ test("CLI discovery sanitize redacts captured Front network fixtures", async () 
     entries: [
       {
         method: "POST",
-        url: "https://app.frontapp.com/cell-00017/api/1/companies/32390a17805cd26f7349/conversations/123/comments?auth=SECRET",
+        url: "https://app.frontapp.com/cell-00017/api/1/companies/32390a17805cd26f7349/conversations/123/timeline?auth=SECRET",
         postData: { text: JSON.stringify({ body: "SECRET BODY", metadata: { ok: true } }) },
       },
     ],
@@ -724,7 +724,7 @@ test("CLI tag add resolves cached tag names to aliases in preview", async () => 
     join(paths.cacheDataPath, "tags-cache"),
     JSON.stringify({
       tags: [
-        { id: "tag-1", alias: "needs-reply", name: "Needs Reply" },
+        { id: "123", alias: "needs-reply", name: "Needs Reply" },
       ],
     }),
   );
@@ -735,11 +735,12 @@ test("CLI tag add resolves cached tag names to aliases in preview", async () => 
     { env: envForPaths(paths) },
   );
   const result = JSON.parse(stdout) as {
-    request: { path: string };
+    request: { path: string; body: unknown };
     details: { tag: { input: string; resolvedAlias: string; matchedBy: string } };
   };
 
-  assert.match(result.request.path, /\/conversations\/conversation-1\/tag\/needs-reply$/);
+  assert.match(result.request.path, /\/conversations$/);
+  assert.deepEqual(result.request.body, { conversations: [{ id: "conversation-1", tags: { add: [123] } }] });
   assert.equal(result.details.tag.input, "Needs Reply");
   assert.equal(result.details.tag.resolvedAlias, "needs-reply");
   assert.equal(result.details.tag.matchedBy, "name");
@@ -763,12 +764,12 @@ test("CLI snooze normalizes relative time in mutation preview", async () => {
   );
   const result = JSON.parse(stdout) as {
     sendsEmail: boolean;
-    request: { body: { until: string } };
+    request: { body: { conversations: Array<{ reminder: number }> } };
     details: { input: string; normalizedUntil: string; parser: string };
   };
 
   assert.equal(result.sendsEmail, false);
-  assert.equal(result.request.body.until, "2026-06-05T18:00:00.000Z");
+  assert.equal(result.request.body.conversations[0].reminder, Date.parse("2026-06-05T18:00:00.000Z"));
   assert.equal(result.details.input, "in:2h");
   assert.equal(result.details.normalizedUntil, "2026-06-05T18:00:00.000Z");
   assert.equal(result.details.parser, "relative");
@@ -792,13 +793,16 @@ test("CLI comment add accepts body-file while remaining preview-only", async () 
     mode: string;
     canExecute: boolean;
     sendsEmail: boolean;
-    request: { body: { body: string } };
+    request: { path: string; body: { type: string; comment: { uid: string }; meta: { trackers: unknown[] } } };
   };
 
   assert.equal(result.mode, "dry-run");
   assert.equal(result.canExecute, true);
   assert.equal(result.sendsEmail, false);
-  assert.deepEqual(result.request.body, { body: "CLI internal note body" });
+  assert.match(result.request.path, /\/conversations\/conversation-1\/timeline$/);
+  assert.equal(result.request.body.type, "comment");
+  assert.equal(result.request.body.comment.uid.length, 32);
+  assert.deepEqual(result.request.body.meta, { trackers: [] });
 });
 
 test("CLI audit list shows redacted mutation previews", async () => {
@@ -832,7 +836,7 @@ test("CLI audit list shows redacted mutation previews", async () => {
   assert.equal(result.count, 1);
   assert.equal(result.entries[0].action, "comment.add");
   assert.equal(result.entries[0].conversationId, "conversation-1");
-  assert.deepEqual(result.entries[0].bodyKeys, ["body"]);
+  assert.deepEqual(result.entries[0].bodyKeys, ["comment", "meta", "type"]);
   assert.match(result.entries[0].bodySha256 ?? "", /^[a-f0-9]{64}$/);
   assert.doesNotMatch(stdout, /CLI SECRET AUDIT BODY/);
 });
@@ -899,9 +903,17 @@ test("CLI draft list/read and body-file previews are non-sending", async () => {
     ["dist/src/cli.js", "draft", "reply", "conversation-1", "--body-file", bodyPath, "--json"],
     { env },
   );
-  const preview = JSON.parse(previewStdout) as { sendsEmail: boolean; canExecute: boolean };
+  const preview = JSON.parse(previewStdout) as {
+    sendsEmail: boolean;
+    canExecute: boolean;
+    request: { method: string; path: string; body: Record<string, unknown> };
+  };
   assert.equal(preview.sendsEmail, false);
   assert.equal(preview.canExecute, true);
+  assert.equal(preview.request.method, "PUT");
+  assert.match(preview.request.path, /\/conversations\/conversation-1\/messages\/[a-f0-9]{32}$/);
+  assert.equal(preview.request.body.text, "CLI draft body file");
+  assert.equal("version" in preview.request.body, false);
 
   const { stdout: composeStdout } = await execFileAsync(
     "node",
