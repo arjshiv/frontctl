@@ -50,6 +50,7 @@ test("buildFrontRoutes creates private app routes without public API paths", () 
   assert.equal(routes.inbox, "https://app.frontapp.com/cell-00017/api/1/companies/company/team/team/conversations/inbox");
   assert.equal(routes.conversation("abc 123"), "https://app.frontapp.com/cell-00017/api/1/companies/company/conversations/abc%20123");
   assert.equal(routes.message("abc 123"), "https://app.frontapp.com/cell-00017/api/1/companies/company/messages/abc%20123");
+  assert.equal(routes.conversationMessage("abc 123", "draft uid"), "https://app.frontapp.com/cell-00017/api/1/companies/company/conversations/abc%20123/messages/draft%20uid");
   assert.doesNotMatch(routes.inbox, /api\.frontapp\.com/);
 });
 
@@ -71,13 +72,13 @@ test("buildFrontRoutes does not expose send/finalize/deliver routes", () => {
     routes.searchRaw("hello"),
     routes.searchHints("hello"),
     routes.conversations,
-    routes.conversationStatus("123", "archived"),
-    routes.conversationBatchArchive,
-    routes.tagConversation("123", "needs-reply"),
-    routes.untagConversation("123", "needs-reply"),
     routes.comments("123"),
+    routes.comment("123", "comment-uid"),
+    routes.commentTimeline("123", "comment-uid"),
+    routes.timelineActivity("123", "activity-123"),
     routes.message("message-123"),
     routes.messages("123"),
+    routes.conversationMessage("123", "message-123"),
   ].join("\n");
 
   assert.doesNotMatch(routeSurface, /\/(?:send|finalize|deliver)(?:\/|$)/i);
