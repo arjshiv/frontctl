@@ -95,3 +95,65 @@ test("buildWorkflowReport creates simple agent workflows from recent local usage
     delete process.env.FRONTCTL_NOW;
   }
 });
+
+test("buildWorkflowReport filters open-action queues through current live inbox rows", async () => {
+  const root = await makeTempDir("frontctl-workflows-live-filter");
+  const dbPath = join(root, "frontctl.sqlite");
+  process.env.FRONTCTL_NOW = "2026-06-06T12:00:00.000Z";
+  try {
+    await syncStore([
+      {
+        source: "live-private",
+        syncedAt: "2026-06-06T10:00:00.000Z",
+        conversation: {
+          id: "stale-open",
+          subject: "New Snowflake Notification",
+          status: "unassigned",
+          contact: "Snowflake Computing",
+          summary: "Notification that has since been archived",
+          numMessages: 1,
+          hasAttachments: false,
+        },
+      },
+      {
+        source: "live-private",
+        syncedAt: "2026-06-06T10:00:00.000Z",
+        conversation: {
+          id: "archived-pattern",
+          subject: "[Trust Center] 1 critical security violation found",
+          status: "archived",
+          contact: "Snowflake Computing",
+          summary: "Archived Snowflake signal",
+          numMessages: 1,
+          hasAttachments: false,
+        },
+      },
+    ], dbPath);
+
+    const report = await buildWorkflowReport({
+      dbPath,
+      actor: "Codex",
+      months: 6,
+      currentOpenRows: [
+        {
+          id: "live-open",
+          subject: "Weekly digest",
+          status: "unassigned",
+          contact: "Digest Sender",
+          summary: "Read online and subscribe",
+          numMessages: 1,
+          hasAttachments: false,
+          bumpedAt: "2026-06-06T11:00:00.000Z",
+        },
+      ],
+    });
+    const serialized = JSON.stringify(report.workflows);
+
+    assert.equal(report.liveVerification?.source, "live-private");
+    assert.equal(report.liveVerification?.activeConversations, 1);
+    assert.match(serialized, /live-open/);
+    assert.doesNotMatch(serialized, /stale-open/);
+  } finally {
+    delete process.env.FRONTCTL_NOW;
+  }
+});

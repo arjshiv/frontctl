@@ -54,7 +54,9 @@ frontctl workflows daily --actor ChatGPT --json
 
 For normal product use after memory exists, prefer `frontctl workflows daily --actor ChatGPT --json`.
 It returns daily triage, noise review, follow-up, tag hygiene, and ops/risk queues with safe preview
-commands. Do not execute state changes unless the user explicitly approves them.
+commands. When a valid live session exists, it verifies the current inbox before proposing open-thread
+actions; use `--local-only` only when the user explicitly wants no live check. Do not execute state
+changes unless the user explicitly approves them.
 
 Mutation rule:
 

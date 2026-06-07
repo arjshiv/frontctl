@@ -14,6 +14,12 @@ export interface WorkflowReport {
     newest?: string;
     conversations: number;
   };
+  liveVerification?: {
+    source: "live-private";
+    verifiedAt: string;
+    activeConversations: number;
+    note: string;
+  };
   productLens: {
     principle: string;
     observations: string[];
@@ -49,7 +55,7 @@ export interface WorkflowItem {
   };
 }
 
-interface WorkflowRow {
+export interface WorkflowRow {
   id: string;
   subject?: string;
   status?: string;
@@ -68,6 +74,7 @@ export async function buildWorkflowReport(options: {
   months?: number;
   limit?: number;
   actor?: string;
+  currentOpenRows?: WorkflowRow[];
 } = {}): Promise<WorkflowReport> {
   const dbPath = options.dbPath ?? defaultStorePath();
   await ensureStore(dbPath);
@@ -80,11 +87,13 @@ export async function buildWorkflowReport(options: {
     readWorkflowRows(dbPath, cutoff.toISOString()),
   ]);
   const recent = rows.sort(byRecent);
+  const currentOpenRows = options.currentOpenRows?.sort(byRecent);
+  const activeRows = currentOpenRows ?? recent.filter((row) => row.status !== "archived");
   const archiveContacts = archiveHeavyContacts(recent);
-  const dailyItems = todayMatters(recent).slice(0, limit);
-  const noiseItems = noiseCandidates(recent, archiveContacts).slice(0, limit);
-  const followUpItems = followUps(recent).slice(0, limit);
-  const tagItems = tagOpportunities(recent).slice(0, limit);
+  const dailyItems = todayMatters(activeRows).slice(0, limit);
+  const noiseItems = noiseCandidates(activeRows, archiveContacts).slice(0, limit);
+  const followUpItems = followUps(activeRows).slice(0, limit);
+  const tagItems = tagOpportunities(activeRows).slice(0, limit);
   const opsItems = opsRisk(recent).slice(0, limit);
 
   return {
@@ -99,6 +108,14 @@ export async function buildWorkflowReport(options: {
       newest: recent.map(rowDate).find(Boolean),
       conversations: recent.length,
     },
+    liveVerification: currentOpenRows
+      ? {
+        source: "live-private",
+        verifiedAt: new Date().toISOString(),
+        activeConversations: currentOpenRows.length,
+        note: "Open-action queues were filtered through the current live inbox so stale local rows are not proposed as active work.",
+      }
+      : undefined,
     productLens: {
       principle: "Make the agent useful in the workflows the user already repeats; default to previews and local evidence.",
       observations: observations(recent, memory),

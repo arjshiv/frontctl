@@ -164,7 +164,7 @@ function usage() {
       "frontctl sync [--live] [--limit 100] [--all] [--json]",
       "frontctl cache stats|search|read ... [--max-age-hours 12] [--format markdown|plain] [--json]",
       "frontctl memory init|report|path [--live] [--all] [--limit 500] [--fresh] [--json]",
-      "frontctl workflows list|daily [--months 6] [--limit 8] [--actor NAME] [--json]",
+      "frontctl workflows list|daily [--months 6] [--limit 8] [--actor NAME] [--local-only] [--json]",
       "frontctl mq check|install|query|example [--json]",
       "frontctl whoami [--json]",
       "frontctl inbox list [--limit 20] [--all] [--format markdown|plain] [--json]",

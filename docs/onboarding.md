@@ -266,8 +266,11 @@ frontctl workflows daily --actor Claude --json
 what looks like fast archive material, what tends to stay open, where tags might help, and which
 local sources were synced. It does not store cookies, auth headers, or raw timeline bodies. Agents
 should present memory output as suggestions, not autonomous rules.
-`workflows daily` is the default agent-friendly view over that memory and store data: it returns
-daily triage, noise review, follow-up, tag hygiene, and ops/risk queues with preview commands.
+`workflows daily` is the default agent-friendly view over that memory and store data. When live
+mode is unlocked, it verifies the current inbox before proposing open-thread actions so archived
+threads do not reappear from stale local rows. Use `--local-only` only when live verification is not
+wanted. It returns daily triage, noise review, follow-up, tag hygiene, and ops/risk queues with
+preview commands.
 
 For readable output in chat or terminals:
 

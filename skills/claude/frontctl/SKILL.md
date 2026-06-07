@@ -112,7 +112,8 @@ bodies.
 For normal product use, prefer `frontctl workflows daily --actor Claude --json` after memory exists.
 It returns the common queues the user actually needs: daily triage, noise review, follow-up, tag
 hygiene, and ops/risk alerts. Treat its archive/snooze/tag commands as previews unless the user
-explicitly approves execution.
+explicitly approves execution. When a valid live session exists, it verifies the current inbox before
+proposing open-thread actions; use `--local-only` only when the user explicitly wants no live check.
 Local index timeline text is bounded at 20,000 characters per item. If `textTruncated` is true,
 use `frontctl read CONVERSATION_ID --live --json` for the freshest available context.
 Use `--format markdown` or `--format plain` when the user wants readable output instead of a JSON

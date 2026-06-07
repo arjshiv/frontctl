@@ -308,9 +308,12 @@ timeline bodies. Agents should treat the output as hypotheses and ask before tur
 rules.
 
 `workflows daily` is the simple product surface for agents. It reads the local store and memory,
-then returns queues for daily triage, noise review, follow-up, tag hygiene, and ops/risk alerts.
-Each queue includes safe read/summarize commands and, where appropriate, archive/snooze/tag preview
-commands with `--actor` and `--reason` already filled in. It does not execute state changes.
+then uses the unlocked live inbox session, when available, to keep open-action queues from showing
+stale local rows. If no valid session exists it falls back to local-only mode without prompting;
+pass `--local-only` to force that behavior. It returns queues for daily triage, noise review,
+follow-up, tag hygiene, and ops/risk alerts. Each queue includes safe read/summarize commands and,
+where appropriate, archive/snooze/tag preview commands with `--actor` and `--reason` already filled
+in. It does not execute state changes.
 
 Discovery and draft commands:
 
