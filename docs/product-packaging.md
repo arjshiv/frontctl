@@ -72,6 +72,10 @@ approving prompts.
 Browser onboarding should gracefully report the local state: no Front app installed is acceptable
 when Chrome or Edge has a signed-in Front profile; Safari should explain that cookie import needs
 optional `agentcookie` support or a future signed helper.
+For browser-backed route verification, do not confuse a reachable DevTools port with a signed-in
+Front browser tab. `browser-status` finds the port, `browser-probe` proves Front auth, and
+`browser-seed` can reuse the existing short-lived `frontctl` session in that tab without printing
+cookie values or touching Keychain again.
 
 Agent identity should be visible without changing mailbox state. State-changing commands should
 accept `--actor NAME` and `--reason "..."`, record both in frontctl previews and audit logs, and not
