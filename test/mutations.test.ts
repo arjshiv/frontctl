@@ -400,6 +400,37 @@ test("commentConversation audit log hashes body instead of storing raw text", as
   assert.match(audit, /bodySha256/);
 });
 
+test("commentConversation add executes without a separate identity comment", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-comment-add-no-double-comment");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const requests = await withMockedFrontRequests(async () => {
+    const result = await commentConversation([
+      "add",
+      "conversation-1",
+      "--body",
+      "User requested visible note",
+      "--actor",
+      "Codex",
+      "--reason",
+      "Add requested note",
+      "--yes",
+    ], paths) as any;
+    assert.equal(result.identity.frontVisibleComment, true);
+    assert.equal(result.identity.timing, "command-comment");
+    assert.equal(result.result.activityId, "activity-1");
+  }, { ok: true, id: "activity-1" });
+
+  const writes = requests.filter((request) => request.method !== "GET");
+  assert.equal(writes.length, 2);
+  assert.equal(writes[0].method, "PUT");
+  assert.match(writes[0].url, /\/conversations\/conversation-1\/comments\/[a-f0-9]{32}\?include_conversation=true$/);
+  assert.equal((writes[0].body as any).text, "User requested visible note");
+  assert.equal(writes[1].method, "POST");
+  assert.match(writes[1].url, /\/conversations\/conversation-1\/timeline$/);
+  assert.equal((writes[1].body as any).type, "comment");
+});
+
 test("commentConversation remove targets the verified timeline activity delete route", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-comment-remove");
 
