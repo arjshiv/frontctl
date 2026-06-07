@@ -31,6 +31,7 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
     ? await bridgeCommand(["test"], paths)
     : undefined;
   const bridgeStatusAfter = bridgeTest ? await cdpBridgeStatus() : bridgeStatusBefore;
+  const liveReady = auth.valid || bridgeStatusAfter.proofValid;
   const nonPromptingLiveAvailable = bridgeStatusAfter.availableWithoutKeychain
     || bridgeStatusAfter.proofValid
     || auth.valid
@@ -42,7 +43,7 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
     frontAppInstalled,
     localProfileVisible,
     browserSessionAvailable: nonPromptingLiveAvailable,
-    authValid: auth.valid || bridgeStatusAfter.proofValid,
+    authValid: liveReady,
     agentsInstalled: finalAgentStatus.allInstalled,
   });
 
@@ -104,7 +105,7 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
       installCommand: `frontctl setup --agent ${agent ?? "all"} --yes --json`,
       chatgptPromptCommand: "frontctl agents prompt --agent chatgpt --json",
     },
-    nextSteps: auth.valid
+    nextSteps: liveReady
       ? doctorResult.ok
         ? [
           "frontctl inbox list --limit 20 --json",

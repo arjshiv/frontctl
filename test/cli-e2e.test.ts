@@ -404,6 +404,45 @@ test("CLI setup reports install steps and agent prompt", async () => {
   assert.match(result.agentPrompt, /Do not send email/);
 });
 
+test("CLI setup ready state does not recommend enabling live mode again after CDP proof", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-setup-cdp-ready"));
+  const home = await makeTempDir("frontctl-cli-setup-cdp-ready-home");
+  await writeFakeFrontCacheFixture(paths);
+
+  const env = {
+    ...envForPaths(paths),
+    ...envForHome(home),
+    FRONTCTL_CDP_BRIDGE: "1",
+    FRONTCTL_CDP_BRIDGE_PROOF_PATH: join(home, ".frontctl", "browser-bridge.json"),
+    FRONTCTL_CDP_BRIDGE_MOCK_CONTEXT: JSON.stringify({
+      origin: "https://app.frontapp.com",
+      cell: "cell-00017",
+      companyId: "32390a17805cd26f7349",
+      teamId: "6088721",
+    }),
+    FRONTCTL_CDP_BRIDGE_MOCK_RESPONSES: JSON.stringify({
+      "/boot/app/8": { user: { id: "usr_123" } },
+    }),
+  };
+
+  await execFileAsync("node", ["dist/src/cli.js", "setup", "--agent", "all", "--yes", "--enable-live", "--json"], { env });
+  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "setup", "--json"], { env });
+  const result = JSON.parse(stdout) as {
+    userReadiness: { ready: boolean; state: string };
+    auth: { valid: boolean };
+    bridge: { status: { proofValid: boolean } };
+    nextSteps: string[];
+  };
+
+  assert.equal(result.userReadiness.ready, true);
+  assert.equal(result.userReadiness.state, "ready");
+  assert.equal(result.auth.valid, false);
+  assert.equal(result.bridge.status.proofValid, true);
+  assert.ok(result.nextSteps.includes("frontctl inbox list --limit 20 --json"));
+  assert.ok(!result.nextSteps.includes("frontctl setup --enable-live --json"));
+  assert.ok(!result.nextSteps.includes("frontctl discovery launch --remote-debugging-port 9222 --json"));
+});
+
 test("CLI setup distinguishes installed Front from incomplete sign-in state", async () => {
   const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-setup-partial"));
   const home = await makeTempDir("frontctl-cli-setup-partial-home");
