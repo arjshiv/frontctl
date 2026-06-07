@@ -49,6 +49,9 @@ check_dmg_contents() {
   hdiutil attach -nobrowse -readonly -mountpoint "$mountpoint" "$dmg_path" >/dev/null
   attached=1
   test -f "$mountpoint/$package_name"
+  test -x "$mountpoint/Install Frontctl for This User.command"
+  test -x "$mountpoint/frontctl/bin/frontctl"
+  test -f "$mountpoint/frontctl/node_modules/zod/package.json"
   test -f "$mountpoint/START HERE.txt"
   test -x "$mountpoint/Uninstall Frontctl.command"
   test -x "$mountpoint/Frontctl Setup.app/Contents/MacOS/FrontctlSetup"
@@ -74,13 +77,16 @@ check_expanded_payload() {
   runtime_node="$(find "$temp_root/expanded" -path '*/opt/frontctl/runtime/node' -type f | head -n 1)"
   cli_js="$(find "$temp_root/expanded" -path '*/opt/frontctl/dist/src/cli.js' -type f | head -n 1)"
   wrapper="$(find "$temp_root/expanded" -path '*/opt/frontctl/bin/frontctl' -type f | head -n 1)"
+  zod_pkg="$(find "$temp_root/expanded" -path '*/opt/frontctl/node_modules/zod/package.json' -type f | head -n 1)"
 
   test -n "$runtime_node"
   test -n "$cli_js"
   test -n "$wrapper"
+  test -n "$zod_pkg"
   test -x "$runtime_node"
   test -x "$wrapper"
   "$runtime_node" "$cli_js" --version >/dev/null
+  "$runtime_node" "$cli_js" doctor --json >/dev/null
   grep -q "/opt/frontctl/runtime/node /opt/frontctl/dist/src/cli.js" "$wrapper"
   ! otool -L "$runtime_node" | grep -q '/opt/homebrew'
 
@@ -126,6 +132,7 @@ check "setup app plist" /usr/bin/plutil -lint "$APP/Contents/Info.plist"
 check "package contains frontctl" sh -c "pkgutil --payload-files '$PKG' | grep -q './opt/frontctl/bin/frontctl'"
 check "package contains runtime node" sh -c "pkgutil --payload-files '$PKG' | grep -q './opt/frontctl/runtime/node'"
 check "package contains cli" sh -c "pkgutil --payload-files '$PKG' | grep -q './opt/frontctl/dist/src/cli.js'"
+check "package contains production dependencies" sh -c "pkgutil --payload-files '$PKG' | grep -q './opt/frontctl/node_modules/zod/package.json'"
 check "package contains postinstall" sh -c "rm -rf /tmp/frontctl-release-expand-postinstall && pkgutil --expand '$PKG' /tmp/frontctl-release-expand-postinstall && test -f /tmp/frontctl-release-expand-postinstall/frontctl-component.pkg/Scripts/postinstall; rm -rf /tmp/frontctl-release-expand-postinstall"
 check "expanded package payload is runnable" check_expanded_payload "$PKG"
 check "dmg contains package and setup app" check_dmg_contents "$DMG" "frontctl-$VERSION.pkg"
