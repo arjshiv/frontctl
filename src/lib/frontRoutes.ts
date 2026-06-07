@@ -1,5 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { frontRouteContextSchema } from "./schemas.js";
 
 export interface FrontRouteContext {
   origin: string;
@@ -51,12 +52,12 @@ export async function discoverFrontRouteContext(cacheDataPath: string): Promise<
 
     const match = text.match(ROUTE_PATTERN);
     if (match) {
-      return {
+      return frontRouteContextSchema.parse({
         origin: match[1],
         cell: match[2],
         companyId: match[3],
         teamId: match[4],
-      };
+      });
     }
   }
 
@@ -64,6 +65,7 @@ export async function discoverFrontRouteContext(cacheDataPath: string): Promise<
 }
 
 export function buildFrontRoutes(context: FrontRouteContext): FrontRoutes {
+  context = frontRouteContextSchema.parse(context);
   const root = `${context.origin}/${context.cell}/api/1/companies/${context.companyId}`;
   const teamRoot = `${root}/team/${context.teamId}`;
 
