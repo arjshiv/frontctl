@@ -18,6 +18,10 @@ The first working loop exists:
 - cached and live private-session inbox reads
 - search, read, summarize, triage, attachment metadata, tags, drafts, and local SQLite/FTS cache
 - guarded archive, snooze, tag, comment, draft, and discard flows
+- browser/CDP discovery with explicit browser auth probing
+- browser session seeding from the short-lived `frontctl` session cache without repeated Keychain prompts
+- live browser-runtime write verification for archive/unarchive, snooze/unsnooze, tag add/remove,
+  comment add/remove, and reply draft/discard
 - local memory profiling for first-run preference learning
 - local daily workflows for triage, noise review, follow-up, tag hygiene, and ops/risk alerts
 - hard-blocked sending
@@ -110,6 +114,10 @@ makes every inbox read ask for Keychain access, treat it as a regression.
 This applies equally to browser sessions. `frontctl auth unlock --source edge` or
 `--source default-browser` may ask once for the browser safe-storage item. After that,
 `auth check`, `readiness`, and live reads must use the frontctl session cache without prompting.
+For browser-backed route work, `browser-status` only proves an attachable DevTools port. Use
+`browser-probe` to prove the selected tab is authenticated. If the CLI session is valid but the tab
+is not, `browser-seed` may copy the short-lived `frontctl` session into that tab without printing
+cookie values or touching Keychain again.
 
 ### Design For Agents Installing This For Users
 
