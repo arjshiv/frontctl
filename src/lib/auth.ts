@@ -9,6 +9,10 @@ const CHROME_MAC_SALT = "saltysalt";
 const CHROME_MAC_ITERATIONS = 1003;
 const CHROME_MAC_IV = Buffer.alloc(16, " ");
 const FRONT_COOKIE_HOST = "app.frontapp.com";
+const FRONT_COOKIE_HOSTS = ["app.frontapp.com", ".frontapp.com"] as const;
+const REQUIRED_FRONT_COOKIE_NAMES = ["front.id", "front.id.sig"] as const;
+const OPTIONAL_FRONT_COOKIE_NAMES = ["front.csrf"] as const;
+const FRONT_SESSION_COOKIE_NAMES = [...REQUIRED_FRONT_COOKIE_NAMES, ...OPTIONAL_FRONT_COOKIE_NAMES] as const;
 const FRONT_KEYCHAIN_SERVICE = "Front Safe Storage";
 const SESSION_CRYPTO_VERSION = 1;
 const SESSION_ENCRYPTION_MODE = "local-derived-v1";
@@ -52,8 +56,16 @@ export interface FrontSession {
   keychainServiceUsedForUnlock?: string;
   cookieHeader: string;
   cookieNames: string[];
+  csrfToken?: string;
   createdAt: string;
   expiresAt: string;
+}
+
+export interface PlainFrontCookieRow {
+  host_key: string;
+  name: string;
+  value: string;
+  expires_utc: number;
 }
 
 interface SessionFile {
@@ -165,6 +177,7 @@ export async function unlockFrontSession(
   const cookieParts: string[] = [];
   const cookieNames: string[] = [];
   const expirations: number[] = [];
+  let csrfToken: string | undefined;
 
   for (const row of rows) {
     const value = decryptChromiumCookieValue(
@@ -174,6 +187,9 @@ export async function unlockFrontSession(
     );
     cookieParts.push(`${row.name}=${value}`);
     cookieNames.push(row.name);
+    if (row.name === "front.csrf") {
+      csrfToken = value;
+    }
     const expiresAt = chromeTimeToUnixMs(row.expires_utc);
     if (expiresAt && expiresAt > Date.now()) {
       expirations.push(expiresAt);
@@ -189,6 +205,7 @@ export async function unlockFrontSession(
     keychainServiceUsedForUnlock: keychainService,
     cookieHeader: cookieParts.join("; "),
     cookieNames,
+    csrfToken,
     createdAt: new Date(createdAtMs).toISOString(),
     expiresAt: new Date(expiresAtMs).toISOString(),
   };
@@ -204,7 +221,7 @@ export async function unlockFrontSession(
 }
 
 export async function unlockFrontSessionFromPlainCookies(
-  rows: Array<{ host_key: string; name: string; value: string; expires_utc: number }>,
+  rows: PlainFrontCookieRow[],
   options: { sessionPath?: string; ttlHours?: number; force?: boolean; source?: string } = {},
 ): Promise<FrontSessionUnlockResult> {
   const sessionPath = options.sessionPath ?? defaultSessionPath();
@@ -222,6 +239,7 @@ export async function unlockFrontSessionFromPlainCookies(
   }
 
   const selected = selectFrontCookieRows(rows);
+  const csrfToken = selected.find((row) => row.name === "front.csrf")?.value;
   const createdAtMs = Date.now();
   const ttlMs = Math.max(1, options.ttlHours ?? 12) * 60 * 60 * 1000;
   const expirations = selected
@@ -233,6 +251,7 @@ export async function unlockFrontSessionFromPlainCookies(
     source: options.source ?? "plain-cookie-source",
     cookieHeader: selected.map((row) => `${row.name}=${row.value}`).join("; "),
     cookieNames: selected.map((row) => row.name),
+    csrfToken,
     createdAt: new Date(createdAtMs).toISOString(),
     expiresAt: new Date(expiresAtMs).toISOString(),
   };
@@ -275,13 +294,14 @@ export async function readFrontSession(sessionPath = defaultSessionPath()): Prom
       decipher.update(Buffer.from(raw.ciphertext, "base64")),
       decipher.final(),
     ]).toString("utf8");
-    const payload = JSON.parse(plaintext) as { cookieHeader: string };
+    const payload = JSON.parse(plaintext) as { cookieHeader: string; csrfToken?: string };
     return {
       host: raw.host,
       source: raw.source,
       keychainServiceUsedForUnlock: raw.keychainServiceUsedForUnlock,
       cookieHeader: payload.cookieHeader,
       cookieNames: raw.cookieNames,
+      csrfToken: payload.csrfToken,
       createdAt: raw.createdAt,
       expiresAt: raw.expiresAt,
     };
@@ -323,13 +343,13 @@ async function readEncryptedFrontCookies(cookiesPath: string): Promise<CookieSec
     const sql = [
       "select host_key, name, hex(encrypted_value) as encrypted_value, expires_utc",
       "from cookies",
-      `where host_key in ('${FRONT_COOKIE_HOST}', '.frontapp.com') and name in ('front.id', 'front.id.sig')`,
+      `where host_key in (${FRONT_COOKIE_HOSTS.map((host) => `'${host}'`).join(", ")}) and name in (${FRONT_SESSION_COOKIE_NAMES.map((name) => `'${name}'`).join(", ")})`,
       "order by name, expires_utc desc;",
     ].join(" ");
     const { stdout } = await run("sqlite3", ["-json", copiedPath, sql], 1024 * 1024);
     const rows = stdout.trim() ? (JSON.parse(stdout) as CookieSecretRow[]) : [];
     const selected = selectFrontCookieRows(rows);
-    if (selected.length < 2) {
+    if (!hasRequiredFrontCookies(selected)) {
       throw new Error("Front session cookies were not found. Open Front and sign in, then rerun `frontctl auth unlock`.");
     }
     return selected;
@@ -341,7 +361,7 @@ async function readEncryptedFrontCookies(cookiesPath: string): Promise<CookieSec
 function selectFrontCookieRows<T extends { host_key: string; name: string; expires_utc: number }>(rows: T[]): T[] {
   const byName = new Map<string, T>();
   for (const row of rows) {
-    if (row.name !== "front.id" && row.name !== "front.id.sig") {
+    if (!FRONT_SESSION_COOKIE_NAMES.includes(row.name as (typeof FRONT_SESSION_COOKIE_NAMES)[number])) {
       continue;
     }
     const existing = byName.get(row.name);
@@ -349,9 +369,14 @@ function selectFrontCookieRows<T extends { host_key: string; name: string; expir
       byName.set(row.name, row);
     }
   }
-  return ["front.id", "front.id.sig"]
+  return [...FRONT_SESSION_COOKIE_NAMES]
     .map((name) => byName.get(name))
     .filter((row): row is T => Boolean(row));
+}
+
+function hasRequiredFrontCookies(rows: Array<{ name: string }>) {
+  const names = new Set(rows.map((row) => row.name));
+  return REQUIRED_FRONT_COOKIE_NAMES.every((name) => names.has(name));
 }
 
 function readKeychainPassword(service: string) {
@@ -372,7 +397,10 @@ async function writeFrontSession(sessionPath: string, session: FrontSession) {
   const nonce = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, nonce);
   const ciphertext = Buffer.concat([
-    cipher.update(JSON.stringify({ cookieHeader: session.cookieHeader }), "utf8"),
+    cipher.update(JSON.stringify({
+      cookieHeader: session.cookieHeader,
+      csrfToken: session.csrfToken,
+    }), "utf8"),
     cipher.final(),
   ]);
   const file: SessionFile = {
