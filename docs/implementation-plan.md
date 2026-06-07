@@ -120,7 +120,22 @@ Implemented:
 - `frontctl discovery fixtures path|list|install` manages sanitized fixture storage.
 - `frontctl discovery guide [ACTION]` provides action-specific safe Front actions, preview
   commands, capture commands, and verification status.
-- `frontctl discovery verify-writes --json` reports fixture coverage for each write action.
+- `frontctl discovery verify-writes --json` reports deployable v1 write coverage for thread
+  actions, with preview-only standalone compose listed separately under `blockedActions`.
+- `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` runs the deployable write
+  set against one real conversation, verifies state after each mutation, cleans up temporary
+  artifacts, and archives the conversation last.
+- `frontctl discovery browser-status --json` discovers fixed and dynamic Chrome/Edge DevTools
+  ports without printing process command lines or profile paths.
+- `frontctl discovery browser-probe CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --json`
+  proves whether the selected browser tab is authenticated to Front. CDP reachability alone is not
+  enough.
+- `frontctl discovery browser-seed --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --yes --json`
+  copies the existing short-lived `frontctl` session into the selected browser tab, including CSRF,
+  without printing cookie values or touching Keychain again.
+- `frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json`
+  runs the deployable write set from inside the authenticated browser runtime, cleans up temporary
+  tag/comment/draft/reminder state, and archives the conversation last.
 - Sanitized request body shapes preserve redacted keys and types so write fixtures can prove payload
   shape without leaking message content.
 
@@ -186,7 +201,7 @@ Future enhancement:
 
 Implemented behind known-route gates:
 
-- `frontctl archive CONVERSATION_ID...` dry-run preview; `--yes` requires known non-send route
+- `frontctl archive CONVERSATION_ID` dry-run preview; `--yes` requires known non-send route
   verification or a matching sanitized fixture.
 - `frontctl tag add|remove CONVERSATION_ID TAG` dry-run preview with catalog-backed alias/id/name
   resolution; `--yes` requires known non-send route verification or a matching sanitized fixture.
@@ -212,12 +227,14 @@ Implemented behind non-send route gates:
   non-send route verification or a matching sanitized fixture.
 - `frontctl draft reply CONVERSATION_ID --body-file reply.md` dry-run preview; `--yes` requires
   known non-send route verification or a matching sanitized fixture.
-- `frontctl draft compose --to EMAIL --subject "..." --body "..."` dry-run preview; `--yes`
-  requires known non-send route verification or a matching sanitized fixture and still never sends.
+- `frontctl draft compose --to EMAIL --subject "..." --body "..."` preview-only until the
+  standalone compose route is captured and implemented; it never sends.
 - `frontctl draft list --limit N` local IndexedDB draft scan.
 - `frontctl draft read DRAFT_ID` local IndexedDB draft read.
 - `frontctl draft discard DRAFT_ID` resolves cached draft message UIDs and can become executable
   when it can resolve the cached draft message UID and verify the non-send route.
+- `frontctl draft discard CONVERSATION_ID MESSAGE_UID` deletes a known draft message UID returned
+  from `frontctl draft reply --yes`.
 - `frontctl send` remains hard blocked.
 - Route-level tests prove no send/finalize/deliver endpoint is exposed.
 
@@ -261,17 +278,21 @@ frontctl attachments list cnv_123 --json
 frontctl discovery sanitize --input capture.har --output sanitized.json --json
 frontctl discovery fixtures install sanitized.json --json
 frontctl discovery verify-writes --json
+frontctl discovery verify-live-writes CONVERSATION_ID --yes --json
+frontctl discovery browser-status --remote-debugging-port 9222 --json
+frontctl discovery browser-probe CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --json
+frontctl discovery browser-seed --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --yes --json
+frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json
 frontctl audit list --json
 frontctl draft list --limit 20 --json
 frontctl draft read draft_123 --json
 frontctl archive cnv_123 --dry-run
-frontctl archive cnv_123 cnv_456 --yes
 frontctl snooze cnv_123 tomorrow-9am --yes
 frontctl tag list --json
 frontctl tag add cnv_123 "Needs Reply" --yes
 frontctl comment add cnv_123 --body-file note.md --yes
 frontctl draft reply cnv_123 --body-file reply.md --yes
-frontctl draft compose --to alice@example.com --subject "Draft subject" --body-file draft.md --yes
+frontctl draft compose --to alice@example.com --subject "Draft subject" --body-file draft.md
 frontctl draft discard draft_123 --yes
 frontctl open cnv_123
 ```
