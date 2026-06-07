@@ -6,6 +6,14 @@ import { listCachedDrafts, readCachedDraft } from "../lib/draftCache.js";
 import { createFrontPrivateClient, getBoot } from "../lib/frontPrivate.js";
 import { buildFrontRoutes, discoverFrontRouteContext, type FrontRoutes } from "../lib/frontRoutes.js";
 import { defaultFrontPaths, type FrontPaths } from "../lib/paths.js";
+import {
+  commentPublishBodySchema,
+  commentSaveBodySchema,
+  frontBootSchema,
+  frontConversationSchema,
+  frontTimelineResponseSchema,
+  validateMutationPayload,
+} from "../lib/schemas.js";
 import { extractTags, listCachedTags, resolveTagIdentifier, type FrontTag } from "../lib/tags.js";
 import { verifyWriteFixture, type WriteVerification } from "../lib/writeVerification.js";
 
@@ -448,6 +456,12 @@ function copyIfPresent(target: Record<string, unknown>, source: Record<string, u
 }
 
 async function verifiedSpec(spec: MutationSpec): Promise<MutationSpec> {
+  if (spec.body !== undefined) {
+    spec = {
+      ...spec,
+      body: validateMutationPayload(spec.action, spec.body),
+    };
+  }
   const path = spec.url ? new URL(spec.url).pathname : undefined;
   const verification = await verifyWriteFixture({
     action: spec.action,
@@ -530,11 +544,15 @@ async function buildReplyDraftBody(conversationId: string, body: string, paths: 
   const client = await createFrontPrivateClient(paths);
   const routes = buildFrontRoutes(client.context);
   const [boot, conversation, timelineResponse] = await Promise.all([
-    client.getJson<Record<string, unknown>>(routes.boot),
-    client.getJson<Record<string, unknown>>(routes.conversation(conversationId)),
-    client.getJson<Record<string, unknown>>(routes.timeline(conversationId)),
+    client.getJson(routes.boot).then((value) => frontBootSchema.parse(value)),
+    client.getJson(routes.conversation(conversationId)).then((value) => frontConversationSchema.parse(value)),
+    client.getJson(routes.timeline(conversationId)).then((value) => frontTimelineResponseSchema.parse(value)),
   ]);
-  const timeline = Array.isArray(timelineResponse.timeline) ? timelineResponse.timeline : timelineResponse;
+  const timeline = Array.isArray(timelineResponse)
+    ? timelineResponse
+    : Array.isArray(timelineResponse.timeline)
+      ? timelineResponse.timeline
+      : [];
   const content = { timeline };
   const sourceMessage = latestConversationMessage(content, conversation);
   const authorId = numberField((boot.user as Record<string, unknown> | undefined)?.id);
@@ -785,20 +803,20 @@ function conversationPatchBody(id: string, patch: Record<string, unknown>) {
 }
 
 function commentSaveBody(text: string) {
-  return {
+  return commentSaveBodySchema.parse({
     text,
     attachments: [],
     referenced_activity_id: null,
     annotation: null,
-  };
+  });
 }
 
 function commentPublishBody(commentUid: string) {
-  return {
+  return commentPublishBodySchema.parse({
     type: "comment",
     comment: { uid: commentUid },
     meta: { trackers: [] },
-  };
+  });
 }
 
 async function resolveCommentActivityId(
