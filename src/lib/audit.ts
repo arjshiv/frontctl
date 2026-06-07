@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { mutationAuditEntrySchema } from "./schemas.js";
 
 export interface MutationAuditEvent {
   action: string;
@@ -94,41 +95,26 @@ async function readAuditFile(auditPath: string): Promise<MutationAuditEntry[]> {
 function parseAuditLine(line: string): MutationAuditEntry | undefined {
   try {
     const raw = JSON.parse(line) as unknown;
-    if (!raw || typeof raw !== "object") {
+    const parsed = mutationAuditEntrySchema.safeParse(raw);
+    if (!parsed.success) {
       return undefined;
     }
-    const entry = raw as Record<string, unknown>;
+    const entry = parsed.data;
     return {
-      ts: stringField(entry.ts),
-      action: stringField(entry.action),
-      mode: entry.mode === "dry-run" || entry.mode === "execute" ? entry.mode : undefined,
-      conversationId: stringField(entry.conversationId),
-      actor: actorField(entry.actor),
-      reason: stringField(entry.reason),
-      method: stringField(entry.method),
-      path: stringField(entry.path),
-      bodyKeys: Array.isArray(entry.bodyKeys) ? entry.bodyKeys.map(String).sort() : undefined,
-      bodySha256: stringField(entry.bodySha256),
+      ts: entry.ts,
+      action: entry.action,
+      mode: entry.mode,
+      conversationId: entry.conversationId,
+      actor: entry.actor,
+      reason: entry.reason,
+      method: entry.method,
+      path: entry.path,
+      bodyKeys: entry.bodyKeys?.map(String).sort(),
+      bodySha256: entry.bodySha256,
     };
   } catch {
     return undefined;
   }
-}
-
-function actorField(value: unknown): MutationActor | undefined {
-  if (!value || typeof value !== "object") {
-    return undefined;
-  }
-  const raw = value as Record<string, unknown>;
-  const name = stringField(raw.name);
-  if (!name) {
-    return undefined;
-  }
-  return {
-    name,
-    client: stringField(raw.client),
-    runId: stringField(raw.runId),
-  };
 }
 
 function bodyKeys(body: unknown) {
@@ -137,8 +123,4 @@ function bodyKeys(body: unknown) {
 
 function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
-}
-
-function stringField(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value : undefined;
 }
