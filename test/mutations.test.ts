@@ -9,6 +9,7 @@ import {
   snoozeConversation,
   tagConversation,
   unarchiveConversation,
+  unsnoozeConversation,
 } from "../src/commands/mutations.js";
 import { makeFakeFrontInstall, makeTempDir, writeFakeFrontSession } from "./helpers.js";
 
@@ -174,6 +175,88 @@ test("unarchiveConversation restores a conversation through the observed status 
   assert.equal(request.method, "PATCH");
   assert.match(request.url, /\/conversations$/);
   assert.deepEqual(request.body, { conversations: [{ id: "conversation-1", status: "open" }] });
+});
+
+test("state-changing mutations write visible identity comments before the requested write", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-identity-all");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+  await writeFile(
+    join(paths.cacheDataPath, "tags-cache"),
+    JSON.stringify({
+      tags: [
+        { id: "123", alias: "needs-reply", name: "Needs Reply" },
+      ],
+    }),
+  );
+  process.env.FRONTCTL_NOW = "2026-06-05T16:00:00.000Z";
+
+  const cases: Array<{
+    name: string;
+    action: string;
+    run: () => Promise<unknown>;
+    expectedFinalMethod: string;
+    expectedFinalUrl: RegExp;
+  }> = [
+    {
+      name: "unarchive",
+      action: "unarchive",
+      run: () => unarchiveConversation(["conversation-1", "--actor", "Codex", "--reason", "Restore for test", "--yes"], paths),
+      expectedFinalMethod: "PATCH",
+      expectedFinalUrl: /\/conversations$/,
+    },
+    {
+      name: "snooze",
+      action: "snooze",
+      run: () => snoozeConversation(["conversation-1", "in:2h", "--actor", "Codex", "--reason", "Snooze for test", "--yes"], paths),
+      expectedFinalMethod: "PATCH",
+      expectedFinalUrl: /\/conversations$/,
+    },
+    {
+      name: "unsnooze",
+      action: "unsnooze",
+      run: () => unsnoozeConversation(["conversation-1", "--actor", "Codex", "--reason", "Unsnooze for test", "--yes"], paths),
+      expectedFinalMethod: "PATCH",
+      expectedFinalUrl: /\/conversations$/,
+    },
+    {
+      name: "tag.add",
+      action: "tag.add",
+      run: () => tagConversation(["add", "conversation-1", "Needs Reply", "--actor", "Codex", "--reason", "Tag for test", "--yes"], paths),
+      expectedFinalMethod: "PATCH",
+      expectedFinalUrl: /\/conversations$/,
+    },
+    {
+      name: "comment.remove",
+      action: "comment.remove",
+      run: () => commentConversation(["remove", "conversation-1", "456", "--actor", "Codex", "--reason", "Remove test comment", "--yes"], paths),
+      expectedFinalMethod: "DELETE",
+      expectedFinalUrl: /\/conversations\/conversation-1\/timeline\/456$/,
+    },
+    {
+      name: "draft.reply",
+      action: "draft.reply",
+      run: () => draftCommand(["reply", "conversation-1", "--body", "Draft only", "--actor", "Codex", "--reason", "Draft for test", "--yes"], paths),
+      expectedFinalMethod: "PUT",
+      expectedFinalUrl: /\/conversations\/conversation-1\/messages\/[a-f0-9]{32}\?include_conversation=true$/,
+    },
+    {
+      name: "draft.discard",
+      action: "draft.discard",
+      run: () => draftCommand(["discard", "conversation-1", "draftuid123", "--actor", "Codex", "--reason", "Discard draft for test", "--yes"], paths),
+      expectedFinalMethod: "DELETE",
+      expectedFinalUrl: /\/conversations\/conversation-1\/messages\/draftuid123$/,
+    },
+  ];
+
+  for (const item of cases) {
+    const requests = await withMockedFrontRequests(async () => {
+      const result = await item.run() as any;
+      assert.equal(result.identity.frontVisibleComment, true, item.name);
+      assert.equal(result.identity.timing, "before-action", item.name);
+    }, draftReplyMockResponse);
+    const writes = requests.filter((request) => request.method !== "GET");
+    assertIdentityCommentBeforeFinalWrite(writes, item.action, item.expectedFinalMethod, item.expectedFinalUrl);
+  }
 });
 
 test("tagConversation dry-run supports add and remove", async () => {
@@ -732,4 +815,22 @@ async function withMockedFrontRequests(
   }
   assert.ok(requests.length);
   return requests;
+}
+
+function assertIdentityCommentBeforeFinalWrite(
+  writes: Array<{ url: string; method: string; body?: unknown }>,
+  action: string,
+  finalMethod: string,
+  finalUrl: RegExp,
+) {
+  assert.equal(writes.length, 3, action);
+  assert.equal(writes[0].method, "PUT", action);
+  assert.match(writes[0].url, /\/conversations\/conversation-1\/comments\/[a-f0-9]{32}\?include_conversation=true$/, action);
+  assert.match(String((writes[0].body as any).text), /frontctl agent action/, action);
+  assert.match(String((writes[0].body as any).text), new RegExp(`Action: ${action.replace(".", "\\.")}`), action);
+  assert.equal(writes[1].method, "POST", action);
+  assert.match(writes[1].url, /\/conversations\/conversation-1\/timeline$/, action);
+  assert.equal((writes[1].body as any).type, "comment", action);
+  assert.equal(writes[2].method, finalMethod, action);
+  assert.match(writes[2].url, finalUrl, action);
 }
