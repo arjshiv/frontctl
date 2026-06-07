@@ -7,10 +7,17 @@ consumer install path.
 
 ## Channels
 
-1. **GitHub preview release**: unsigned `.pkg` inside a `.dmg` for early testers.
-2. **macOS direct download**: signed/notarized `.pkg` inside a `.dmg` for production use.
+1. **GitHub preview release**: unsigned `.dmg` with a no-admin user installer for early testers.
+2. **macOS direct download**: signed/notarized `.dmg` with no-admin user install by default.
 3. **Homebrew**: `brew install frontctl` for technical users.
 4. **npm**: `npm install -g frontctl` for developers and automation environments.
+
+The default user path installs the self-contained payload under `~/.local/share/frontctl` and a
+user-owned shim at `~/.local/bin/frontctl`. It does not require an administrator password. The
+package channel is system-wide: it installs under `/opt/frontctl` and creates
+`/usr/local/bin/frontctl`, so it requires administrator approval. Do not try to install into
+`/usr/bin`; System Integrity Protection protects that directory and third-party installers should
+not target it.
 
 The preview release path is documented in [github-preview-release.md](github-preview-release.md).
 It does not require the Mac App Store, Developer ID certificates, or notarization credentials.
@@ -24,24 +31,29 @@ script/build_package.sh
 ```
 
 By default, the package builder downloads the official `node-v<current>-darwin-<arch>` runtime from
-nodejs.org and stages it under `/opt/frontctl/runtime/node`. This keeps the installer usable for
-non-technical users without Homebrew or npm.
+nodejs.org and stages it under `/opt/frontctl/runtime/node`. It also copies production npm
+dependencies under `/opt/frontctl/node_modules`. This keeps the installer usable without Homebrew or
+npm after administrator approval.
 
 The DMG contains both:
 
+- `Install Frontctl for This User.command`
+- `frontctl/` bundled CLI payload for user installs
 - `frontctl-<version>.pkg`
 - `Frontctl Setup.app`
 - `START HERE.txt`
 - `Uninstall Frontctl.command`
 - `Developer README.md`
 
-The setup app expects the package to be installed first. If `frontctl` is missing, it tells the user
-to run the installer package from the DMG.
+The setup app can use the user install, the bundled CLI next to the setup app in the DMG, or a
+system package install. If `frontctl` is missing, it tells the user to run the no-admin user
+installer from the DMG.
 `START HERE.txt` is the first-run checklist for non-technical users; keep it short and free of
 developer-only commands.
-`Uninstall Frontctl.command` removes local frontctl state, installed agent skills, `/opt/frontctl`,
-the `/usr/local/bin/frontctl` symlink, and the package receipt. It intentionally does not touch
-Front for macOS or the user's Front account.
+`Uninstall Frontctl.command` removes local frontctl state, installed agent skills,
+`~/.local/share/frontctl`, `~/.local/bin/frontctl`, `/opt/frontctl`, the `/usr/local/bin/frontctl`
+symlink, and the package receipt. It intentionally does not touch Front for macOS or the user's
+Front account.
 
 For local-only validation with an existing Node binary:
 
