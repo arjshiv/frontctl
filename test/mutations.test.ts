@@ -8,6 +8,7 @@ import {
   draftCommand,
   snoozeConversation,
   tagConversation,
+  unarchiveConversation,
 } from "../src/commands/mutations.js";
 import { makeFakeFrontInstall, makeTempDir, writeFakeFrontSession } from "./helpers.js";
 
@@ -32,9 +33,9 @@ test("archiveConversation dry-run builds discovered private route without unlock
   assert.equal(result.reason, "Low-value automated notification");
   assert.equal(result.identity.frontVisibleComment, false);
   assert.equal(result.canExecute, true);
-  assert.equal(result.request.method, "POST");
-  assert.match(result.request.path ?? "", /\/conversation_batch\/archive$/);
-  assert.deepEqual(result.request.body, { conversation_ids: ["conversation-1"] });
+  assert.equal(result.request.method, "PATCH");
+  assert.match(result.request.path ?? "", /\/conversations$/);
+  assert.deepEqual(result.request.body, { conversations: [{ id: "conversation-1", status: "archived" }] });
   assert.ok(result.verification);
   assert.equal(result.verification.verified, true);
   assert.equal(result.verification.source, "known-route");
@@ -48,10 +49,10 @@ test("archiveConversation can execute only after a matching sanitized fixture ex
   const { paths } = await fakeMutationContext("frontctl-mutation-archive-fixture");
   const fixturePath = await writeSanitizedFixture(
     paths.supportPath,
-    "archive",
-    "POST",
-    "/cell-00017/api/1/companies/32390a17805cd26f7349/conversation_batch/archive",
-    { conversation_ids: ["string"] },
+    "conversation.update",
+    "PATCH",
+    "/cell-00017/api/1/companies/32390a17805cd26f7349/conversations",
+    { conversations: [{ id: "string", status: "string" }] },
   );
   process.env.FRONTCTL_DISCOVERY_FIXTURES_PATH = fixturePath;
 
@@ -76,44 +77,27 @@ test("archiveConversation can execute with built-in known route coverage", async
     assert.deepEqual(result.result, { ok: true });
   });
 
-  assert.equal(request.method, "POST");
-  assert.match(request.url, /\/conversation_batch\/archive$/);
-  assert.deepEqual(request.body, { conversation_ids: ["conversation-1"] });
+  assert.equal(request.method, "PATCH");
+  assert.match(request.url, /\/conversations$/);
+  assert.deepEqual(request.body, { conversations: [{ id: "conversation-1", status: "archived" }] });
 });
 
-test("archiveConversation supports batch archive previews and execution", async () => {
+test("archiveConversation rejects batch archive until a batch route is verified", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-archive-batch");
-  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
 
-  const preview = await archiveConversation(["conversation-1", "conversation-2"], paths) as any;
-  assert.equal(preview.mode, "dry-run");
-  assert.equal(preview.canExecute, true);
-  assert.equal(preview.conversationId, undefined);
-  assert.deepEqual(preview.details, {
-    count: 2,
-    conversationIds: ["conversation-1", "conversation-2"],
-  });
-  assert.deepEqual(preview.request.body, { conversation_ids: ["conversation-1", "conversation-2"] });
-
-  const request = await withMockedFrontRequest(async () => {
-    const result = await archiveConversation(["conversation-1", "conversation-2", "--yes"], paths) as any;
-    assert.equal(result.mode, "execute");
-    assert.equal(result.canExecute, true);
-    assert.equal(result.details.count, 2);
-  });
-
-  assert.equal(request.method, "POST");
-  assert.match(request.url, /\/conversation_batch\/archive$/);
-  assert.deepEqual(request.body, { conversation_ids: ["conversation-1", "conversation-2"] });
+  await assert.rejects(
+    archiveConversation(["conversation-1", "conversation-2"], paths),
+    /Batch archive is not enabled/,
+  );
 });
 
 test("archiveConversation rejects route-only fixtures without matching body shape", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-archive-route-only");
   const fixturePath = await writeSanitizedFixture(
     paths.supportPath,
-    "archive",
-    "POST",
-    "/cell-00017/api/1/companies/32390a17805cd26f7349/conversation_batch/archive",
+    "conversation.update",
+    "PATCH",
+    "/cell-00017/api/1/companies/32390a17805cd26f7349/conversations",
   );
   process.env.FRONTCTL_DISCOVERY_FIXTURES_PATH = fixturePath;
   process.env.FRONTCTL_REQUIRE_DISCOVERY_FIXTURES = "1";
@@ -130,27 +114,46 @@ test("archiveConversation rejects route-only fixtures without matching body shap
   }
 });
 
+test("unarchiveConversation restores a conversation through the observed status patch route", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-unarchive");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const request = await withMockedFrontRequest(async () => {
+    const result = await unarchiveConversation(["conversation-1", "--yes"], paths) as any;
+    assert.equal(result.action, "unarchive");
+    assert.equal(result.mode, "execute");
+    assert.equal(result.canExecute, true);
+    assert.deepEqual(result.request.body, { conversations: [{ id: "conversation-1", status: "open" }] });
+  });
+
+  assert.equal(request.method, "PATCH");
+  assert.match(request.url, /\/conversations$/);
+  assert.deepEqual(request.body, { conversations: [{ id: "conversation-1", status: "open" }] });
+});
+
 test("tagConversation dry-run supports add and remove", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-tag");
   await writeFile(
     join(paths.cacheDataPath, "tags-cache"),
     JSON.stringify({
       tags: [
-        { id: "tag-1", alias: "needs-reply", name: "Needs Reply" },
+        { id: "123", alias: "needs-reply", name: "Needs Reply" },
       ],
     }),
   );
 
   const add = await tagConversation(["add", "conversation-1", "Needs Reply"], paths) as any;
-  const remove = await tagConversation(["remove", "conversation-1", "tag-1"], paths) as any;
+  const remove = await tagConversation(["remove", "conversation-1", "123"], paths) as any;
 
-  assert.match(add.request.path ?? "", /\/conversations\/conversation-1\/tag\/needs-reply$/);
-  assert.match(remove.request.path ?? "", /\/conversations\/conversation-1\/untag\/needs-reply$/);
+  assert.match(add.request.path ?? "", /\/conversations$/);
+  assert.match(remove.request.path ?? "", /\/conversations$/);
+  assert.deepEqual(add.request.body, { conversations: [{ id: "conversation-1", tags: { add: [123] } }] });
+  assert.deepEqual(remove.request.body, { conversations: [{ id: "conversation-1", tags: { remove: [123] } }] });
   assert.deepEqual(add.details.tag, {
     input: "Needs Reply",
     resolvedAlias: "needs-reply",
     matchedBy: "name",
-    tag: { id: "tag-1", alias: "needs-reply", name: "Needs Reply" },
+    tag: { id: "123", alias: "needs-reply", name: "Needs Reply" },
   });
   assert.equal(remove.details.tag.matchedBy, "id");
   assert.equal(add.canExecute, true);
@@ -228,12 +231,33 @@ test("commentConversation audit log hashes body instead of storing raw text", as
   assert.equal(result.actor.name, "frontctl agent");
   assert.equal(result.identity.frontVisibleComment, false);
   assert.equal(result.canExecute, true);
-  assert.deepEqual(result.request.body, { body: "SECRET COMMENT BODY" });
+  assert.match(result.request.path ?? "", /\/conversations\/conversation-1\/timeline$/);
+  assert.equal(result.request.body.type, "comment");
+  assert.equal(result.request.body.comment.uid.length, 32);
+  assert.deepEqual(result.request.body.meta, { trackers: [] });
+  assert.deepEqual(result.details.saveRequest.body, {
+    text: "SECRET COMMENT BODY",
+    attachments: [],
+    referenced_activity_id: null,
+    annotation: null,
+  });
   assert.doesNotMatch(audit, /SECRET COMMENT BODY/);
   assert.match(audit, /bodySha256/);
 });
 
-test("snooze and draft dry-runs remain non-sending and ready for explicit execution", async () => {
+test("commentConversation remove targets the verified timeline activity delete route", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-comment-remove");
+
+  const result = await commentConversation(["remove", "conversation-1", "123"], paths) as any;
+
+  assert.equal(result.mode, "dry-run");
+  assert.equal(result.action, "comment.remove");
+  assert.equal(result.canExecute, true);
+  assert.equal(result.request.method, "DELETE");
+  assert.match(result.request.path ?? "", /\/conversations\/conversation-1\/timeline\/123$/);
+});
+
+test("snooze and draft dry-runs remain non-sending but require discovery before execution", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-gated");
   process.env.FRONTCTL_NOW = "2026-06-05T16:00:00.000Z";
 
@@ -243,7 +267,11 @@ test("snooze and draft dry-runs remain non-sending and ready for explicit execut
   assert.equal(snooze.canExecute, true);
   assert.equal(draft.sendsEmail, false);
   assert.equal(draft.canExecute, true);
-  assert.match(draft.note ?? "", /Send remains blocked/);
+  assert.equal(draft.request.method, "PUT");
+  assert.match(draft.request.path ?? "", /\/conversations\/conversation-1\/messages\/[a-f0-9]{32}$/);
+  assert.equal(draft.request.body.text, "Draft only");
+  assert.equal("version" in draft.request.body, false);
+  assert.match(draft.note ?? "", /Draft save only/);
 });
 
 test("snooze normalizes human time shortcuts before preview or execution", async () => {
@@ -253,11 +281,11 @@ test("snooze normalizes human time shortcuts before preview or execution", async
   const relative = await snoozeConversation(["conversation-1", "in:2h"], paths) as any;
   const later = await snoozeConversation(["conversation-1", "later"], paths) as any;
 
-  assert.equal(relative.request.body.until, "2026-06-05T18:00:00.000Z");
+  assert.equal(relative.request.body.conversations[0].reminder, Date.parse("2026-06-05T18:00:00.000Z"));
   assert.equal(relative.details.input, "in:2h");
   assert.equal(relative.details.normalizedUntil, "2026-06-05T18:00:00.000Z");
   assert.equal(relative.details.parser, "relative");
-  assert.equal(later.request.body.until, "2026-06-05T18:00:00.000Z");
+  assert.equal(later.request.body.conversations[0].reminder, Date.parse("2026-06-05T18:00:00.000Z"));
   assert.equal(later.details.parser, "shortcut");
 });
 
@@ -295,6 +323,10 @@ test("draft compose preserves recipients and subject in preview without sending"
   assert.equal(draft.action, "draft.compose");
   assert.equal(draft.mode, "dry-run");
   assert.equal(draft.sendsEmail, false);
+  assert.equal(draft.canExecute, false);
+  assert.equal(draft.request.method, undefined);
+  assert.equal(draft.request.path, undefined);
+  assert.match(draft.note ?? "", /preview-only/);
   assert.deepEqual(draft.request.body, {
     body: "Draft only",
     draft: true,
@@ -306,7 +338,7 @@ test("draft compose preserves recipients and subject in preview without sending"
   });
 });
 
-test("draft compose requires matching recipient and subject fixture shape when provided", async () => {
+test("draft compose stays blocked even when an old guessed fixture shape is present", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-compose-shape");
   const fixturePath = await writeSanitizedFixture(
     paths.supportPath,
@@ -330,8 +362,10 @@ test("draft compose requires matching recipient and subject fixture shape when p
     ], paths) as any;
 
     assert.equal(draft.canExecute, false);
-    assert.equal(draft.verification.verified, false);
-    assert.equal(draft.verification.requestBodyShapeMatched, false);
+    assert.equal(draft.verification, undefined);
+    assert.equal(draft.request.method, undefined);
+    assert.equal(draft.request.path, undefined);
+    assert.match(draft.note ?? "", /preview-only/);
   } finally {
     delete process.env.FRONTCTL_REQUIRE_DISCOVERY_FIXTURES;
   }
@@ -341,10 +375,10 @@ test("snooze executes only after matching fixture and unlocked session", async (
   const { paths } = await fakeMutationContext("frontctl-mutation-snooze-execute");
   const fixturePath = await writeSanitizedFixture(
     paths.supportPath,
-    "snooze",
-    "POST",
-    "/cell-00017/api/1/companies/32390a17805cd26f7349/conversations/conversation-1/status/snoozed",
-    { until: "string" },
+    "conversation.update",
+    "PATCH",
+    "/cell-00017/api/1/companies/32390a17805cd26f7349/conversations",
+    { conversations: [{ id: "string", status: "string", reminder: "number" }] },
   );
   process.env.FRONTCTL_DISCOVERY_FIXTURES_PATH = fixturePath;
   await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
@@ -357,12 +391,14 @@ test("snooze executes only after matching fixture and unlocked session", async (
     assert.deepEqual(result.result, { ok: true });
   });
 
-  assert.equal(request.method, "POST");
-  assert.match(request.url, /\/conversations\/conversation-1\/status\/snoozed$/);
-  assert.deepEqual(request.body, { until: snoozeUntil });
+  assert.equal(request.method, "PATCH");
+  assert.match(request.url, /\/conversations$/);
+  assert.deepEqual(request.body, {
+    conversations: [{ id: "conversation-1", status: "archived", reminder: Date.parse(snoozeUntil) }],
+  });
 });
 
-test("draft reply and compose become executable with matching non-send fixtures", async () => {
+test("draft reply executes with the live-proven shape and compose remains blocked", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-draft-execute");
   await writeFile(
     join(paths.supportPath, "draft-fixtures.json"),
@@ -371,10 +407,33 @@ test("draft reply and compose become executable with matching non-send fixtures"
       redacted: true,
       entries: [
         {
-          method: "POST",
-          path: "/cell-00017/api/1/companies/32390a17805cd26f7349/conversations/conversation-1/messages",
+          method: "PUT",
+          path: "/cell-00017/api/1/companies/32390a17805cd26f7349/conversations/conversation-1/messages/message-placeholder",
           routeKind: "message-or-draft",
-          requestBodyShape: { body: "string", draft: "boolean" },
+          requestBodyShape: {
+            in_reply_to_id: "number",
+            referenced_message_id: "number",
+            author_id: "number",
+            from: { channel_id: "number" },
+            subject: "string",
+            recipients: [{ role: "string", handle: "string", name: "string", source: "string" }],
+            attachments: [],
+            html: "string",
+            text: "string",
+            shared_draft: "boolean",
+            virtru_encrypt: "boolean",
+            has_quote: "boolean",
+            quote_include: "boolean",
+            quote_modified: "boolean",
+            forward_include: "boolean",
+            forward_modified: "boolean",
+            signature_include: "boolean",
+            signature_modified: "boolean",
+            main_style: "string",
+            default_font_style: "string",
+            format: "string",
+            handle_time_increment: "number",
+          },
           redacted: ["query", "headers", "cookies", "auth", "body-values", "mailbox-text"],
         },
         {
@@ -401,9 +460,10 @@ test("draft reply and compose become executable with matching non-send fixtures"
     assert.equal(reply.mode, "execute");
     assert.equal(reply.canExecute, true);
     assert.equal(reply.sendsEmail, false);
-  });
-  const composeRequest = await withMockedFrontRequest(async () => {
-    const compose = await draftCommand([
+    assert.equal(reply.result.messageUid, "draftuid123");
+  }, draftReplyMockResponse);
+  await assert.rejects(
+    draftCommand([
       "compose",
       "--to",
       "alice@example.com",
@@ -412,22 +472,18 @@ test("draft reply and compose become executable with matching non-send fixtures"
       "--body",
       "New draft only",
       "--yes",
-    ], paths) as any;
-    assert.equal(compose.mode, "execute");
-    assert.equal(compose.canExecute, true);
-    assert.equal(compose.sendsEmail, false);
-  });
+    ], paths),
+    /Standalone draft compose is preview-only/,
+  );
 
-  assert.match(replyRequest.url, /\/conversations\/conversation-1\/messages$/);
-  assert.deepEqual(replyRequest.body, { body: "Draft only", draft: true });
-  assert.match(composeRequest.url, /\/conversations$/);
-  assert.deepEqual(composeRequest.body, {
-    body: "New draft only",
-    draft: true,
-    kind: "compose",
-    to: ["alice@example.com"],
-    subject: "Draft subject",
-  });
+  assert.match(replyRequest.url, /\/conversations\/conversation-1\/messages\/[a-f0-9]{32}\?include_conversation=true$/);
+  assert.equal(replyRequest.method, "PUT");
+  const replyBody = replyRequest.body as any;
+  assert.equal(replyBody.text, "Draft only");
+  assert.equal(replyBody.in_reply_to_id, 226523505105);
+  assert.equal(replyBody.from.channel_id, 7599313);
+  assert.equal(replyBody.recipients[0].handle, "support@example.com");
+  assert.equal("version" in replyBody, false);
 });
 
 test("draft reply accepts --body-file without enabling send", async () => {
@@ -439,7 +495,9 @@ test("draft reply accepts --body-file without enabling send", async () => {
 
   assert.equal(draft.sendsEmail, false);
   assert.equal(draft.canExecute, true);
-  assert.deepEqual(draft.request.body, { body: "Draft from file", draft: true });
+  assert.equal(draft.request.method, "PUT");
+  assert.equal(draft.request.body.text, "Draft from file");
+  assert.equal("version" in draft.request.body, false);
 });
 
 test("draft list/read scan local IndexedDB without Front writes", async () => {
@@ -541,7 +599,64 @@ async function writeSanitizedFixture(root: string, routeKind: string, method: st
   return fixturePath;
 }
 
-async function withMockedFrontRequest(fn: () => Promise<void>, responseBody: unknown = { ok: true }) {
+function draftReplyMockResponse(input: string | URL | Request) {
+  const url = String(input);
+  if (url.includes("/boot/app/8")) {
+    return {
+      user: {
+        id: 6088721,
+        preferences: { defaultFontStyle: "" },
+      },
+    };
+  }
+  if (url.includes("/conversations/conversation-1/timeline")) {
+    return {
+      timeline: [
+        {
+          type: "email",
+          id: 226523505105,
+          subject: "Draft test",
+          from: {
+            role: "from",
+            handle: "sender@example.com",
+            display_name: "Sender",
+          },
+          recipients: [
+            {
+              role: "from",
+              handle: "sender@example.com",
+              display_name: "Sender",
+            },
+            {
+              role: "to",
+              handle: "me@example.com",
+              display_name: "Me",
+              channel_id: 7599313,
+            },
+            {
+              role: "reply-to",
+              handle: "support@example.com",
+              display_name: "Support",
+            },
+          ],
+        },
+      ],
+    };
+  }
+  if (/\/conversations\/conversation-1\/messages\/[a-f0-9]{32}/.test(url)) {
+    return {
+      id: 226605248081,
+      uid: "draftuid123",
+      subject: "Draft test",
+    };
+  }
+  return { ok: true };
+}
+
+async function withMockedFrontRequest(
+  fn: () => Promise<void>,
+  responseBody: unknown | ((input: string | URL | Request, init?: RequestInit) => unknown) = { ok: true },
+) {
   const previousFetch = globalThis.fetch;
   let request: { url: string; method: string; body?: unknown } | undefined;
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -550,7 +665,8 @@ async function withMockedFrontRequest(fn: () => Promise<void>, responseBody: unk
       method: init?.method ?? "GET",
       body: typeof init?.body === "string" ? JSON.parse(init.body) as unknown : undefined,
     };
-    return new Response(JSON.stringify(responseBody), {
+    const body = typeof responseBody === "function" ? responseBody(input, init) : responseBody;
+    return new Response(JSON.stringify(body), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
