@@ -35,15 +35,33 @@ interface SanitizedEntry {
 }
 
 const ACTION_ROUTE_KIND: Record<string, string> = {
-  archive: "archive",
-  "tag.add": "tag.add",
-  "tag.remove": "tag.remove",
+  archive: "conversation.update",
+  unarchive: "conversation.update",
+  unsnooze: "conversation.update",
+  "tag.add": "conversation.update",
+  "tag.remove": "conversation.update",
   "comment.add": "comment.add",
-  snooze: "snooze",
+  "comment.remove": "comment.remove",
+  snooze: "conversation.update",
   "draft.reply": "message-or-draft",
   "draft.compose": "message-or-draft",
   "draft.discard": "draft.discard",
 };
+
+const BUILT_IN_VERIFIED_ACTIONS = new Set([
+  "archive",
+  "unarchive",
+  "unsnooze",
+  "snooze",
+  "tag.add",
+  "tag.remove",
+  "comment.add",
+  "comment.remove",
+  "draft.reply",
+  "draft.discard",
+]);
+
+const BLOCKED_PREVIEW_ONLY_ACTIONS = new Set(["draft.compose"]);
 
 const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" | "expectedRouteKind" | "fixturePath" | "captureCommand" | "verifyCommand">> = {
   archive: {
@@ -54,6 +72,26 @@ const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" |
     notes: [
       "Use a test or low-risk conversation because archive changes mailbox state.",
       "Capture only one archive action during the capture window.",
+    ],
+  },
+  unsnooze: {
+    action: "unsnooze",
+    safeFrontAction: "Clear the reminder from one snoozed low-risk conversation in Front.",
+    previewCommand: "frontctl unsnooze CONVERSATION_ID --json",
+    captureName: "unsnooze",
+    notes: [
+      "Use a low-risk conversation that was intentionally snoozed.",
+      "Capture only one unsnooze action during the capture window.",
+    ],
+  },
+  unarchive: {
+    action: "unarchive",
+    safeFrontAction: "Unarchive exactly one low-risk conversation in Front, usually to restore after an archive test.",
+    previewCommand: "frontctl unarchive CONVERSATION_ID --json",
+    captureName: "unarchive",
+    notes: [
+      "Use only when restoring a conversation that was intentionally archived.",
+      "Capture only one unarchive action during the capture window.",
     ],
   },
   "tag.add": {
@@ -84,6 +122,16 @@ const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" |
     notes: [
       "Use a private internal comment, not an email reply.",
       "Do not capture message send/finalize/deliver actions.",
+    ],
+  },
+  "comment.remove": {
+    action: "comment.remove",
+    safeFrontAction: "Delete one private internal test comment activity that was created for verification.",
+    previewCommand: "frontctl comment remove CONVERSATION_ID ACTIVITY_OR_COMMENT_UID --json",
+    captureName: "comment.remove",
+    notes: [
+      "Use only a harmless test comment created for verification.",
+      "Capture comment removal separately from comment creation.",
     ],
   },
   snooze: {
@@ -131,56 +179,84 @@ const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" |
 export const WRITE_ACTION_SPECS = [
   {
     action: "archive",
-    method: "POST",
-    path: "/cell-placeholder/api/1/companies/company-placeholder/conversation_batch/archive",
-    body: { conversation_ids: ["conversation-placeholder"] },
+    method: "PATCH",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
+    body: { conversations: [{ id: 123, status: "archived" }] },
+  },
+  {
+    action: "unarchive",
+    method: "PATCH",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
+    body: { conversations: [{ id: 123, status: "open" }] },
+  },
+  {
+    action: "unsnooze",
+    method: "PATCH",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
+    body: { conversations: [{ id: 123, status: "archived", reminder: null }] },
   },
   {
     action: "tag.add",
-    method: "POST",
-    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/conversation-placeholder/tag/tag-placeholder",
+    method: "PATCH",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
+    body: { conversations: [{ id: 123, tags: { add: [456] } }] },
   },
   {
     action: "tag.remove",
-    method: "POST",
-    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/conversation-placeholder/untag/tag-placeholder",
+    method: "PATCH",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
+    body: { conversations: [{ id: 123, tags: { remove: [456] } }] },
   },
   {
     action: "comment.add",
     method: "POST",
-    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/conversation-placeholder/comments",
-    body: { body: "comment-placeholder" },
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/conversation-placeholder/timeline",
+    body: { type: "comment", comment: { uid: "comment-placeholder" }, meta: { trackers: [] } },
+  },
+  {
+    action: "comment.remove",
+    method: "DELETE",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/conversation-placeholder/timeline/456",
   },
   {
     action: "snooze",
-    method: "POST",
-    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/conversation-placeholder/status/snoozed",
-    body: { until: "2026-06-06T09:00:00.000Z" },
+    method: "PATCH",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
+    body: { conversations: [{ id: 123, status: "archived", reminder: 1780805080056 }] },
   },
   {
     action: "draft.reply",
-    method: "POST",
-    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/conversation-placeholder/messages",
-    body: { body: "draft-placeholder", draft: true },
-  },
-  {
-    action: "draft.compose",
-    method: "POST",
-    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
+    method: "PUT",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/conversation-placeholder/messages/message-placeholder",
     body: {
-      body: "draft-placeholder",
-      draft: true,
-      kind: "compose",
-      to: ["test@example.com"],
+      in_reply_to_id: 123,
+      referenced_message_id: 123,
+      author_id: 456,
+      from: { channel_id: 789 },
       subject: "frontctl draft test",
-      cc: ["team@example.com"],
-      bcc: ["audit@example.com"],
+      recipients: [{ role: "to", handle: "test@example.com", name: "Test", source: "email" }],
+      attachments: [],
+      html: "<div>draft-placeholder</div>",
+      text: "draft-placeholder",
+      shared_draft: false,
+      virtru_encrypt: false,
+      has_quote: false,
+      quote_include: false,
+      quote_modified: false,
+      forward_include: false,
+      forward_modified: false,
+      signature_include: false,
+      signature_modified: false,
+      main_style: "",
+      default_font_style: "",
+      format: "html",
+      handle_time_increment: 0,
     },
   },
   {
     action: "draft.discard",
     method: "DELETE",
-    path: "/cell-placeholder/api/1/companies/company-placeholder/messages/message-placeholder",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/conversation-placeholder/messages/message-placeholder",
   },
 ] as const;
 
@@ -189,12 +265,22 @@ export async function verifyAllWriteFixtures(env: NodeJS.ProcessEnv = process.en
   const actions = await Promise.all(
     WRITE_ACTION_SPECS.map((spec) => verifyWriteFixture({ ...spec, env })),
   );
+  const blockedActions = [...BLOCKED_PREVIEW_ONLY_ACTIONS].map((action) => ({
+    verified: false,
+    action,
+    expectedRouteKind: ACTION_ROUTE_KIND[action] ?? action,
+    requestBodyShapeMatched: false,
+    status: "preview-only",
+    reason: "Standalone draft compose is preview-only and intentionally excluded from v1 write verification until its private Front route is observed and implemented. It rejects --yes.",
+  }));
   return {
     fixturePath,
+    scope: "deployable-v1-thread-actions",
     count: actions.length,
     verifiedCount: actions.filter((action) => action.verified).length,
     allVerified: actions.every((action) => action.verified),
     actions,
+    blockedActions,
   };
 }
 
@@ -211,7 +297,16 @@ export async function writeCaptureGuide(options: {
   const port = options.remoteDebuggingPort ?? 9222;
   const guides = await Promise.all(actions.map(async (action) => {
     const spec = WRITE_ACTION_SPECS.find((candidate) => candidate.action === action);
-    const verification = await verifyWriteFixture({ ...spec, action, env: options.env });
+    const verification = spec
+      ? await verifyWriteFixture({ ...spec, action, env: options.env })
+      : {
+        verified: false,
+        action,
+        expectedRouteKind: ACTION_ROUTE_KIND[action] ?? action,
+        reason: BLOCKED_PREVIEW_ONLY_ACTIONS.has(action)
+          ? "Preview-only action. Capture guide is informational until frontctl implements a non-send route for it."
+          : "No command route spec exists for this action.",
+      } satisfies WriteVerification;
     const guide = ACTION_CAPTURE_GUIDES[action];
     return {
       ...guide,
@@ -224,6 +319,7 @@ export async function writeCaptureGuide(options: {
   }));
   return {
     fixtureRoot: discoveryFixtureRoot(options.env ?? process.env),
+    scope: options.action ? "requested-action" : "deployable-v1-thread-actions",
     remoteDebuggingPort: port,
     launchCommand: `frontctl discovery launch --remote-debugging-port ${port} --json`,
     count: guides.length,
@@ -304,6 +400,9 @@ function knownWriteRouteMatches(options: {
   path?: string;
   body?: unknown;
 }) {
+  if (!BUILT_IN_VERIFIED_ACTIONS.has(options.action)) {
+    return false;
+  }
   const spec = WRITE_ACTION_SPECS.find((candidate) => candidate.action === options.action);
   if (!spec) {
     return false;
@@ -415,6 +514,7 @@ function pathShape(path: string | undefined) {
     .replace(/\/companies\/[^/]+/, "/companies/:company")
     .replace(/\/team\/[^/]+/, "/team/:team")
     .replace(/\/conversations\/[^/]+/, "/conversations/:conversation")
+    .replace(/\/timeline\/[^/]+/, "/timeline/:activity")
     .replace(/\/messages\/[^/]+/, "/messages/:message")
     .replace(/\/tag\/[^/]+/, "/tag/:tag")
     .replace(/\/untag\/[^/]+/, "/untag/:tag");
