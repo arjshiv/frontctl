@@ -57,9 +57,10 @@ export async function verifyLiveWritesCommand(args: string[], paths: FrontPaths 
         temporaryTagRemoved: true,
         temporaryCommentRemoved: true,
         temporaryDraftDiscarded: true,
+        identityCommentsRemain: true,
       },
       command: `frontctl discovery verify-live-writes ${shellToken(conversationId)} --yes --json`,
-      note: "This command mutates a real Front conversation, verifies each state change live, and cleans up temporary tag/comment/draft artifacts.",
+      note: "This command mutates a real Front conversation, verifies each state change live, and cleans up temporary tag/comment/draft artifacts. Required identity comments remain visible by design.",
     };
   }
 
@@ -216,6 +217,7 @@ export async function verifyLiveWritesCommand(args: string[], paths: FrontPaths 
       },
       tagUsed: { id: tag.id, alias: tag.alias, name: tag.name },
       proof,
+      visibleIdentityCommentsRemain: true,
       steps,
       before: summarizeState(before),
       after: summarizeState(after),

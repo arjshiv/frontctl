@@ -86,7 +86,7 @@ test("archiveConversation can execute with built-in known route coverage", async
 });
 
 test("archiveConversation writes visible agent identity comment before archive execution", async () => {
-  const { paths } = await fakeMutationContext("frontctl-mutation-archive-identity-comment");
+  const { paths, auditPath } = await fakeMutationContext("frontctl-mutation-archive-identity-comment");
   await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
 
   const requests = await withMockedFrontRequests(async () => {
@@ -126,10 +126,17 @@ test("archiveConversation writes visible agent identity comment before archive e
   assert.equal(writes[2].method, "PATCH");
   assert.match(writes[2].url, /\/conversations$/);
   assert.deepEqual(writes[2].body, { conversations: [{ id: "conversation-1", status: "archived" }] });
+
+  const auditEntries = await readAuditJsonl(auditPath);
+  assert.deepEqual(auditEntries.map((entry) => entry.phase), ["attempt", "identity-commented", "completed"]);
+  assert.equal(auditEntries[1].identityActivityId, "activity-1");
+  assert.match(String(auditEntries[1].identityCommentUid), /^[a-f0-9]{32}$/);
+  assert.equal(auditEntries[2].identityActivityId, "activity-1");
+  assert.deepEqual(auditEntries[2].resultKeys, ["id", "ok"]);
 });
 
 test("archiveConversation reports identity comment refs if requested action fails after commenting", async () => {
-  const { paths } = await fakeMutationContext("frontctl-mutation-archive-comment-then-fail");
+  const { paths, auditPath } = await fakeMutationContext("frontctl-mutation-archive-comment-then-fail");
   await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
 
   const requests = await withMockedFrontRequests(async () => {
@@ -152,6 +159,14 @@ test("archiveConversation reports identity comment refs if requested action fail
   assert.equal(writes[0].method, "PUT");
   assert.equal(writes[1].method, "POST");
   assert.equal(writes[2].method, "PATCH");
+
+  const auditEntries = await readAuditJsonl(auditPath);
+  assert.deepEqual(auditEntries.map((entry) => entry.phase), ["attempt", "identity-commented", "failed"]);
+  assert.equal(auditEntries[1].identityActivityId, "activity-1");
+  assert.equal(auditEntries[2].identityActivityId, "activity-1");
+  assert.match(String(auditEntries[2].identityCommentUid), /^[a-f0-9]{32}$/);
+  assert.equal(auditEntries[2].errorClass, "CliError");
+  assert.match(String(auditEntries[2].errorMessageSha256), /^[a-f0-9]{64}$/);
 });
 
 test("archiveConversation rejects batch archive until a batch route is verified", async () => {
@@ -783,6 +798,14 @@ async function writeSanitizedFixture(root: string, routeKind: string, method: st
     ],
   }));
   return fixturePath;
+}
+
+async function readAuditJsonl(path: string) {
+  return (await readFile(path, "utf8"))
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
 function draftReplyMockResponse(input: string | URL | Request) {

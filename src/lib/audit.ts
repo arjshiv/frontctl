@@ -7,12 +7,17 @@ import { mutationAuditEntrySchema } from "./schemas.js";
 export interface MutationAuditEvent {
   action: string;
   mode: "dry-run" | "execute";
+  phase?: "attempt" | "identity-commented" | "completed" | "failed";
   conversationId?: string;
   actor?: MutationActor;
   reason?: string;
   method?: string;
   path?: string;
   body?: unknown;
+  identityCommentUid?: string;
+  identityActivityId?: unknown;
+  result?: unknown;
+  error?: unknown;
 }
 
 export interface MutationActor {
@@ -32,6 +37,13 @@ export interface MutationAuditEntry {
   path?: string;
   bodyKeys?: string[];
   bodySha256?: string;
+  phase?: "attempt" | "identity-commented" | "completed" | "failed";
+  identityCommentUid?: string;
+  identityActivityId?: string;
+  resultKeys?: string[];
+  resultSha256?: string;
+  errorClass?: string;
+  errorMessageSha256?: string;
 }
 
 export function defaultAuditPath(env: NodeJS.ProcessEnv = process.env) {
@@ -44,6 +56,7 @@ export async function auditMutation(event: MutationAuditEvent, auditPath = defau
     ts: new Date().toISOString(),
     action: event.action,
     mode: event.mode,
+    phase: event.phase,
     conversationId: event.conversationId,
     actor: event.actor,
     reason: event.reason,
@@ -51,6 +64,12 @@ export async function auditMutation(event: MutationAuditEvent, auditPath = defau
     path: event.path,
     bodyKeys: bodyKeys(event.body),
     bodySha256: event.body === undefined ? undefined : sha256(JSON.stringify(event.body)),
+    identityCommentUid: event.identityCommentUid,
+    identityActivityId: event.identityActivityId === undefined ? undefined : String(event.identityActivityId),
+    resultKeys: bodyKeys(event.result),
+    resultSha256: event.result === undefined ? undefined : sha256(JSON.stringify(event.result)),
+    errorClass: errorClass(event.error),
+    errorMessageSha256: event.error === undefined ? undefined : sha256(errorMessage(event.error)),
   };
   await appendFile(auditPath, `${JSON.stringify(entry)}\n`, { mode: 0o600 });
 }
@@ -104,6 +123,7 @@ function parseAuditLine(line: string): MutationAuditEntry | undefined {
       ts: entry.ts,
       action: entry.action,
       mode: entry.mode,
+      phase: entry.phase,
       conversationId: entry.conversationId,
       actor: entry.actor,
       reason: entry.reason,
@@ -111,6 +131,12 @@ function parseAuditLine(line: string): MutationAuditEntry | undefined {
       path: entry.path,
       bodyKeys: entry.bodyKeys?.map(String).sort(),
       bodySha256: entry.bodySha256,
+      identityCommentUid: entry.identityCommentUid,
+      identityActivityId: entry.identityActivityId,
+      resultKeys: entry.resultKeys?.map(String).sort(),
+      resultSha256: entry.resultSha256,
+      errorClass: entry.errorClass,
+      errorMessageSha256: entry.errorMessageSha256,
     };
   } catch {
     return undefined;
@@ -119,6 +145,17 @@ function parseAuditLine(line: string): MutationAuditEntry | undefined {
 
 function bodyKeys(body: unknown) {
   return body && typeof body === "object" && !Array.isArray(body) ? Object.keys(body).sort() : undefined;
+}
+
+function errorClass(error: unknown) {
+  if (error === undefined) {
+    return undefined;
+  }
+  return error instanceof Error ? error.name : typeof error;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function sha256(value: string) {

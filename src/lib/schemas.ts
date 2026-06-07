@@ -62,6 +62,7 @@ export const mutationAuditEntrySchema = z.object({
   ts: isoDateString.optional(),
   action: optionalString,
   mode: z.enum(["dry-run", "execute"]).optional(),
+  phase: z.enum(["attempt", "identity-commented", "completed", "failed"]).optional(),
   conversationId: optionalString,
   actor: mutationActorSchema.optional(),
   reason: optionalString,
@@ -69,7 +70,53 @@ export const mutationAuditEntrySchema = z.object({
   path: optionalString,
   bodyKeys: z.array(z.string()).optional(),
   bodySha256: optionalString,
+  identityCommentUid: optionalString,
+  identityActivityId: optionalString,
+  resultKeys: z.array(z.string()).optional(),
+  resultSha256: optionalString,
+  errorClass: optionalString,
+  errorMessageSha256: optionalString,
 }).passthrough();
+
+export const mutationIdentitySchema = z.object({
+  frontVisibleComment: z.boolean(),
+  timing: z.enum(["before-action", "command-comment", "none"]),
+  enforcedByCli: z.boolean(),
+  requiredBeforeAction: z.boolean().optional(),
+  note: optionalString,
+  comment: z.object({
+    commentUid: nonEmptyString,
+    activityId: z.unknown().optional(),
+  }).strict().optional(),
+}).strict();
+
+export const mutationPreviewSchema = z.object({
+  source: z.literal("live-private"),
+  publicApiUsed: z.literal(false),
+  sendsEmail: z.literal(false),
+  mode: z.enum(["dry-run", "execute"]),
+  action: nonEmptyString,
+  actor: mutationActorSchema.optional(),
+  reason: optionalString,
+  identity: mutationIdentitySchema,
+  canExecute: z.boolean(),
+  verification: z.unknown().optional(),
+  conversationId: optionalString,
+  request: z.object({
+    method: optionalString,
+    path: optionalString,
+    body: z.unknown().optional(),
+  }).strict(),
+  details: z.unknown().optional(),
+  note: optionalString,
+}).strict();
+
+export const mutationExecutionResultSchema = mutationPreviewSchema.extend({
+  result: z.unknown().optional(),
+}).strict();
+
+export type MutationPreviewResult = z.infer<typeof mutationPreviewSchema>;
+export type MutationExecutionResult = z.infer<typeof mutationExecutionResultSchema>;
 
 const conversationPatchItemSchema = z.object({
   id: frontId,

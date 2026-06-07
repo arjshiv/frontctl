@@ -1,14 +1,14 @@
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { auditMutation, type MutationActor } from "../lib/audit.js";
 import { CliError } from "../lib/cli.js";
 import { listCachedDrafts, readCachedDraft } from "../lib/draftCache.js";
+import { commentPublishBody, commentSaveBody, findCommentActivityId } from "../lib/frontComments.js";
 import { createFrontPrivateClient, getBoot } from "../lib/frontPrivate.js";
 import { buildFrontRoutes, discoverFrontRouteContext, type FrontRoutes } from "../lib/frontRoutes.js";
+import { runMutation, summarizeMutationResult } from "../lib/mutationRunner.js";
+import type { MutationMode, MutationSpec } from "../lib/mutationTypes.js";
 import { defaultFrontPaths, type FrontPaths } from "../lib/paths.js";
 import {
-  commentPublishBodySchema,
-  commentSaveBodySchema,
   frontBootSchema,
   frontConversationSchema,
   frontTimelineResponseSchema,
@@ -16,29 +16,6 @@ import {
 } from "../lib/schemas.js";
 import { extractTags, listCachedTags, resolveTagIdentifier, type FrontTag } from "../lib/tags.js";
 import { verifyWriteFixture, type WriteVerification } from "../lib/writeVerification.js";
-
-type MutationMode = "dry-run" | "execute";
-
-interface MutationSpec {
-  action: string;
-  conversationId?: string;
-  actor?: MutationActor;
-  reason?: string;
-  method?: string;
-  url?: string;
-  body?: unknown;
-  details?: unknown;
-  canExecute: boolean;
-  verification?: WriteVerification;
-  note?: string;
-  execute?: (client: Awaited<ReturnType<typeof createFrontPrivateClient>>) => Promise<unknown>;
-}
-
-interface AgentIdentityComment {
-  commentUid: string;
-  activityId?: unknown;
-  body: string;
-}
 
 export async function archiveConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
   const ids = positional(args);
@@ -49,7 +26,7 @@ export async function archiveConversation(args: string[], paths: FrontPaths = de
     throw new CliError("Batch archive is not enabled for this private route. Archive one conversation at a time.", 64);
   }
   const routes = await getRoutes(paths);
-  return runMutation(args, await verifiedSpec({
+  return runMutation({ args, spec: await verifiedSpec({
     action: "archive",
     conversationId: ids[0],
     method: "PATCH",
@@ -59,7 +36,7 @@ export async function archiveConversation(args: string[], paths: FrontPaths = de
       status: "archived",
     },
     canExecute: false,
-  }), paths);
+  }), paths });
 }
 
 export async function unarchiveConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
@@ -68,7 +45,7 @@ export async function unarchiveConversation(args: string[], paths: FrontPaths = 
     throw new CliError("Missing conversation id", 64);
   }
   const routes = await getRoutes(paths);
-  return runMutation(args, await verifiedSpec({
+  return runMutation({ args, spec: await verifiedSpec({
     action: "unarchive",
     conversationId: id,
     method: "PATCH",
@@ -79,7 +56,7 @@ export async function unarchiveConversation(args: string[], paths: FrontPaths = 
       note: "Front returns restored personal inbox conversations as unassigned.",
     },
     canExecute: false,
-  }), paths);
+  }), paths });
 }
 
 export async function tagConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
@@ -128,7 +105,7 @@ export async function tagConversation(args: string[], paths: FrontPaths = defaul
       : tagResolution.warning,
     canExecute: false,
   });
-  return runMutation(args, { ...spec, canExecute: spec.canExecute && resolvedTagId !== undefined }, paths);
+  return runMutation({ args, spec: { ...spec, canExecute: spec.canExecute && resolvedTagId !== undefined }, paths });
 }
 
 export async function commentConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
@@ -161,7 +138,7 @@ export async function commentConversation(args: string[], paths: FrontPaths = de
         return client.requestJson(routes.timelineActivity(id, activityId), { method: "DELETE", body: {} });
       },
     });
-    return runMutation(args, spec, paths);
+    return runMutation({ args, spec, paths });
   }
 
   const body = await readBodyArg(args);
@@ -172,7 +149,7 @@ export async function commentConversation(args: string[], paths: FrontPaths = de
   const commentUid = randomBytes(16).toString("hex");
   const saveBody = commentSaveBody(body);
   const publishBody = commentPublishBody(commentUid);
-  return runMutation(args, await verifiedSpec({
+  return runMutation({ args, spec: await verifiedSpec({
     action: "comment.add",
     conversationId: id,
     method: "POST",
@@ -203,7 +180,7 @@ export async function commentConversation(args: string[], paths: FrontPaths = de
         activityId: findCommentActivityId(result, commentUid) ?? result.id,
       };
     },
-  }), paths);
+  }), paths });
 }
 
 export async function snoozeConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
@@ -213,7 +190,7 @@ export async function snoozeConversation(args: string[], paths: FrontPaths = def
   }
   const routes = await getRoutes(paths);
   const snoozeUntil = parseSnoozeUntil(until);
-  return runMutation(args, await verifiedSpec({
+  return runMutation({ args, spec: await verifiedSpec({
     action: "snooze",
     conversationId: id,
     method: "PATCH",
@@ -227,7 +204,7 @@ export async function snoozeConversation(args: string[], paths: FrontPaths = def
       status: "archived",
     },
     canExecute: false,
-  }), paths);
+  }), paths });
 }
 
 export async function unsnoozeConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
@@ -236,7 +213,7 @@ export async function unsnoozeConversation(args: string[], paths: FrontPaths = d
     throw new CliError("Usage: frontctl unsnooze CONVERSATION_ID", 64);
   }
   const routes = await getRoutes(paths);
-  return runMutation(args, await verifiedSpec({
+  return runMutation({ args, spec: await verifiedSpec({
     action: "unsnooze",
     conversationId: id,
     method: "PATCH",
@@ -248,7 +225,7 @@ export async function unsnoozeConversation(args: string[], paths: FrontPaths = d
       note: "Clears the reminder while keeping the conversation archived.",
     },
     canExecute: false,
-  }), paths);
+  }), paths });
 }
 
 export async function draftCommand(args: string[], paths: FrontPaths = defaultFrontPaths()) {
@@ -287,7 +264,7 @@ export async function draftCommand(args: string[], paths: FrontPaths = defaultFr
         ? undefined
         : "Could not resolve this cached draft to a Front message id. Run `frontctl draft list --json` and discard a listed draft with messageUid, or pass CONVERSATION_ID MESSAGE_UID.",
     };
-    return runMutation(args, messageUid ? await verifiedSpec(spec) : spec, paths);
+    return runMutation({ args, spec: messageUid ? await verifiedSpec(spec) : spec, paths });
   }
   if (!["reply", "compose"].includes(operation ?? "")) {
     throw new CliError("Usage: frontctl draft list|read|discard|reply|compose ...", 64);
@@ -307,7 +284,7 @@ export async function draftCommand(args: string[], paths: FrontPaths = defaultFr
       ? await buildReplyDraftBody(id, body, paths)
       : previewReplyDraftBody(body);
     const draftUrl = `${routes.conversationMessage(id, draftUid)}?include_conversation=true`;
-    return runMutation(args, await verifiedSpec({
+    return runMutation({ args, spec: await verifiedSpec({
       action: "draft.reply",
       conversationId: id,
       method: "PUT",
@@ -333,10 +310,10 @@ export async function draftCommand(args: string[], paths: FrontPaths = defaultFr
           discardCommand: `frontctl draft discard ${id} ${String(result.uid ?? draftUid)} --json`,
         };
       },
-    }), paths);
+    }), paths });
   }
   const draftBody = composeDraftBody(args, body);
-  return runMutation(args, {
+  return runMutation({ args, spec: {
     action: "draft.compose",
     body: draftBody,
     details: {
@@ -344,223 +321,7 @@ export async function draftCommand(args: string[], paths: FrontPaths = defaultFr
     },
     canExecute: false,
     note: "Standalone draft compose is preview-only until its private Front route is observed and implemented. Send remains blocked.",
-  }, paths);
-}
-
-async function runMutation(args: string[], spec: MutationSpec, _paths: FrontPaths) {
-  const mode: MutationMode = args.includes("--yes") && !args.includes("--dry-run") ? "execute" : "dry-run";
-  const path = spec.url ? new URL(spec.url).pathname : undefined;
-  const actor = actorFromArgs(args);
-  const reason = readStringFlag(args, "--reason");
-  const identifiedSpec = {
-    ...spec,
-    actor,
-    reason,
-  };
-  await auditMutation({
-    action: identifiedSpec.action,
-    mode,
-    conversationId: identifiedSpec.conversationId,
-    actor,
-    reason,
-    method: identifiedSpec.method,
-    path,
-    body: identifiedSpec.body,
-  });
-
-  if (mode === "dry-run") {
-    return preview(identifiedSpec, mode);
-  }
-
-  if (!identifiedSpec.canExecute) {
-    throw new CliError(identifiedSpec.note ?? `${identifiedSpec.action} execution is not enabled yet.`, 69);
-  }
-
-  if (!identifiedSpec.url || !identifiedSpec.method) {
-    throw new CliError(`Missing route for ${identifiedSpec.action}`, 69);
-  }
-
-  const client = await createFrontPrivateClient(_paths);
-  const agentComment = shouldWriteAgentIdentityComment(identifiedSpec)
-    ? await addAgentIdentityComment(client, identifiedSpec)
-    : undefined;
-  let result: unknown;
-  try {
-    result = identifiedSpec.execute
-      ? await identifiedSpec.execute(client)
-      : await client.requestJson(identifiedSpec.url, { method: identifiedSpec.method, body: identifiedSpec.body });
-  } catch (error) {
-    throw mutationFailedAfterIdentityComment(error, identifiedSpec, agentComment);
-  }
-  return {
-    ...preview(identifiedSpec, mode, agentComment),
-    result: summarizeMutationResult(result),
-  };
-}
-
-function preview(spec: MutationSpec, mode: MutationMode, agentComment?: AgentIdentityComment) {
-  return {
-    source: "live-private",
-    publicApiUsed: false,
-    sendsEmail: false,
-    mode,
-    action: spec.action,
-    actor: spec.actor,
-    reason: spec.reason,
-    identity: identitySummary(spec, mode, agentComment),
-    canExecute: spec.canExecute,
-    verification: spec.verification,
-    conversationId: spec.conversationId,
-    request: {
-      method: spec.method,
-      path: spec.url ? new URL(spec.url).pathname : undefined,
-      body: spec.body,
-    },
-    details: spec.details,
-    note: noteFor(spec, mode),
-  };
-}
-
-async function addAgentIdentityComment(
-  client: Awaited<ReturnType<typeof createFrontPrivateClient>>,
-  spec: MutationSpec,
-): Promise<AgentIdentityComment> {
-  if (!spec.conversationId) {
-    throw new CliError(`Cannot write agent identity comment without a conversation id for ${spec.action}`, 69);
-  }
-  const routes = buildFrontRoutes(client.context);
-  const commentUid = randomBytes(16).toString("hex");
-  const body = agentIdentityCommentBody(spec);
-  await client.requestJson(`${routes.comment(spec.conversationId, commentUid)}?include_conversation=true`, {
-    method: "PUT",
-    body: commentSaveBody(body),
-  });
-  const result = await client.requestJson<Record<string, unknown>>(routes.timeline(spec.conversationId), {
-    method: "POST",
-    body: commentPublishBody(commentUid),
-  });
-  return {
-    commentUid,
-    activityId: findCommentActivityId(result, commentUid) ?? result.id,
-    body,
-  };
-}
-
-function shouldWriteAgentIdentityComment(spec: MutationSpec) {
-  return Boolean(
-    spec.conversationId
-      && spec.canExecute
-      && spec.method
-      && spec.url
-      && spec.action !== "comment.add",
-  );
-}
-
-function identitySummary(spec: MutationSpec, mode: MutationMode, agentComment?: AgentIdentityComment) {
-  if (spec.action === "comment.add") {
-    return {
-      frontVisibleComment: true,
-      timing: "command-comment",
-      enforcedByCli: true,
-      note: "This command itself creates the visible Front comment. No extra identity comment is added.",
-    };
-  }
-  if (shouldWriteAgentIdentityComment(spec)) {
-    return {
-      frontVisibleComment: true,
-      timing: "before-action",
-      enforcedByCli: true,
-      requiredBeforeAction: mode === "execute",
-      note: mode === "execute"
-        ? "frontctl wrote the visible agent identity comment before applying the requested action."
-        : "frontctl will write a visible agent identity comment before applying this action.",
-      comment: agentComment
-        ? {
-          commentUid: agentComment.commentUid,
-          activityId: agentComment.activityId,
-        }
-        : undefined,
-    };
-  }
-  return {
-    frontVisibleComment: false,
-    timing: "none",
-    enforcedByCli: false,
-    note: spec.canExecute
-      ? "No visible Front identity comment is required for this command."
-      : "Execution is blocked, so no Front identity comment will be written.",
-  };
-}
-
-function agentIdentityCommentBody(spec: MutationSpec) {
-  const lines = [
-    "frontctl agent action",
-    `Actor: ${spec.actor?.name ?? "frontctl agent"}`,
-    spec.actor?.client ? `Client: ${spec.actor.client}` : undefined,
-    spec.actor?.runId ? `Run ID: ${spec.actor.runId}` : undefined,
-    `Action: ${spec.action}`,
-    spec.reason ? `Reason: ${spec.reason}` : "Reason: not provided",
-    "Note: this comment was written before the requested action so the action can set the final thread state.",
-  ].filter((line): line is string => Boolean(line));
-  return lines.join("\n");
-}
-
-function mutationFailedAfterIdentityComment(error: unknown, spec: MutationSpec, agentComment?: AgentIdentityComment) {
-  if (!agentComment) {
-    return error;
-  }
-  const cause = error instanceof Error ? error.message : String(error);
-  const refs = [
-    `commentUid=${agentComment.commentUid}`,
-    agentComment.activityId === undefined ? undefined : `activityId=${agentComment.activityId}`,
-  ].filter(Boolean).join(" ");
-  const message = `Wrote the visible agent identity comment, but ${spec.action} failed before the requested action completed. ${refs}. Cause: ${cause}`;
-  return new CliError(message, error instanceof CliError ? error.exitCode : 69);
-}
-
-function actorFromArgs(args: string[]): MutationActor {
-  return {
-    name: readStringFlag(args, "--actor") ?? readStringFlag(args, "--agent-name") ?? process.env.FRONTCTL_ACTOR_NAME ?? "frontctl agent",
-    client: readStringFlag(args, "--client") ?? process.env.FRONTCTL_ACTOR_CLIENT,
-    runId: readStringFlag(args, "--run-id") ?? process.env.FRONTCTL_RUN_ID,
-  };
-}
-
-function noteFor(spec: MutationSpec, mode: MutationMode) {
-  const notes = [spec.note, spec.verification?.reason].filter(Boolean);
-  if (notes.length) {
-    return notes.join(" ");
-  }
-  return mode === "dry-run" ? "Dry run only. Re-run with --yes to execute." : undefined;
-}
-
-function summarizeMutationResult(result: unknown) {
-  if (!result || typeof result !== "object" || Array.isArray(result)) {
-    return result;
-  }
-  const raw = result as Record<string, unknown>;
-  const summary: Record<string, unknown> = { ok: true };
-  copyIfPresent(summary, raw, "id");
-  copyIfPresent(summary, raw, "status");
-  copyIfPresent(summary, raw, "subject");
-  copyIfPresent(summary, raw, "uid");
-  copyIfPresent(summary, raw, "messageUid");
-  copyIfPresent(summary, raw, "commentUid");
-  copyIfPresent(summary, raw, "activityId");
-  copyIfPresent(summary, raw, "discardCommand");
-  if (typeof raw.updated_at === "number") {
-    summary.updatedAt = new Date(raw.updated_at).toISOString();
-  } else {
-    copyIfPresent(summary, raw, "updatedAt");
-  }
-  return summary;
-}
-
-function copyIfPresent(target: Record<string, unknown>, source: Record<string, unknown>, key: string) {
-  const value = source[key];
-  if (["string", "number", "boolean"].includes(typeof value)) {
-    target[key] = value;
-  }
+  }, paths });
 }
 
 async function verifiedSpec(spec: MutationSpec): Promise<MutationSpec> {
@@ -910,23 +671,6 @@ function conversationPatchBody(id: string, patch: Record<string, unknown>) {
   };
 }
 
-function commentSaveBody(text: string) {
-  return commentSaveBodySchema.parse({
-    text,
-    attachments: [],
-    referenced_activity_id: null,
-    annotation: null,
-  });
-}
-
-function commentPublishBody(commentUid: string) {
-  return commentPublishBodySchema.parse({
-    type: "comment",
-    comment: { uid: commentUid },
-    meta: { trackers: [] },
-  });
-}
-
 async function resolveCommentActivityId(
   client: Awaited<ReturnType<typeof createFrontPrivateClient>>,
   routes: FrontRoutes,
@@ -944,21 +688,6 @@ async function resolveCommentActivityId(
     throw new CliError(`Could not find comment activity for uid ${commentUid}`, 69);
   }
   return String(activityId);
-}
-
-function findCommentActivityId(result: unknown, commentUid: string) {
-  if (!result || typeof result !== "object") {
-    return undefined;
-  }
-  const activities = (result as Record<string, unknown>).activities;
-  if (!Array.isArray(activities)) {
-    return undefined;
-  }
-  const activity = (activities as Array<Record<string, unknown>>).find((item) => {
-    const comment = item.comment as Record<string, unknown> | undefined;
-    return String(comment?.uid ?? item.comment_uid ?? "") === commentUid;
-  });
-  return activity?.id;
 }
 
 function frontNumericId(id: string) {
