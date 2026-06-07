@@ -148,6 +148,21 @@ npm run build:package
 npm run release:check:local
 ```
 
+One-command local package validation:
+
+```bash
+npm run check:package:local
+```
+
+For normal development, install the optional pre-push hook instead of a mandatory pre-commit build:
+
+```bash
+npm run hooks:install
+```
+
+The hook runs `npm test` before push. It intentionally does not build the `.pkg`/`.dmg` on every
+commit; run `npm run check:package:local` before release or packaging changes.
+
 Build and publish an unsigned GitHub prerelease for early testers:
 
 ```bash
