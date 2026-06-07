@@ -42,7 +42,7 @@ export async function readAgentcookieFrontCookies(path = defaultAgentcookiePlain
   const sql = [
     "select host_key, name, value, expires_utc",
     "from cookies",
-    "where host_key in ('app.frontapp.com', '.frontapp.com') and name in ('front.id', 'front.id.sig')",
+    "where host_key in ('app.frontapp.com', '.frontapp.com') and name in ('front.id', 'front.id.sig', 'front.csrf')",
     "order by name, expires_utc desc;",
   ].join(" ");
   const { stdout } = await run("sqlite3", ["-json", path, sql], 1024 * 1024);
@@ -74,4 +74,3 @@ async function findAgentcookieBinary() {
     return undefined;
   }
 }
-
