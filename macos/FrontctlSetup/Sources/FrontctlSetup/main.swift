@@ -111,8 +111,11 @@ final class SetupModel: ObservableObject {
             """
             detailText = """
             Expected paths:
+            ~/.local/bin/frontctl
+            ~/.local/share/frontctl/bin/frontctl
             /opt/frontctl/bin/frontctl
             /usr/local/bin/frontctl
+            frontctl/bin/frontctl next to this setup app in the DMG
             """
             return
         }
@@ -173,8 +176,11 @@ final class SetupModel: ObservableObject {
             """
             detailText = """
             Expected paths:
+            ~/.local/bin/frontctl
+            ~/.local/share/frontctl/bin/frontctl
             /opt/frontctl/bin/frontctl
             /usr/local/bin/frontctl
+            frontctl/bin/frontctl next to this setup app in the DMG
             """
             return
         }
@@ -222,7 +228,17 @@ struct ProcessResult {
 }
 
 func resolveFrontctlPath() -> String? {
+    let home = FileManager.default.homeDirectoryForCurrentUser.path
+    let bundleSibling = Bundle.main.bundleURL
+        .deletingLastPathComponent()
+        .appendingPathComponent("frontctl")
+        .appendingPathComponent("bin")
+        .appendingPathComponent("frontctl")
+        .path
     let candidates = [
+        "\(home)/.local/bin/frontctl",
+        "\(home)/.local/share/frontctl/bin/frontctl",
+        bundleSibling,
         "/opt/frontctl/bin/frontctl",
         "/usr/local/bin/frontctl"
     ]
