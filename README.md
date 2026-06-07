@@ -25,9 +25,12 @@ Apple Mail, or a browser. `frontctl` fills that gap without using the public Fro
 For non-technical users, ship the macOS DMG:
 
 1. Open `frontctl-<version>.dmg`.
-2. Run `frontctl-<version>.pkg`.
+2. Run `Install Frontctl for This User.command`.
 3. Open `Frontctl Setup.app`.
 4. Click `Check Setup`, `Install Agent Skills`, then `Enable Live Mode`.
+
+This default path installs into the user's home directory and does not need an administrator
+password. The `.pkg` is still included for managed or system-wide installs.
 
 For local development:
 
