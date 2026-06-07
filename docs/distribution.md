@@ -229,6 +229,19 @@ npm run release:check:local
 `release:check:local` verifies the manifest hashes and file sizes against the generated package and
 DMG.
 
+For local development, use the optional pre-push hook rather than a pre-commit package build:
+
+```bash
+npm run hooks:install
+```
+
+The hook runs `npm test` before push and can be bypassed with `FRONTCTL_SKIP_HOOKS=1` for deliberate
+emergency pushes. It does not build the package or DMG; packaging changes should run:
+
+```bash
+npm run check:package:local
+```
+
 For signed releases also run:
 
 ```bash
