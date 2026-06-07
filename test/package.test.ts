@@ -53,11 +53,15 @@ test("package metadata publishes the frontctl bin and build lifecycle", async ()
   assert.match(packageScript, /COPYFILE_DISABLE=1/);
   assert.match(packageScript, /DEVELOPER_ID_INSTALLER and DEVELOPER_ID_APPLICATION/);
   assert.match(packageScript, /DMG_README\.txt/);
+  assert.match(packageScript, /Install Frontctl for This User\.command/);
+  assert.match(packageScript, /DMG_SRC\/frontctl/);
   assert.match(packageScript, /START HERE\.txt/);
   assert.match(packageScript, /Uninstall Frontctl\.command/);
   assert.match(packageScript, /FINAL_MANIFEST/);
   assert.match(packageScript, /shasum -a 256/);
   assert.match(packageScript, /nodeRuntimeVersion/);
+  assert.match(packageScript, /pkg\.dependencies/);
+  assert.match(packageScript, /node_modules/);
   assert.match(packageScript, /xattr -cr "\$PKG_ROOT"/);
   assert.match(packageScript, /find "\$PKG_ROOT" -name '\._\*' -delete/);
   assert.ok(packageScript.includes('--filter ".*\\\\._.*"'));
@@ -70,6 +74,10 @@ test("package metadata publishes the frontctl bin and build lifecycle", async ()
   assert.match(releaseCheck, /pkgutil --expand-full/);
   assert.match(releaseCheck, /opt\/frontctl\/runtime\/node/);
   assert.match(releaseCheck, /opt\/frontctl\/dist\/src\/cli\.js/);
+  assert.match(releaseCheck, /opt\/frontctl\/node_modules\/zod\/package\.json/);
+  assert.match(releaseCheck, /Install Frontctl for This User\.command/);
+  assert.match(releaseCheck, /frontctl\/bin\/frontctl/);
+  assert.match(releaseCheck, /doctor --json/);
   assert.match(releaseCheck, /\/opt\/homebrew/);
   assert.doesNotMatch(releaseCheck, /dist\/package\/work\/root/);
   assert.match(releaseCheck, /dmg gatekeeper assessment/);
@@ -191,7 +199,8 @@ test("package metadata publishes the frontctl bin and build lifecycle", async ()
 test("DMG readme is non-technical and safety focused", async () => {
   const readme = await readFile("packaging/DMG_README.txt", "utf8");
 
-  assert.match(readme, /Double-click frontctl-<version>\.pkg/);
+  assert.match(readme, /Double-click Install Frontctl for This User\.command/);
+  assert.match(readme, /does not need an administrator password/);
   assert.match(readme, /Open Frontctl Setup\.app/);
   assert.match(readme, /frontctl readiness --json/);
   assert.match(readme, /Copy ChatGPT Instructions/);
@@ -206,6 +215,8 @@ test("DMG uninstall helper removes only frontctl package assets", async () => {
 
   assert.match(script, /frontctl local data, installed agent skills/);
   assert.match(script, /\$FRONTCTL" uninstall --yes/);
+  assert.match(script, /\.local\/bin\/frontctl/);
+  assert.match(script, /\.local\/share\/frontctl/);
   assert.match(script, /sudo rm -f \/usr\/local\/bin\/frontctl/);
   assert.match(script, /sudo rm -rf \/opt\/frontctl/);
   assert.match(script, /pkgutil --forget ai\.frontctl\.cli/);
@@ -224,6 +235,8 @@ test("setup app exposes non-technical recovery actions", async () => {
   assert.match(source, /Agent Prompts/);
   assert.match(source, /Copy ChatGPT Instructions/);
   assert.match(source, /userReadiness/);
+  assert.match(source, /\.local\/bin\/frontctl/);
+  assert.match(source, /\.local\/share\/frontctl\/bin\/frontctl/);
   assert.match(source, /Next action/);
   assert.match(source, /agents", "prompt", "--agent", "chatgpt", "--json"/);
   assert.match(source, /extractAgentPrompt/);
