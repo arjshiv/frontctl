@@ -21,6 +21,9 @@ test("package metadata publishes the frontctl bin and build lifecycle", async ()
   assert.equal(pkg.private, undefined);
   assert.equal(pkg.bin?.frontctl, "./dist/src/cli.js");
   assert.equal(pkg.scripts?.["test:readonly"], "npm run build && node --test dist/test/readonly-matrix.test.js");
+  assert.equal(pkg.scripts?.["check:commit"], "npm test");
+  assert.equal(pkg.scripts?.["check:package:local"], "npm test && npm run build:package && npm run release:check:local");
+  assert.equal(pkg.scripts?.["hooks:install"], "script/install_git_hooks.sh");
   assert.equal(pkg.scripts?.prepack, "npm run build");
   assert.equal(pkg.scripts?.prepare, "npm run build");
   assert.equal(pkg.scripts?.["build:package"], "script/build_package.sh");
@@ -74,6 +77,11 @@ test("package metadata publishes the frontctl bin and build lifecycle", async ()
   assert.match(releaseCheck, /Uninstall Frontctl\.command/);
   assert.match(releaseCheck, /release manifest matches artifacts/);
   assert.match(releaseCheck, /pkg sha256 mismatch/);
+
+  const hookInstaller = await readFile("script/install_git_hooks.sh", "utf8");
+  assert.match(hookInstaller, /pre-push/);
+  assert.match(hookInstaller, /npm test/);
+  assert.match(hookInstaller, /FRONTCTL_SKIP_HOOKS=1/);
 
   const signingDoctor = await readFile("script/check_signing_prereqs.sh", "utf8");
   assert.match(signingDoctor, /Developer ID Application/);
