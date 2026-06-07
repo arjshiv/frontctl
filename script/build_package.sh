@@ -42,6 +42,23 @@ cp -R dist/src "$INSTALL_ROOT/dist/src"
 cp -R docs "$INSTALL_ROOT/docs"
 cp -R skills "$INSTALL_ROOT/skills"
 
+node - "$INSTALL_ROOT" <<'NODE'
+const { cpSync, existsSync, mkdirSync, readFileSync } = require("node:fs");
+const { dirname, join } = require("node:path");
+const installRoot = process.argv[2];
+const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+const deps = Object.keys(pkg.dependencies ?? {});
+for (const dep of deps) {
+  const source = join("node_modules", dep);
+  if (!existsSync(source)) {
+    throw new Error(`Missing production dependency ${dep}. Run npm install before packaging.`);
+  }
+  const target = join(installRoot, "node_modules", dep);
+  mkdirSync(dirname(target), { recursive: true });
+  cpSync(source, target, { recursive: true, dereference: true });
+}
+NODE
+
 if [ -n "${FRONTCTL_NODE_BIN:-}" ]; then
   if [ "${FRONTCTL_ALLOW_DYNAMIC_NODE:-0}" != "1" ]; then
     echo "FRONTCTL_NODE_BIN is only allowed with FRONTCTL_ALLOW_DYNAMIC_NODE=1." >&2
@@ -102,6 +119,9 @@ fi
 
 mkdir -p "$DMG_SRC"
 cp "$FINAL_PKG" "$DMG_SRC/"
+cp -R "$INSTALL_ROOT" "$DMG_SRC/frontctl"
+cp "packaging/Install Frontctl for This User.command" "$DMG_SRC/Install Frontctl for This User.command"
+chmod 755 "$DMG_SRC/Install Frontctl for This User.command"
 cp packaging/DMG_README.txt "$DMG_SRC/START HERE.txt"
 cp "packaging/Uninstall Frontctl.command" "$DMG_SRC/Uninstall Frontctl.command"
 chmod 755 "$DMG_SRC/Uninstall Frontctl.command"
