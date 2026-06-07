@@ -20,6 +20,13 @@ Use this checklist before giving `frontctl` to an early tester or non-technical 
 - `frontctl readiness --json` reports `userReadiness.ready: true` on the release test machine.
 - `frontctl auth check --json` does not prompt for Keychain access.
 - `frontctl inbox list --live --limit 5 --json` works after one successful `frontctl auth unlock`.
+- `frontctl discovery browser-status --json` finds a usable browser DevTools port when Edge/Chrome
+  is launched with remote debugging.
+- `frontctl discovery browser-probe CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --json`
+  reports authenticated after browser sign-in or `browser-seed`.
+- `frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json`
+  passes on one low-risk real conversation and leaves it archived with no reminder, no draft, and no
+  temporary tag/comment marker.
 - `frontctl send --json` remains blocked.
 
 ## GitHub Preview Release Gates
