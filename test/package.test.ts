@@ -154,13 +154,14 @@ test("package metadata publishes the frontctl bin and build lifecycle", async ()
 
   const readme = await readFile("README.md", "utf8");
   assert.match(readme, /docs\/signing-notarization-setup\.md/);
-  assert.match(readme, /docs\/github-preview-release\.md/);
-  assert.match(readme, /frontctl browser list --json/);
+  assert.match(readme, /docs\/distribution\.md/);
+  assert.match(readme, /does not send email/i);
+  assert.match(readme, /Local package and DMG validation/);
+  assert.match(readme, /npm run check:package:local/);
   assert.match(readme, /--source default-browser/);
-  assert.match(readme, /agentcookie\.toml/);
-  assert.match(readme, /frontctl memory init --limit 500 --json/);
-  assert.match(readme, /frontctl workflows daily --actor Codex --json/);
-  assert.match(readme, /--actor Codex --reason/);
+  assert.match(readme, /frontctl discovery browser-probe/);
+  assert.match(readme, /--actor/);
+  assert.match(readme, /--reason/);
 
   const agents = await readFile("AGENTS.md", "utf8");
   assert.match(agents, /Chrome\/Edge\/default-browser session unlock/);
