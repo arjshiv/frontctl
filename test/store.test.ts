@@ -69,5 +69,5 @@ test("store freshness marks old syncs as stale with resync guidance", async () =
 
   assert.equal(search.freshness.fresh, false);
   assert.equal(search.freshness.maxAgeHours, 1);
-  assert.match(search.freshness.warning ?? "", /frontctl sync --live/);
+  assert.match(search.freshness.warning ?? "", /frontctl sync --json/);
 });

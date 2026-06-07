@@ -51,7 +51,7 @@ frontctl setup --agent all --yes --json
 
 ## Daily Use
 
-Start with read-only commands:
+Start with live read-only commands after setup:
 
 ```bash
 frontctl inbox list --json
@@ -61,15 +61,37 @@ frontctl read CONVERSATION_ID --format markdown
 frontctl summarize CONVERSATION_ID --format plain
 ```
 
-Unlock live mode once:
+Enable live mode through the signed-in browser tab:
+
+```bash
+frontctl setup --enable-live --json
+frontctl bridge status --json
+```
+
+The default live path uses the open Front tab in Microsoft Edge or Chrome through Chrome DevTools
+Protocol. It does not decrypt browser cookies from disk, does not touch Keychain, and does not need
+macOS Automation permission. If no CDP browser is reachable, run the launch helper and sign into
+Front in that browser window:
+
+```bash
+frontctl discovery launch --remote-debugging-port 9222 --json
+```
+
+Apple Events and cookie unlocks are fallback/debug paths, not normal onboarding.
+
+Explicit browser/app cookie unlock is still available as a fallback, but it is not the normal setup
+path:
 
 ```bash
 frontctl auth unlock --source default-browser --ttl-hours 12 --json
-frontctl auth check --json
 ```
 
-The unlock command may ask macOS Keychain once. Normal live reads and writes reuse the short-lived
-local session cache and should not keep asking for Keychain.
+That explicit command may ask macOS Keychain because Chromium and Electron encrypt cookie secrets
+behind Safe Storage. Treat a Keychain prompt in the default setup/read path as a bug.
+
+Stale Front HTTP cache reads are not used for normal inbox state. They are available only for
+diagnostics or offline recovery with `--offline-cache`, or through `frontctl cache ...` after checking
+freshness.
 
 Preview state-changing actions first:
 
@@ -115,9 +137,10 @@ flowchart TD
   cli["frontctl CLI"]
   app["Front.app"]
   browser["Chrome or Edge session"]
+  bridge["Browser bridge<br/>live signed-in tab"]
   agentcookie["Optional agentcookie"]
   unlock["auth unlock"]
-  keychain["Keychain prompt once"]
+  keychain["Explicit Safe Storage unlock<br/>may prompt once"]
   session["Short-lived local session<br/>~/.frontctl/session.json"]
   live["Private Front web routes"]
   cache["Local SQLite cache<br/>~/.frontctl/frontctl.sqlite"]
@@ -137,6 +160,8 @@ flowchart TD
   unlock --> keychain
   keychain --> session
   agentcookie --> session
+  browser --> bridge
+  bridge --> live
   cli --> session
   session --> live
   live --> read

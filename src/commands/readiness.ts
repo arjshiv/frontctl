@@ -1,5 +1,6 @@
 import { checkFrontSession } from "../lib/auth.js";
 import { agentcookieStatus } from "../lib/agentcookie.js";
+import { cdpBridgeStatus } from "../lib/cdpBridge.js";
 import { detectDefaultBrowser, listBrowserProfiles } from "../lib/browserProfiles.js";
 import { defaultFrontPaths, type FrontPaths } from "../lib/paths.js";
 import { buildUserReadiness } from "../lib/readiness.js";
@@ -7,23 +8,28 @@ import { agentsStatus } from "./agents.js";
 import { doctor } from "./doctor.js";
 
 export async function readinessCommand(_args: string[], paths: FrontPaths = defaultFrontPaths()) {
-  const [doctorResult, auth, agents, agentcookie] = await Promise.all([
+  const [doctorResult, auth, agents, agentcookie, bridge] = await Promise.all([
     doctor(paths),
     checkFrontSession(),
     agentsStatus("all"),
     agentcookieStatus(),
+    cdpBridgeStatus(),
   ]);
   const defaultBrowser = detectDefaultBrowser();
   const browserProfiles = listBrowserProfiles();
-  const browserAuthAvailable = browserProfiles.some((profile) => profile.cookiesExists);
+  const explicitBrowserCookieFallbackAvailable = browserProfiles.some((profile) => profile.cookiesExists);
+  const nonPromptingLiveAvailable = bridge.availableWithoutKeychain
+    || bridge.proofValid
+    || auth.valid
+    || Boolean(agentcookie.frontCookiesAvailable);
   const frontAppInstalled = doctorResult.checks.find((check) => check.name === "frontApp")?.ok ?? false;
   const bundleReady = doctorResult.checks.find((check) => check.name === "frontBundle")?.ok ?? false;
   const localProfileVisible = doctorResult.onboarding.readyForAgentUse;
   const userReadiness = buildUserReadiness({
     frontAppInstalled,
     localProfileVisible,
-    browserSessionAvailable: browserAuthAvailable || Boolean(agentcookie.frontCookiesAvailable),
-    authValid: auth.valid,
+    browserSessionAvailable: nonPromptingLiveAvailable,
+    authValid: auth.valid || bridge.proofValid,
     agentsInstalled: agents.allInstalled,
   });
 
@@ -44,7 +50,9 @@ export async function readinessCommand(_args: string[], paths: FrontPaths = defa
       promptsOnCheck: auth.security.promptsOnCheck,
       promptsOnLiveRead: auth.security.promptsOnLiveRead,
       promptsOnUnlock: auth.security.promptsOnUnlock,
+      promptsOnExplicitKeychainUnlock: auth.security.promptsOnExplicitKeychainUnlock,
     },
+    bridge,
     agents: {
       allInstalled: agents.allInstalled,
       count: agents.count,
@@ -71,7 +79,9 @@ export async function readinessCommand(_args: string[], paths: FrontPaths = defa
         frontCookiesAvailable: agentcookie.frontCookiesAvailable,
         unlockCommand: "frontctl auth unlock --source agentcookie --ttl-hours 12 --json",
       },
-      recommendedUnlockCommand: recommendedUnlockCommand(auth.valid, defaultBrowser.browser, browserAuthAvailable, agentcookie.frontCookiesAvailable),
+      explicitBrowserCookieFallbackAvailable,
+      nonPromptingLiveAvailable,
+      recommendedUnlockCommand: recommendedUnlockCommand(auth.valid, bridge.proofValid, bridge.availableWithoutKeychain, agentcookie.frontCookiesAvailable),
     },
     safety: {
       publicApiUsed: false,
@@ -79,16 +89,16 @@ export async function readinessCommand(_args: string[], paths: FrontPaths = defa
       touchesKeychain: false,
       note: "Readiness checks do not read mailbox contents and do not access Keychain.",
     },
-    nextCommand: nextCommandFor(userReadiness.state, recommendedUnlockCommand(auth.valid, defaultBrowser.browser, browserAuthAvailable, agentcookie.frontCookiesAvailable)),
+    nextCommand: nextCommandFor(userReadiness.state, recommendedUnlockCommand(auth.valid, bridge.proofValid, bridge.availableWithoutKeychain, agentcookie.frontCookiesAvailable)),
   };
 }
 
 function nextCommandFor(state: ReturnType<typeof buildUserReadiness>["state"], unlockCommand?: string) {
   if (state === "ready") {
-    return "frontctl triage inbox --live --limit 20 --json";
+    return "frontctl triage inbox --limit 20 --json";
   }
   if (state === "live-mode-locked") {
-    return unlockCommand ?? "frontctl auth unlock --ttl-hours 12 --json";
+    return unlockCommand ?? "frontctl discovery launch --remote-debugging-port 9222 --json";
   }
   if (state === "agent-skills-missing") {
     return "frontctl setup --agent all --yes --json";
@@ -98,18 +108,19 @@ function nextCommandFor(state: ReturnType<typeof buildUserReadiness>["state"], u
 
 function recommendedUnlockCommand(
   authValid: boolean,
-  defaultBrowser: string | undefined,
-  browserAuthAvailable: boolean,
+  bridgeProofValid: boolean,
+  bridgeAvailableWithoutKeychain: boolean,
   agentcookieAvailable: boolean | undefined,
 ) {
   if (authValid) return undefined;
-  if ((defaultBrowser === "chrome" || defaultBrowser === "edge") && browserAuthAvailable) {
-    return `frontctl auth unlock --source default-browser --ttl-hours 12 --json`;
+  if (bridgeProofValid) return undefined;
+  if (bridgeAvailableWithoutKeychain) {
+    return "frontctl bridge test --json";
   }
   if (agentcookieAvailable) {
     return "frontctl auth unlock --source agentcookie --ttl-hours 12 --json";
   }
-  return "frontctl auth unlock --source front-app --ttl-hours 12 --json";
+  return "frontctl discovery launch --remote-debugging-port 9222 --json";
 }
 
 function shellQuote(value: string) {

@@ -42,7 +42,7 @@ All setup surfaces should use the same readiness states from `frontctl readiness
 
 - `front-not-installed`: install Front for macOS.
 - `front-sign-in-missing`: open Front and sign in.
-- `live-mode-locked`: click `Enable Live Mode` and approve Touch ID or the account password once.
+- `live-mode-locked`: click `Enable Live Mode` and approve macOS Automation if prompted.
 - `agent-skills-missing`: click `Install Agent Skills`.
 - `ready`: paste the agent prompt and start with read-only triage.
 
@@ -58,8 +58,10 @@ The expected prompt model is:
 
 - `frontctl readiness --json`: no Keychain prompt.
 - `frontctl auth check --json`: no Keychain prompt.
-- `frontctl inbox list --live --json`: no Keychain prompt after unlock.
-- `frontctl auth unlock --ttl-hours 12 --json`: may prompt once for Touch ID or password.
+- `frontctl bridge test --json`: no Keychain prompt and no macOS Automation prompt on the default CDP path.
+- `frontctl inbox list --json`: no Keychain prompt after bridge proof, agentcookie, or explicit unlock.
+- `frontctl auth unlock --ttl-hours 12 --json`: no Keychain prompt; uses non-prompting sources
+  such as agentcookie or fails with an explicit next action.
 - `frontctl auth unlock --source default-browser --ttl-hours 12 --json`: may prompt once for the
   signed-in Chrome or Microsoft Edge safe-storage item, then reuses the frontctl cache.
 - `frontctl auth unlock --force --ttl-hours 12 --json`: may prompt because the user explicitly
@@ -68,6 +70,22 @@ The expected prompt model is:
 Repeated Keychain prompts during setup checks or live reads are a product bug. The fix is to use the
 short-lived encrypted session cache written by `auth unlock`, not to train the user to keep
 approving prompts.
+
+Do not auto-export browser cookies as a fallback. Chrome, Edge, and Electron encrypt browser cookie
+secrets with a macOS Safe Storage key, and reading that key is exactly what causes repeated Keychain
+prompts when the binary is not already trusted. Default flows should either use an existing
+short-lived frontctl session, read an agentcookie plaintext sidecar, or fail closed.
+
+For the “I already have Front open in Edge” case, the product-grade answer is the CDP browser bridge:
+evaluate the request inside the live signed-in Front tab and ask that tab to call the same private
+web routes. That avoids disk cookie decryption entirely. It is a first-class auth source, separate
+from `--source default-browser`, because it depends on the browser being open and signed in rather
+than on Keychain access to the browser profile.
+
+The consumer setup path should launch or reuse a managed Edge/Chrome instance with
+`--remote-debugging-port`, then verify a signed-in Front tab with `frontctl bridge test --json`.
+AppleScript/Apple Events are fallback/debug tooling only; they should not be required for normal
+installation.
 
 Browser onboarding should gracefully report the local state: no Front app installed is acceptable
 when Chrome or Edge has a signed-in Front profile; Safari should explain that cookie import needs

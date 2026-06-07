@@ -106,10 +106,10 @@ export async function buildMemoryProfile(options: {
       tagOpportunities: tagSignals(rows),
     },
     suggestedNextCommands: [
-      "frontctl sync --live --all --limit 200 --json",
+      "frontctl sync --all --limit 200 --json",
       "frontctl memory init --limit 500 --json",
-      "frontctl tag list --live --json",
-      "frontctl triage inbox --live --limit 20 --json",
+      "frontctl tag list --json",
+      "frontctl triage inbox --limit 20 --json",
     ],
   };
 }

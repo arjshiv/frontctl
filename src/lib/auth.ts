@@ -26,6 +26,7 @@ export interface FrontSessionSecurity {
   keychainBackedSessionKey: false;
   promptsOnCheck: false;
   promptsOnUnlock: boolean;
+  promptsOnExplicitKeychainUnlock: boolean;
   promptsOnLiveRead: false;
   touchIdOrPasswordExpected: boolean;
   note: string;
@@ -102,14 +103,16 @@ export function sessionSecurityStatus(): FrontSessionSecurity {
     authorizationModel: "one-time-keychain-unlock",
     sessionEncryptionMode: SESSION_ENCRYPTION_MODE,
     keychainService: FRONT_KEYCHAIN_SERVICE,
-    supportedSources: ["front-app", "chrome", "edge", "default-browser", "agentcookie"],
+    supportedSources: ["auto", "agentcookie", "front-app", "chrome", "edge", "default-browser"],
     keychainBackedSessionKey: false,
     promptsOnCheck: false,
-    promptsOnUnlock: true,
+    promptsOnUnlock: false,
+    promptsOnExplicitKeychainUnlock: true,
     promptsOnLiveRead: false,
     touchIdOrPasswordExpected: true,
     note: [
-      "`frontctl auth unlock` may prompt once for the selected local app or browser Keychain item.",
+      "`frontctl auth unlock` without --source uses non-prompting sources such as agentcookie.",
+      "Explicit app or browser unlock may prompt once for the selected local app or browser Keychain item.",
       "After unlock, frontctl reads its short-lived local session cache and normal status/live-read commands do not access Keychain.",
     ].join(" "),
   };

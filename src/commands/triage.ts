@@ -9,16 +9,16 @@ import { triageConversationReads, type TriageResult } from "../lib/triage.js";
 export async function triageCommand(args: string[], paths: FrontPaths = defaultFrontPaths()) {
   const [scope] = args.filter((arg) => !arg.startsWith("--"));
   if (scope && scope !== "inbox") {
-    throw new CliError("Usage: frontctl triage [inbox] [--limit 20] [--all] [--live] [--format markdown|plain]", 64);
+    throw new CliError("Usage: frontctl triage [inbox] [--limit 20] [--all] [--offline-cache] [--format markdown|plain]", 64);
   }
   const limit = readNumberFlag(args, "--limit") ?? 20;
   const includeArchived = args.includes("--all") || args.includes("--include-archived");
-  const result = args.includes("--live")
-    ? await liveInboxTriage(paths, { limit, includeArchived })
-    : triageConversationReads(
+  const result = args.includes("--offline-cache")
+    ? triageConversationReads(
         await readCachedConversations(paths.cacheDataPath, { limit, includeArchived }),
         { source: "cache", stale: true },
-      );
+      )
+    : await liveInboxTriage(paths, { limit, includeArchived });
   return maybeRenderTriage(result, args);
 }
 

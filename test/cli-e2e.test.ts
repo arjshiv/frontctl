@@ -115,13 +115,15 @@ test("CLI auth security reports prompt behavior without requiring Front", async 
     keychainService: string;
     promptsOnCheck: boolean;
     promptsOnUnlock: boolean;
+    promptsOnExplicitKeychainUnlock: boolean;
     promptsOnLiveRead: boolean;
   };
 
   assert.equal(result.authorizationModel, "one-time-keychain-unlock");
   assert.equal(result.keychainService, "Front Safe Storage");
   assert.equal(result.promptsOnCheck, false);
-  assert.equal(result.promptsOnUnlock, true);
+  assert.equal(result.promptsOnUnlock, false);
+  assert.equal(result.promptsOnExplicitKeychainUnlock, true);
   assert.equal(result.promptsOnLiveRead, false);
 });
 
@@ -191,7 +193,7 @@ test("CLI inbox list reads cached Front conversations without leaking cache toke
 
   const { stdout } = await execFileAsync(
     "node",
-    ["dist/src/cli.js", "inbox", "list", "--limit", "1", "--json"],
+    ["dist/src/cli.js", "inbox", "list", "--offline-cache", "--limit", "1", "--json"],
     { env: envForPaths(paths) },
   );
   const result = JSON.parse(stdout) as {
@@ -209,7 +211,7 @@ test("CLI inbox list can include archived cached Front conversations", async () 
   const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-inbox-all"));
   await writeFakeFrontCacheFixture(paths);
 
-  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "inbox", "list", "--all", "--json"], {
+  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "inbox", "list", "--offline-cache", "--all", "--json"], {
     env: envForPaths(paths),
   });
   const result = JSON.parse(stdout) as {
@@ -223,7 +225,7 @@ test("CLI read returns cached conversation timeline", async () => {
   const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-read"));
   await writeFakeFrontCacheFixture(paths);
 
-  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "read", "93727705553", "--json"], {
+  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "read", "93727705553", "--offline-cache", "--json"], {
     env: envForPaths(paths),
   });
   const result = JSON.parse(stdout) as {
@@ -245,7 +247,7 @@ test("CLI attachments list returns sanitized cached attachment metadata", async 
 
   const { stdout } = await execFileAsync(
     "node",
-    ["dist/src/cli.js", "attachments", "list", "93727705553", "--json"],
+    ["dist/src/cli.js", "attachments", "list", "93727705553", "--offline-cache", "--json"],
     { env: envForPaths(paths) },
   );
   const result = JSON.parse(stdout) as { count: number; attachments: Array<{ filename: string; urlPresent: boolean }> };
@@ -260,7 +262,7 @@ test("CLI summarize returns a compact cached conversation summary", async () => 
   const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-summary"));
   await writeFakeFrontCacheFixture(paths);
 
-  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "summarize", "93727705553", "--json"], {
+  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "summarize", "93727705553", "--offline-cache", "--json"], {
     env: envForPaths(paths),
   });
   const result = JSON.parse(stdout) as {
@@ -276,12 +278,12 @@ test("CLI triage inbox groups cached conversations without leaking cache tokens"
   const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-triage"));
   await writeFakeFrontCacheFixture(paths);
 
-  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "triage", "inbox", "--all", "--json"], {
+  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "triage", "inbox", "--offline-cache", "--all", "--json"], {
     env: envForPaths(paths),
   });
   const markdown = await execFileAsync(
     "node",
-    ["dist/src/cli.js", "triage", "inbox", "--limit", "2", "--format", "markdown"],
+    ["dist/src/cli.js", "triage", "inbox", "--offline-cache", "--limit", "2", "--format", "markdown"],
     { env: envForPaths(paths) },
   );
   const result = JSON.parse(stdout) as {
@@ -306,7 +308,7 @@ test("CLI read supports markdown format without leaking cache tokens", async () 
 
   const { stdout } = await execFileAsync(
     "node",
-    ["dist/src/cli.js", "read", "93727705553", "--format", "markdown"],
+    ["dist/src/cli.js", "read", "93727705553", "--offline-cache", "--format", "markdown"],
     { env: envForPaths(paths) },
   );
 
@@ -322,7 +324,7 @@ test("CLI search markdown format does not include format value in the query", as
 
   const { stdout } = await execFileAsync(
     "node",
-    ["dist/src/cli.js", "search", "Friday", "--format", "markdown", "--limit", "1"],
+    ["dist/src/cli.js", "search", "Friday", "--offline-cache", "--format", "markdown", "--limit", "1"],
     { env: envForPaths(paths) },
   );
 
@@ -337,7 +339,7 @@ test("CLI summarize supports plain format", async () => {
 
   const { stdout } = await execFileAsync(
     "node",
-    ["dist/src/cli.js", "summarize", "93727705553", "--format", "plain"],
+    ["dist/src/cli.js", "summarize", "93727705553", "--offline-cache", "--format", "plain"],
     { env: envForPaths(paths) },
   );
 
@@ -551,7 +553,7 @@ test("CLI sync indexes cached Front data into local store", async () => {
   const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-sync"));
   await writeFakeFrontCacheFixture(paths);
 
-  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "sync", "--all", "--json"], {
+  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "sync", "--offline-cache", "--all", "--json"], {
     env: envForPaths(paths),
   });
   const result = JSON.parse(stdout) as { source: string; conversations: number; timelineItems: number };
@@ -565,7 +567,7 @@ test("CLI cache search/read/stats use the local SQLite store", async () => {
   const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-cache"));
   await writeFakeFrontCacheFixture(paths);
   const env = envForPaths(paths);
-  await execFileAsync("node", ["dist/src/cli.js", "sync", "--all", "--json"], { env });
+  await execFileAsync("node", ["dist/src/cli.js", "sync", "--offline-cache", "--all", "--json"], { env });
 
   const [
     { stdout: searchStdout },
@@ -575,9 +577,9 @@ test("CLI cache search/read/stats use the local SQLite store", async () => {
     { stdout: statsMarkdownStdout },
   ] = await Promise.all([
     execFileAsync("node", ["dist/src/cli.js", "cache", "search", "remaining materials", "--json"], { env }),
-    execFileAsync("node", ["dist/src/cli.js", "cache", "read", "93727705553", "--json"], { env }),
+    execFileAsync("node", ["dist/src/cli.js", "cache", "read", "93727705553", "--offline-cache", "--json"], { env }),
     execFileAsync("node", ["dist/src/cli.js", "cache", "stats", "--json"], { env }),
-    execFileAsync("node", ["dist/src/cli.js", "cache", "read", "93727705553", "--format", "markdown"], { env }),
+    execFileAsync("node", ["dist/src/cli.js", "cache", "read", "93727705553", "--offline-cache", "--format", "markdown"], { env }),
     execFileAsync("node", ["dist/src/cli.js", "cache", "stats", "--format", "markdown"], { env }),
   ]);
   const search = JSON.parse(searchStdout) as { count: number; conversations: Array<{ id: string }>; freshness: { fresh: boolean } };
@@ -605,7 +607,7 @@ test("CLI memory init writes a local preference profile from the store", async (
   await writeFakeFrontCacheFixture(paths);
   const env = envForPaths(paths);
 
-  await execFileAsync("node", ["dist/src/cli.js", "sync", "--all", "--json"], { env });
+  await execFileAsync("node", ["dist/src/cli.js", "sync", "--offline-cache", "--all", "--json"], { env });
   const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "memory", "init", "--json"], { env });
   const result = JSON.parse(stdout) as {
     written: boolean;
@@ -629,7 +631,7 @@ test("CLI workflows daily returns agent-ready workflow queues", async () => {
   await writeFakeFrontCacheFixture(paths);
   const env = { ...envForPaths(paths), FRONTCTL_NOW: "2026-06-06T12:00:00.000Z" };
 
-  await execFileAsync("node", ["dist/src/cli.js", "sync", "--all", "--json"], { env });
+  await execFileAsync("node", ["dist/src/cli.js", "sync", "--offline-cache", "--all", "--json"], { env });
   const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "workflows", "daily", "--actor", "Codex", "--json"], { env });
   const result = JSON.parse(stdout) as {
     publicApiUsed: boolean;
@@ -948,7 +950,7 @@ test("CLI search preserves numeric query terms while honoring --limit", async ()
 
   const { stdout } = await execFileAsync(
     "node",
-    ["dist/src/cli.js", "search", "Friday", "2026", "--limit", "1", "--json"],
+    ["dist/src/cli.js", "search", "Friday", "2026", "--offline-cache", "--limit", "1", "--json"],
     { env: envForPaths(paths) },
   );
   const result = JSON.parse(stdout) as {

@@ -54,7 +54,7 @@ cask "frontctl" do
     or run:
       frontctl readiness --json
       frontctl setup --agent all --yes --json
-      frontctl auth unlock --ttl-hours 12 --json
+      frontctl setup --enable-live --json
 
     frontctl never sends email and does not use the public Front API.
   EOS

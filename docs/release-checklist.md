@@ -19,7 +19,7 @@ Use this checklist before giving `frontctl` to an early tester or non-technical 
 - `frontctl doctor --json` works on a real signed-in Front desktop profile.
 - `frontctl readiness --json` reports `userReadiness.ready: true` on the release test machine.
 - `frontctl auth check --json` does not prompt for Keychain access.
-- `frontctl inbox list --live --limit 5 --json` works after one successful `frontctl auth unlock`.
+- `frontctl inbox list --limit 5 --json` works after one successful `frontctl auth unlock`.
 - `frontctl discovery browser-status --json` finds a usable browser DevTools port when Edge/Chrome
   is launched with remote debugging.
 - `frontctl discovery browser-probe CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --json`

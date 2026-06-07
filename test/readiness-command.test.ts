@@ -22,7 +22,7 @@ test("readinessCommand returns a concise ready report without touching Keychain"
     assert.equal(result.auth.promptsOnCheck, false);
     assert.equal(result.auth.promptsOnLiveRead, false);
     assert.equal(result.safety.touchesKeychain, false);
-    assert.match(result.nextCommand, /triage inbox --live/);
+    assert.match(result.nextCommand, /triage inbox --limit 20/);
   });
 });
 

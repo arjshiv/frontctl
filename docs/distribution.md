@@ -178,7 +178,8 @@ It is a native first-run wrapper around:
 - `frontctl readiness --json`
 - `frontctl setup --json`
 - `frontctl setup --agent all --yes --json`
-- `frontctl auth unlock --ttl-hours 12 --json`
+- `frontctl discovery launch --remote-debugging-port 9222 --json`
+- `frontctl bridge test --json`
 - `frontctl diagnose --output ~/Desktop/frontctl-support.json --json`
 
 The window translates setup JSON into a plain-language checklist for Front installation, Front
@@ -197,7 +198,7 @@ Every setup surface should route failures to one of these user actions:
 - Install Front for macOS.
 - Open Front and sign in.
 - Verify frontctl is installed with `frontctl --version`.
-- Re-run `frontctl auth unlock --ttl-hours 12 --json`.
+- Launch a managed Edge/Chrome window with `frontctl discovery launch --remote-debugging-port 9222 --json`, sign into Front, then run `frontctl bridge test --json`.
 - Install Codex/Claude skills with `frontctl setup --agent all --yes --json`.
 - Generate a redacted support bundle with `frontctl diagnose --output support.json --json`.
 

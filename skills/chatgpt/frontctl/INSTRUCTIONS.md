@@ -9,9 +9,12 @@ Requirements:
 - Use `frontctl readiness --json`, `frontctl setup --json`, or `frontctl diagnose --json` and
   prefer `userReadiness.nextAction` when explaining setup status.
 - Run `frontctl auth check --json` before live private reads.
-- If live mode is locked, inspect `frontctl browser list --json` and prefer
-  `frontctl auth unlock --source default-browser --ttl-hours 12 --json` when the user is signed into
-  Front in Chrome or Microsoft Edge. Otherwise ask the user before running
+- If live mode is locked, run `frontctl setup --enable-live --json` first. The default live path is
+  the CDP browser bridge and must not touch Keychain or macOS Automation. If that fails, inspect
+  `frontctl bridge status --json`; if no CDP browser is reachable, use
+  `frontctl discovery launch --remote-debugging-port 9222 --json` to launch a managed signed-in
+  browser. Ask before running
+  `frontctl auth unlock --source default-browser --ttl-hours 12 --json` or
   `frontctl auth unlock --source front-app --ttl-hours 12 --json`.
 - Never rerun unlock just to be safe when `auth check` is valid. Unlock reuses the valid session
   cache and should not repeatedly prompt for Keychain access.
@@ -42,15 +45,19 @@ frontctl summarize CONVERSATION_ID --format plain
 Live commands after `frontctl auth check --json` reports a valid session:
 
 ```bash
-frontctl inbox list --live --limit 20 --json
-frontctl triage inbox --live --limit 20 --json
-frontctl read CONVERSATION_ID --live --json
-frontctl sync --live --limit 100 --json
+frontctl inbox list --limit 20 --json
+frontctl triage inbox --limit 20 --json
+frontctl read CONVERSATION_ID --json
+frontctl sync --limit 100 --json
 frontctl cache search "query" --limit 10 --json
 frontctl memory init --limit 500 --json
 frontctl memory report --json
 frontctl workflows daily --actor ChatGPT --json
 ```
+
+Normal read commands are live private-session reads. Do not answer current inbox questions from
+Front's stale local HTTP cache. Use `--offline-cache` only for diagnostics, offline recovery, or
+tests where stale data is explicitly acceptable.
 
 For normal product use after memory exists, prefer `frontctl workflows daily --actor ChatGPT --json`.
 It returns daily triage, noise review, follow-up, tag hygiene, and ops/risk queues with safe preview
@@ -82,7 +89,7 @@ frontctl discovery capture --remote-debugging-port PORT --target-url-contains co
 ```
 
 For browser-backed proof on a low-risk real conversation, choose a numeric tag id from
-`frontctl tag list --live --json`, then run:
+`frontctl tag list --json`, then run:
 
 ```bash
 frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json

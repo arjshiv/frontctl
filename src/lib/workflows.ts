@@ -186,13 +186,13 @@ function itemFor(workflowId: Workflow["id"], row: WorkflowRow, actor: string): W
     reason,
     confidence: confidenceFor(workflowId, row),
     commands: {
-      read: `frontctl read ${shellToken(row.id)} --live --json`,
-      summarize: `frontctl summarize ${shellToken(row.id)} --live --json`,
+      read: `frontctl read ${shellToken(row.id)} --json`,
+      summarize: `frontctl summarize ${shellToken(row.id)} --json`,
       archivePreview: workflowId === "noise-review" ? archiveCommand(row.id, actor, reason) : undefined,
       snoozePreview: workflowId === "follow-up" || workflowId === "daily-triage"
         ? snoozeCommand(row.id, actor, reason)
         : undefined,
-      tagList: workflowId === "tag-hygiene" ? "frontctl tag list --live --json" : undefined,
+      tagList: workflowId === "tag-hygiene" ? "frontctl tag list --json" : undefined,
       tagPreview: workflowId === "tag-hygiene" && tag
         ? `frontctl tag add ${shellToken(row.id)} ${shellToken(tag)} --actor ${shellToken(actor)} --reason ${shellToken(reason)} --json`
         : undefined,
@@ -297,11 +297,11 @@ function tagFor(row: WorkflowRow) {
 
 function nextCommands(id: Workflow["id"], actor: string) {
   const base = ["frontctl memory report --json"];
-  if (id === "daily-triage") return [...base, "frontctl triage inbox --live --limit 20 --json"];
+  if (id === "daily-triage") return [...base, "frontctl triage inbox --limit 20 --json"];
   if (id === "noise-review") return [...base, `frontctl archive CONVERSATION_ID --actor ${shellToken(actor)} --reason "User approved archive from daily noise review" --json`];
   if (id === "follow-up") return [...base, `frontctl snooze CONVERSATION_ID tomorrow-9am --actor ${shellToken(actor)} --reason "User approved follow-up reminder" --json`];
-  if (id === "tag-hygiene") return [...base, "frontctl tag list --live --json"];
-  return [...base, "frontctl read CONVERSATION_ID --live --json"];
+  if (id === "tag-hygiene") return [...base, "frontctl tag list --json"];
+  return [...base, "frontctl read CONVERSATION_ID --json"];
 }
 
 function isNewsletter(row: WorkflowRow) {

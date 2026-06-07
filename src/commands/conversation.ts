@@ -11,23 +11,23 @@ export async function readConversation(args: string[], paths: FrontPaths = defau
     throw new CliError("Missing conversation id", 64);
   }
 
-  if (args.includes("--live")) {
-    const client = await createFrontPrivateClient(paths);
-    const routes = buildFrontRoutes(client.context);
-    const [conversation, timeline] = await Promise.all([
-      client.getJson<Record<string, unknown>>(routes.conversation(id)),
-      client.getJson<Record<string, unknown>>(routes.timeline(id)),
-    ]);
-    const timelineValue = Array.isArray(timeline.timeline) ? timeline.timeline : timeline;
-    return maybeRenderConversationRead({
-      source: "live-private",
-      stale: false,
-      publicApiUsed: false,
-      id,
-      conversation: normalizeConversation(conversation),
-      timeline: normalizeTimeline(timelineValue),
-    }, args);
+  if (args.includes("--offline-cache")) {
+    return maybeRenderConversationRead(await readCachedConversation(paths.cacheDataPath, id), args);
   }
 
-  return maybeRenderConversationRead(await readCachedConversation(paths.cacheDataPath, id), args);
+  const client = await createFrontPrivateClient(paths);
+  const routes = buildFrontRoutes(client.context);
+  const [conversation, timeline] = await Promise.all([
+    client.getJson<Record<string, unknown>>(routes.conversation(id)),
+    client.getJson<Record<string, unknown>>(routes.timeline(id)),
+  ]);
+  const timelineValue = Array.isArray(timeline.timeline) ? timeline.timeline : timeline;
+  return maybeRenderConversationRead({
+    source: "live-private",
+    stale: false,
+    publicApiUsed: false,
+    id,
+    conversation: normalizeConversation(conversation),
+    timeline: normalizeTimeline(timelineValue),
+  }, args);
 }

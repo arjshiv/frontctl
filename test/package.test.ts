@@ -68,6 +68,11 @@ test("package metadata publishes the frontctl bin and build lifecycle", async ()
   assert.ok(packageScript.indexOf('notarytool submit "$FINAL_PKG"') < packageScript.indexOf('mkdir -p "$DMG_SRC"'));
   assert.ok(packageScript.indexOf('notarytool submit "$FINAL_DMG"') > packageScript.indexOf('/usr/bin/hdiutil create'));
 
+  const userInstaller = await readFile("packaging/Install Frontctl for This User.command", "utf8");
+  assert.match(userInstaller, /\.local\/share\/frontctl\/runtime\/node/);
+  assert.match(userInstaller, /\.local\/share\/frontctl\/dist\/src\/cli\.js/);
+  assert.doesNotMatch(userInstaller, /ln -sf "\$DEST\/bin\/frontctl"/);
+
   const releaseCheck = await readFile("script/check_release.sh", "utf8");
   assert.match(releaseCheck, /check_expanded_payload/);
   assert.match(releaseCheck, /expanded package payload is runnable/);

@@ -519,7 +519,7 @@ function freshnessFromLastSynced(lastSyncedAt: string | undefined, maxAgeHours: 
       lastSyncedAt,
       maxAgeHours,
       fresh: false,
-      warning: "Local index has not been synced yet. Run `frontctl sync --live --json`.",
+      warning: "Local index has not been synced yet. Run `frontctl sync --json`.",
     };
   }
   const syncedMs = Date.parse(lastSyncedAt);
@@ -528,7 +528,7 @@ function freshnessFromLastSynced(lastSyncedAt: string | undefined, maxAgeHours: 
       lastSyncedAt,
       maxAgeHours,
       fresh: false,
-      warning: "Local index sync timestamp is invalid. Run `frontctl sync --live --json`.",
+      warning: "Local index sync timestamp is invalid. Run `frontctl sync --json`.",
     };
   }
   const ageSeconds = Math.max(0, Math.floor((Date.now() - syncedMs) / 1000));
@@ -540,6 +540,6 @@ function freshnessFromLastSynced(lastSyncedAt: string | undefined, maxAgeHours: 
     fresh,
     warning: fresh
       ? undefined
-      : `Local index is older than ${maxAgeHours} hours. Run \`frontctl sync --live --json\` for fresh results.`,
+      : `Local index is older than ${maxAgeHours} hours. Run \`frontctl sync --json\` for fresh results.`,
   };
 }

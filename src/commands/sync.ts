@@ -8,11 +8,13 @@ import { normalizeConversation, normalizeTimeline } from "../lib/frontCache.js";
 export async function syncCommand(args: string[], paths: FrontPaths = defaultFrontPaths()) {
   const limit = readNumberFlag(args, "--limit") ?? 100;
   const includeArchived = args.includes("--all") || args.includes("--include-archived");
-  const source = args.includes("--live") ? "live-private" : "cache";
+  const source = args.includes("--offline-cache") ? "cache" : "live-private";
+  let transport: string | undefined;
   const inputs: StoreConversationInput[] = [];
 
   if (source === "live-private") {
     const client = await createFrontPrivateClient(paths);
+    transport = client.transport;
     const routes = buildFrontRoutes(client.context);
     const payloads = includeArchived
       ? await Promise.all([
@@ -50,6 +52,7 @@ export async function syncCommand(args: string[], paths: FrontPaths = defaultFro
 
   return {
     source,
+    ...(transport ? { transport } : {}),
     ...(await syncStore(inputs)),
   };
 }

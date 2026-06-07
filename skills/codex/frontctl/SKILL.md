@@ -23,12 +23,14 @@ run `frontctl readiness --json`. For a readiness report plus local skill install
 When reporting setup state, prefer `userReadiness.ready`, `userReadiness.state`, and
 `userReadiness.nextAction` from `frontctl readiness --json`, `frontctl setup --json`, or
 `frontctl diagnose --json`.
-For live private reads, run `frontctl auth check --json`; if it is not valid, inspect
-`frontctl browser list --json` and prefer
-`frontctl auth unlock --source default-browser --ttl-hours 12 --json` when the user is signed into
-Front in Chrome or Microsoft Edge. Otherwise ask before running
-`frontctl auth unlock --source front-app --ttl-hours 12 --json` because the first unlock may touch
-macOS Keychain.
+For live private reads, run `frontctl readiness --json`; if live mode is locked, run
+`frontctl setup --enable-live --json` first. The default live path is the CDP browser bridge and
+must not touch Keychain or macOS Automation. If that fails, inspect `frontctl bridge status --json`;
+if no CDP browser is reachable, use `frontctl discovery launch --remote-debugging-port 9222 --json`
+to launch a managed signed-in browser. Ask before running
+`frontctl auth unlock --source default-browser --ttl-hours 12 --json` or
+`frontctl auth unlock --source front-app --ttl-hours 12 --json` because explicit app/browser unlock
+may touch macOS Keychain.
 Never rerun unlock just to be safe when `auth check` is valid. `auth unlock` reuses a valid cache,
 and `--force` should be used only when the user explicitly wants to refresh the Front cookies.
 
@@ -81,25 +83,21 @@ frontctl search "query" --json
 frontctl read CONVERSATION_ID --json
 frontctl read CONVERSATION_ID --format markdown
 frontctl summarize CONVERSATION_ID --format plain
-frontctl inbox list --live --limit 20 --json
-frontctl triage inbox --live --limit 20 --json
-frontctl search "query" --live --json
-frontctl read CONVERSATION_ID --live --json
-frontctl summarize CONVERSATION_ID --live --json
-frontctl attachments list CONVERSATION_ID --live --json
+frontctl attachments list CONVERSATION_ID --json
 frontctl open CONVERSATION_ID --print-only --json
 frontctl open CONVERSATION_ID --web --print-only --json
 ```
 
-Read results may be marked `stale: true` when they come from Front's local HTTP cache. If the inbox
-cache is empty, ask the user to open the relevant view in Front, then rerun the command.
+Normal read commands are live private-session reads. Do not answer current inbox questions from
+Front's stale local HTTP cache. Use `--offline-cache` only for diagnostics, offline recovery, or
+tests where stale data is explicitly acceptable.
 Use `frontctl open CONVERSATION_ID --print-only --json` to inspect the Front deeplink without
 launching. Omit `--print-only` only when the user wants Front opened locally.
 
 Local index commands:
 
 ```bash
-frontctl sync --live --limit 100 --json
+frontctl sync --limit 100 --json
 frontctl cache stats --json
 frontctl cache stats --max-age-hours 6 --json
 frontctl cache search "query" --limit 10 --json
@@ -110,10 +108,10 @@ frontctl memory report --json
 frontctl workflows daily --actor Codex --json
 ```
 
-After `frontctl auth unlock`, prefer `frontctl sync --live` before broad repeated searches. Then use
+After `frontctl auth unlock`, prefer `frontctl sync` before broad repeated searches. Then use
 `frontctl cache search/read` for fast follow-up work without repeated Front or Keychain access.
 Cache stats/search/read include `freshness`; if `freshness.fresh` is false, run
-`frontctl sync --live --limit 100 --json` before relying on the local index.
+`frontctl sync --limit 100 --json` before relying on the local index.
 After first setup or a broad live sync, run `frontctl memory init --limit 500 --json` to create the
 local preference profile. Use `frontctl memory report --json` before suggesting archive/tag/snooze
 rules. Memory is local-only and stores aggregate signals, not cookies, auth headers, or raw timeline
@@ -124,7 +122,7 @@ hygiene, and ops/risk alerts. Treat its archive/snooze/tag commands as previews 
 explicitly approves execution. When a valid live session exists, it verifies the current inbox before
 proposing open-thread actions; use `--local-only` only when the user explicitly wants no live check.
 Local index timeline text is bounded at 20,000 characters per item. If `textTruncated` is true,
-use `frontctl read CONVERSATION_ID --live --json` for the freshest available context.
+use `frontctl read CONVERSATION_ID --json` for the freshest available context.
 Use `--format markdown` or `--format plain` when the user wants readable output instead of a JSON
 object. For structural Markdown queries, optionally use:
 
@@ -183,7 +181,7 @@ redacted metadata only: action, mode, route, body keys, and body hash, never raw
 For snooze, inspect `details.normalizedUntil` in the preview and include that exact timestamp in
 the user confirmation. Supported shortcuts include `in:30m`, `in:2h`, `later`, `tomorrow`,
 `tomorrow-9am`, and weekday forms such as `monday-9am`.
-Before `tag add` or `tag remove`, run `frontctl tag list --json` or `frontctl tag list --live --json`.
+Before `tag add` or `tag remove`, run `frontctl tag list --json` or `frontctl tag list --json`.
 Use an alias, id, or unique name from the result, then inspect `details.tag.resolvedAlias` in the
 preview. Ambiguous names fail; do not guess.
 
@@ -196,7 +194,7 @@ and `frontctl auth check --json` is valid, use
 to copy the existing short-lived frontctl session into the selected browser tab without printing
 cookie values or touching Keychain. Then rerun `browser-probe`. Use
 `frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json`
-when browser-backed proof is required; choose `TAG_ID` from `frontctl tag list --live --json` and do
+when browser-backed proof is required; choose `TAG_ID` from `frontctl tag list --json` and do
 not guess. If browser seeding is unavailable, ask the user to sign into Front in that browser
 profile before relying on browser capture. Then use
 `frontctl discovery launch`, ask them to run

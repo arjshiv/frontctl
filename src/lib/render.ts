@@ -4,6 +4,7 @@ export type OutputFormat = "json" | "plain" | "markdown";
 
 export interface ConversationListLike {
   source?: string;
+  transport?: string;
   stale?: boolean;
   publicApiUsed?: boolean;
   routes?: string[];
@@ -227,8 +228,8 @@ function renderSummary(result: SummaryLike, format: Exclude<OutputFormat, "json"
   return lines.filter((line, index) => line !== "" || lines[index - 1] !== "").join("\n").trimEnd();
 }
 
-function metaLine(result: { source?: string; stale?: boolean }) {
-  return compact([result.source, result.stale ? "stale" : undefined]);
+function metaLine(result: { source?: string; transport?: string; stale?: boolean }) {
+  return compact([result.source, result.transport, result.stale ? "stale" : undefined]);
 }
 
 function pushFreshness(lines: string[], freshness: { warning?: string; lastSyncedAt?: string } | undefined) {

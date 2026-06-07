@@ -7,33 +7,34 @@ import { maybeRenderConversationList } from "../lib/render.js";
 export async function listInbox(args: string[], paths: FrontPaths = defaultFrontPaths()) {
   const limit = readNumberFlag(args, "--limit") ?? 20;
   const includeArchived = args.includes("--all") || args.includes("--include-archived");
-  if (args.includes("--live")) {
-    const client = await createFrontPrivateClient(paths);
-    const routes = buildFrontRoutes(client.context);
-    const payloads = includeArchived
-      ? await Promise.all([
-          client.getJson<Record<string, unknown>>(routes.inbox),
-          client.getJson<Record<string, unknown>>(routes.done),
-        ])
-      : [await client.getJson<Record<string, unknown>>(routes.inbox)];
-    const raw = payloads.flatMap((data) => (Array.isArray(data.conversations) ? data.conversations : []));
-    const conversations = raw
-      .map(normalizeConversation)
-      .filter((conversation): conversation is NonNullable<typeof conversation> => Boolean(conversation))
-      .slice(0, limit);
-
-    return maybeRenderConversationList({
-      source: "live-private",
-      stale: false,
-      publicApiUsed: false,
-      routes: includeArchived ? ["inbox", "done"] : ["inbox"],
-      totalReturned: conversations.length,
-      count: conversations.length,
-      conversations,
-    }, args);
+  if (args.includes("--offline-cache")) {
+    return maybeRenderConversationList(await listCachedInbox(paths.cacheDataPath, { limit, includeArchived }), args);
   }
 
-  return maybeRenderConversationList(await listCachedInbox(paths.cacheDataPath, { limit, includeArchived }), args);
+  const client = await createFrontPrivateClient(paths);
+  const routes = buildFrontRoutes(client.context);
+  const payloads = includeArchived
+    ? await Promise.all([
+        client.getJson<Record<string, unknown>>(routes.inbox),
+        client.getJson<Record<string, unknown>>(routes.done),
+      ])
+    : [await client.getJson<Record<string, unknown>>(routes.inbox)];
+  const raw = payloads.flatMap((data) => (Array.isArray(data.conversations) ? data.conversations : []));
+  const conversations = raw
+    .map(normalizeConversation)
+    .filter((conversation): conversation is NonNullable<typeof conversation> => Boolean(conversation))
+    .slice(0, limit);
+
+  return maybeRenderConversationList({
+    source: "live-private",
+    transport: client.transport,
+    stale: false,
+    publicApiUsed: false,
+    routes: includeArchived ? ["inbox", "done"] : ["inbox"],
+    totalReturned: conversations.length,
+    count: conversations.length,
+    conversations,
+  }, args);
 }
 
 function readNumberFlag(args: string[], flag: string): number | undefined {

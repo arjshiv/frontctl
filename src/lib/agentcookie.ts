@@ -22,7 +22,7 @@ export function defaultAgentcookiePlainCookiesPath(env: NodeJS.ProcessEnv = proc
 }
 
 export async function agentcookieStatus(env: NodeJS.ProcessEnv = process.env): Promise<AgentcookieStatus> {
-  const binary = await findAgentcookieBinary();
+  const binary = await findAgentcookieBinary(env);
   const plainCookiesPath = defaultAgentcookiePlainCookiesPath(env);
   const plainCookiesExists = existsSync(plainCookiesPath);
   return {
@@ -38,7 +38,11 @@ export async function agentcookieStatus(env: NodeJS.ProcessEnv = process.env): P
   };
 }
 
-export async function readAgentcookieFrontCookies(path = defaultAgentcookiePlainCookiesPath()) {
+export async function readAgentcookieFrontCookies(path = defaultAgentcookiePlainCookiesPath(), env: NodeJS.ProcessEnv = process.env) {
+  if (!existsSync(path)) {
+    return [];
+  }
+
   const sql = [
     "select host_key, name, value, expires_utc",
     "from cookies",
@@ -56,12 +60,14 @@ async function plainCookieDbHasFrontCookies(path: string) {
   return new Set(rows.map((row) => row.name)).size >= 2;
 }
 
-async function findAgentcookieBinary() {
+async function findAgentcookieBinary(env: NodeJS.ProcessEnv = process.env) {
   const candidates = [
+    env.FRONTCTL_AGENTCOOKIE_BIN,
+    join(homedir(), ".local", "bin", "agentcookie"),
     join(homedir(), "go", "bin", "agentcookie"),
     "/opt/homebrew/bin/agentcookie",
     "/usr/local/bin/agentcookie",
-  ];
+  ].filter((candidate): candidate is string => Boolean(candidate));
   for (const candidate of candidates) {
     if (existsSync(candidate)) {
       return candidate;

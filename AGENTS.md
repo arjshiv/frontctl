@@ -108,12 +108,14 @@ explicitly asks for one.
 
 ### Make Prompting Rare
 
-The right Keychain model is one explicit unlock, then many non-prompting reads. If a future change
-makes every inbox read ask for Keychain access, treat it as a regression.
+The right default model is no Keychain prompt at all: use the CDP browser bridge against a signed-in
+Front tab, then many non-prompting reads. If a future change makes every inbox read ask for Keychain
+access, treat it as a regression.
 
-This applies equally to browser sessions. `frontctl auth unlock --source edge` or
-`--source default-browser` may ask once for the browser safe-storage item. After that,
-`auth check`, `readiness`, and live reads must use the frontctl session cache without prompting.
+Explicit cookie unlocks are fallback/debug paths. `frontctl auth unlock --source edge` or
+`--source default-browser` may ask once for the browser safe-storage item only after the user
+chooses that fallback. After that, `auth check`, `readiness`, and live reads must use the frontctl
+session cache without prompting.
 For browser-backed route work, `browser-status` only proves an attachable DevTools port. Use
 `browser-probe` to prove the selected tab is authenticated. If the CLI session is valid but the tab
 is not, `browser-seed` may copy the short-lived `frontctl` session into that tab without printing
@@ -250,7 +252,7 @@ Make the obvious agent assumption true:
 - `frontctl workflows daily --json` should produce one simple agent-facing workflow report rather
   than many competing automations.
 - Mutation previews should include actor/reason identity without adding Front comments.
-- `frontctl inbox list --live --json` should use the unlocked local session.
+- `frontctl inbox list --json` should use the unlocked local session.
 - `frontctl diagnose --json` should be safe to share.
 - `frontctl send --json` should fail.
 

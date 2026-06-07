@@ -153,16 +153,16 @@ Optional maintenance path:
 Implemented:
 
 - `frontctl whoami --json` live private read.
-- `frontctl inbox list` cached read.
-- `frontctl inbox list --live` private read.
-- `frontctl search` cached read.
-- `frontctl search --live` private read.
-- `frontctl read` cached read.
-- `frontctl read --live` private timeline read.
-- `frontctl summarize` cached deterministic summary.
-- `frontctl summarize --live` private deterministic summary.
-- `frontctl triage inbox` cached inbox action buckets for agent workflows.
-- `frontctl triage inbox --live` private live inbox action buckets for agent workflows.
+- `frontctl inbox list` private live read by default.
+- `frontctl inbox list --offline-cache` explicit stale diagnostic read.
+- `frontctl search` private live read by default.
+- `frontctl search --offline-cache` explicit stale diagnostic read.
+- `frontctl read` private live timeline read by default.
+- `frontctl read --offline-cache` explicit stale diagnostic timeline read.
+- `frontctl summarize` private live deterministic summary by default.
+- `frontctl summarize --offline-cache` explicit stale diagnostic summary.
+- `frontctl triage inbox` private live inbox action buckets for agent workflows.
+- `frontctl triage inbox --offline-cache` explicit stale diagnostic action buckets.
 - `frontctl inbox list|search|read|summarize --format markdown|plain` readable renderers for
   chat and terminal workflows.
 - `frontctl mq check|install|query|example` optional integration with `harehare/mq` for structural
@@ -175,8 +175,8 @@ Implemented:
 - `frontctl readiness --json` concise non-prompting user readiness report.
 - `frontctl agents check|paths|install --agent codex|claude|all` first-class local skill installer
   for Codex/ChatGPT and Claude.
-- `frontctl sync` normalized cache/index build from cached Front data.
-- `frontctl sync --live` normalized cache/index build from private live reads.
+- `frontctl sync` normalized local index build from private live reads.
+- `frontctl sync --offline-cache` explicit stale local index build from cached Front data.
 - Local index preserves bounded timeline text up to 20,000 characters per item with `textLength`
   and `textTruncated` metadata.
 - `frontctl cache stats` local index stats.
@@ -184,8 +184,8 @@ Implemented:
 - `frontctl cache read CONVERSATION_ID` local indexed conversation read.
 - `frontctl cache stats|search|read --max-age-hours N` freshness policy and stale guidance for
   local index reads.
-- `frontctl attachments list CONVERSATION_ID` sanitized cached attachment metadata.
-- `frontctl attachments list CONVERSATION_ID --live` sanitized private live attachment metadata.
+- `frontctl attachments list CONVERSATION_ID` sanitized private live attachment metadata.
+- `frontctl attachments list CONVERSATION_ID --offline-cache` explicit stale cached attachment metadata.
 - Attachment metadata is indexed into SQLite without signed URLs or tokens.
 - `frontctl draft list --limit N` read-only scan of Front local IndexedDB draft records.
 - `frontctl draft read DRAFT_ID` read-only local draft inspection.
@@ -272,7 +272,7 @@ frontctl triage inbox --limit 20 --json
 frontctl search "from:alice newer:7d" --json
 frontctl read cnv_123 --format markdown
 frontctl mq query --query '.h' --input conversation.md --output-format text
-frontctl sync --live --limit 100 --json
+frontctl sync --limit 100 --json
 frontctl cache search "alice" --json
 frontctl attachments list cnv_123 --json
 frontctl discovery sanitize --input capture.har --output sanitized.json --json
@@ -331,9 +331,10 @@ The M0-M5 plan is complete for the current supported scope:
 - Concise user-facing setup readiness: `frontctl readiness --json`.
 - Non-prompting auth status plus one-time unlock cache: `frontctl auth check|unlock --json`.
 - Live personal-inbox reads without the public Front API:
-  `frontctl whoami|inbox list --live|search --live|read --live|summarize --live`.
-- Cached reads, local SQLite/FTS index, freshness metadata, attachments, and draft inspection:
-  `frontctl inbox list|search|read|sync|cache|attachments list|draft list|draft read`.
+  `frontctl whoami|inbox list|search|read|summarize`.
+- Explicit offline/debug cache reads, local SQLite/FTS index, freshness metadata, and draft
+  inspection: `--offline-cache`, `frontctl sync --offline-cache`, `frontctl cache ...`, and
+  `frontctl draft list|read`.
 - Agent triage and readable output:
   `frontctl triage inbox`, plus `--format markdown|plain` on read/search/list/summary commands.
 - Optional Markdown querying: `frontctl mq check|install|query|example`.
@@ -352,8 +353,8 @@ npm test
 node dist/src/cli.js help --json
 node dist/src/cli.js discovery verify-writes --json
 node dist/src/cli.js auth check --json
-node dist/src/cli.js inbox list --live --limit 5 --json
-node dist/src/cli.js triage inbox --live --limit 5 --json
+node dist/src/cli.js inbox list --limit 5 --json
+node dist/src/cli.js triage inbox --limit 5 --json
 npm pack --dry-run
 ```
 

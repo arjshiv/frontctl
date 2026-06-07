@@ -89,7 +89,7 @@ test("buildWorkflowReport creates simple agent workflows from recent local usage
     assert.equal(followUp?.items[0].id, "follow-up-1");
     assert.match(followUp?.items[0].commands.snoozePreview ?? "", /tomorrow-9am/);
     assert.ok(opsRisk?.items.some((item) => item.id === "risk-1"));
-    assert.ok(tagHygiene?.items.some((item) => item.commands.tagList === "frontctl tag list --live --json"));
+    assert.ok(tagHygiene?.items.some((item) => item.commands.tagList === "frontctl tag list --json"));
     assert.doesNotMatch(serialized, /old-1/);
   } finally {
     delete process.env.FRONTCTL_NOW;

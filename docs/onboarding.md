@@ -138,30 +138,44 @@ frontctl cookies inspect --json
 
 The assistant should summarize readiness without printing cookie values.
 
-### 5b. Unlock Live Mode Once
+### 5b. Enable Live Mode
 
-For live private Front requests, run:
+For live private Front requests, first use the CDP browser bridge:
 
 ```bash
-frontctl auth unlock --ttl-hours 12 --json
+frontctl setup --enable-live --json
+frontctl bridge status --json
 ```
 
-If the user is signed into Front in their default browser, prefer the browser source:
+The default bridge uses the already-signed-in Front tab in Microsoft Edge or Chrome through Chrome
+DevTools Protocol. It must not read Front.app, Chrome, or Edge Safe Storage, must not trigger
+Keychain, and must not require macOS Automation permission.
+
+If no CDP browser is reachable, the setup app should show one instruction: launch a managed Edge or
+Chrome window, sign into Front, then retry.
+
+```bash
+frontctl discovery launch --remote-debugging-port 9222 --json
+```
+
+Apple Events are a fallback/debug path only. They are not the consumer onboarding path.
+
+If the browser bridge cannot be used and the user explicitly accepts a cookie-unlock fallback, use
+the explicit browser source:
 
 ```bash
 frontctl browser list --json
 frontctl auth unlock --source default-browser --ttl-hours 12 --json
 ```
 
-This is the only setup step that may ask for macOS Keychain access. After it succeeds, regular
-commands use the short-lived encrypted frontctl session cache and should not keep asking for
-Keychain permission. Rerunning `frontctl auth unlock` while the cache is valid reuses the cache and
-does not touch Keychain. Use `frontctl auth unlock --force --ttl-hours 12 --json` only when the
-cached Front session has expired or you need to refresh it deliberately.
+Explicit app/browser unlock may ask for macOS Keychain access because it reads browser or app Safe
+Storage. That is a fallback, not the consumer path. Rerunning `frontctl auth unlock` while the cache
+is valid reuses the cache and does not touch Keychain. Use `frontctl auth unlock --force --ttl-hours
+12 --json` only when the cached Front session has expired or you need to refresh it deliberately.
 
 `--source default-browser` auto-detects Chrome or Microsoft Edge from macOS Launch Services and
 uses the signed-in browser profile. Safari is open-only for the MVP; use optional `agentcookie`
-support or a future signed helper for Safari cookie import.
+support or a future signed helper for cookie/session import.
 
 Check it later without prompting, and inspect the prompt/security model:
 
@@ -210,34 +224,27 @@ write execution.
 
 ### 6. First Read-Only Inbox Check
 
-After setup is ready, the assistant can run:
+After setup is ready, the assistant can run live private-session reads:
 
 ```bash
 frontctl inbox list --limit 20 --json
 frontctl triage inbox --limit 20 --json
-```
-
-If the result says the cache is empty, open the Inbox view in Front once and rerun the command.
-Results are marked `stale: true` because this milestone reads Front's local cache instead of a live
-browser session.
-
-For live data after `auth unlock`:
-
-```bash
-frontctl inbox list --live --limit 20 --json
-frontctl triage inbox --live --limit 20 --json
-frontctl search "customer name" --live --json
-frontctl read CONVERSATION_ID --live --json
-frontctl summarize CONVERSATION_ID --live --json
-frontctl attachments list CONVERSATION_ID --live --json
+frontctl search "customer name" --json
+frontctl read CONVERSATION_ID --json
+frontctl summarize CONVERSATION_ID --json
+frontctl attachments list CONVERSATION_ID --json
 frontctl open CONVERSATION_ID --print-only --json
 frontctl open CONVERSATION_ID --web --print-only --json
 ```
 
+If these commands cannot reach a live session, setup is not ready. Do not answer current inbox
+questions from Front's local HTTP cache. Use `--offline-cache` only for diagnostics, offline
+recovery, or tests where stale data is explicitly acceptable.
+
 For repeated searches, build a local index after live unlock:
 
 ```bash
-frontctl sync --live --limit 100 --json
+frontctl sync --limit 100 --json
 frontctl cache stats --json
 frontctl cache stats --max-age-hours 6 --json
 frontctl cache search "customer name" --limit 10 --json
@@ -256,7 +263,7 @@ fresh for 12 hours. Override with `--max-age-hours N` or `FRONTCTL_STORE_MAX_AGE
 For first-run preference learning after setup:
 
 ```bash
-frontctl sync --live --all --limit 200 --json
+frontctl sync --all --limit 200 --json
 frontctl memory init --limit 500 --json
 frontctl memory report --json
 frontctl workflows daily --actor Claude --json

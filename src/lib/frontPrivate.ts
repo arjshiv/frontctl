@@ -1,26 +1,56 @@
-import { readFrontSession } from "./auth.js";
+import { readAgentcookieFrontCookies } from "./agentcookie.js";
+import { readFrontSession, unlockFrontSessionFromPlainCookies } from "./auth.js";
+import { createBrowserBridgeClient, discoverFrontRouteContextFromBrowserBridge } from "./browserBridge.js";
+import { createCdpBridgeClient, discoverFrontRouteContextFromCdpBridge } from "./cdpBridge.js";
 import { CliError } from "./cli.js";
 import { buildFrontRoutes, discoverFrontRouteContext, type FrontRouteContext } from "./frontRoutes.js";
 import type { FrontPaths } from "./paths.js";
 
 export interface FrontPrivateClient {
   context: FrontRouteContext;
+  transport: "cdp-bridge" | "browser-bridge" | "session-cookie";
   getJson<T = unknown>(url: string): Promise<T>;
   requestJson<T = unknown>(url: string, options: { method: string; body?: unknown }): Promise<T>;
 }
 
 export async function createFrontPrivateClient(paths: FrontPaths): Promise<FrontPrivateClient> {
-  const [session, context] = await Promise.all([
+  let [session, context] = await Promise.all([
     readFrontSession(),
     discoverFrontRouteContext(paths.cacheDataPath),
   ]);
 
-  if (!session) {
-    throw new CliError("No unlocked live Front session. Run `frontctl auth unlock` first.", 69);
-  }
+  context ??= await discoverFrontRouteContextFromCdpBridge();
+  context ??= await discoverFrontRouteContextFromBrowserBridge();
 
   if (!context) {
-    throw new CliError("Could not discover Front private route context. Open Front inbox once, then rerun.", 69);
+    throw new CliError("Could not discover Front private route context. Open Front inbox in a signed-in browser or the Front app once, then rerun.", 69);
+  }
+
+  const cdpClient = await createCdpBridgeClient(context);
+  if (cdpClient) {
+    return cdpClient;
+  }
+
+  const bridgeClient = await createBrowserBridgeClient(context);
+  if (bridgeClient) {
+    return bridgeClient;
+  }
+
+  if (!session) {
+    const rows = await readAgentcookieFrontCookies().catch(() => []);
+    if (rows.length >= 2) {
+      await unlockFrontSessionFromPlainCookies(rows, {
+        source: "agentcookie:auto",
+      });
+      session = await readFrontSession();
+    }
+  }
+
+  if (!session) {
+    throw new CliError(
+      "No live Front CDP bridge or unlocked session. Open Front in Edge/Chrome with remote debugging and sign into Front, or run `frontctl discovery launch --remote-debugging-port 9222 --json` for a launch command.",
+      69,
+    );
   }
 
   let cookieHeader = session.cookieHeader;
@@ -90,6 +120,7 @@ export async function createFrontPrivateClient(paths: FrontPaths): Promise<Front
 
   return {
     context,
+    transport: "session-cookie",
     async getJson<T = unknown>(url: string): Promise<T> {
       return requestJson<T>(url, { method: "GET" });
     },

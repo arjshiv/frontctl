@@ -29,7 +29,7 @@ test("buildUserReadiness accepts browser session access without Front.app", () =
   assert.equal(result.state, "live-mode-locked");
   assert.equal(result.gates.find((gate) => gate.name === "frontApp")?.ok, true);
   assert.equal(result.gates.find((gate) => gate.name === "frontSignIn")?.ok, true);
-  assert.match(result.nextAction, /auth unlock/);
+  assert.match(result.nextAction, /Enable Live Mode/);
 });
 
 test("buildUserReadiness returns the first actionable missing setup gate", () => {

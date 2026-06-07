@@ -5,6 +5,7 @@ import { inspectAsar } from "./commands/asar.js";
 import { attachmentsCommand } from "./commands/attachments.js";
 import { auditCommand } from "./commands/audit.js";
 import { authCommand } from "./commands/auth.js";
+import { bridgeCommand } from "./commands/bridge.js";
 import { browserCommand } from "./commands/browser.js";
 import { cacheCommand } from "./commands/cache.js";
 import { inspectCookies } from "./commands/cookies.js";
@@ -54,6 +55,7 @@ const commandTree: Record<string, CommandHandler | Record<string, CommandHandler
     inspect: async () => inspectFront(),
   },
   auth: authCommand,
+  bridge: bridgeCommand,
   browser: browserCommand,
   audit: auditCommand,
   diagnose: diagnoseCommand,
@@ -155,10 +157,12 @@ function usage() {
       "frontctl uninstall [--yes] [--keep-agents] [--keep-data] [--json]",
       "frontctl auth check|security|unlock [--ttl-hours 12] [--force]|clear [--json]",
       "frontctl auth unlock --source front-app|chrome|edge|default-browser|agentcookie [--profile Default] [--ttl-hours 12] [--force] [--json]",
+      "frontctl bridge status|test|permissions [--json]",
+      "frontctl bridge enable-javascript-events [--browser edge|chrome] [--yes] [--json]",
       "frontctl browser list [--json]",
       "frontctl browser inspect --browser chrome|edge|safari [--json]",
       "frontctl audit list [--limit 50] [--action ACTION] [--conversation ID] [--mode dry-run|execute] [--json]",
-      "frontctl attachments list CONVERSATION_ID [--live] [--json]",
+      "frontctl attachments list CONVERSATION_ID [--offline-cache] [--json]",
       "frontctl discovery launch [--remote-debugging-port 9222] [--print-only] [--json]",
       "frontctl discovery relaunch-front [--remote-debugging-port 9222] [--allow-existing-drafts] --yes [--json]",
       "frontctl discovery browser-status [--remote-debugging-port 9222] [--json]",
@@ -172,17 +176,17 @@ function usage() {
       "frontctl discovery verify-live-writes CONVERSATION_ID --yes [--leave-proof-comment] [--json]",
       "frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --tag-id TAG_ID --yes [--json]",
       "frontctl discovery fixtures path|list|install ... [--json]",
-      "frontctl sync [--live] [--limit 100] [--all] [--json]",
+      "frontctl sync [--offline-cache] [--limit 100] [--all] [--json]",
       "frontctl cache stats|search|read ... [--max-age-hours 12] [--format markdown|plain] [--json]",
       "frontctl memory init|report|path [--live] [--all] [--limit 500] [--fresh] [--json]",
       "frontctl workflows list|daily [--months 6] [--limit 8] [--actor NAME] [--local-only] [--json]",
       "frontctl mq check|install|query|example [--json]",
       "frontctl whoami [--json]",
-      "frontctl inbox list [--limit 20] [--all] [--format markdown|plain] [--json]",
-      "frontctl read CONVERSATION_ID [--live] [--format markdown|plain] [--json]",
-      "frontctl summarize CONVERSATION_ID [--live] [--format markdown|plain] [--json]",
-      "frontctl triage [inbox] [--limit 20] [--all] [--live] [--format markdown|plain] [--json]",
-      "frontctl search QUERY [--live] [--limit 20] [--format markdown|plain] [--json]",
+      "frontctl inbox list [--limit 20] [--all] [--offline-cache] [--format markdown|plain] [--json]",
+      "frontctl read CONVERSATION_ID [--offline-cache] [--format markdown|plain] [--json]",
+      "frontctl summarize CONVERSATION_ID [--offline-cache] [--format markdown|plain] [--json]",
+      "frontctl triage [inbox] [--limit 20] [--all] [--offline-cache] [--format markdown|plain] [--json]",
+      "frontctl search QUERY [--offline-cache] [--limit 20] [--format markdown|plain] [--json]",
       "frontctl open CONVERSATION_ID [--print-only|--web] [--json]",
       "frontctl archive CONVERSATION_ID [--actor NAME] [--reason WHY] [--yes] [--json]",
       "frontctl unarchive CONVERSATION_ID [--actor NAME] [--reason WHY] [--yes] [--json]",

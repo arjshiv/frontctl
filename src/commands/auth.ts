@@ -22,7 +22,7 @@ export async function authCommand(args: string[], paths: FrontPaths = defaultFro
   }
 
   if (subcommand === "unlock") {
-    const source = readStringFlag(args, "--source") ?? "front-app";
+    const source = readStringFlag(args, "--source") ?? "auto";
     const ttlHours = readNumberFlag(args, "--ttl-hours");
     const force = args.includes("--force");
     if (!force) {
@@ -36,6 +36,20 @@ export async function authCommand(args: string[], paths: FrontPaths = defaultFro
           note: "Unlocked session cache is already valid. Keychain was not accessed.",
         };
       }
+    }
+    if (source === "auto") {
+      const rows = await readAgentcookieFrontCookies().catch(() => []);
+      if (rows.length >= 2) {
+        return unlockFrontSessionFromPlainCookies(rows, {
+          ttlHours,
+          force,
+          source: "agentcookie:auto",
+        });
+      }
+      throw new CliError(
+        "No non-prompting Front auth source was found. Set up agentcookie, or explicitly run `frontctl auth unlock --source default-browser --ttl-hours 12 --json` if you accept a one-time browser Keychain prompt.",
+        69,
+      );
     }
     if (source === "front-app" || source === "front") {
       return unlockFrontSession(paths.cookiesPath, {

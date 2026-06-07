@@ -20,7 +20,12 @@ fi
 mkdir -p "$BIN_DIR" "$(dirname "$DEST")"
 rm -rf "$DEST"
 cp -R "$SOURCE" "$DEST"
-ln -sf "$DEST/bin/frontctl" "$LINK"
+cat > "$LINK" <<EOF
+#!/bin/sh
+set -eu
+exec "\$HOME/.local/share/frontctl/runtime/node" "\$HOME/.local/share/frontctl/dist/src/cli.js" "\$@"
+EOF
+chmod 755 "$LINK"
 
 "$LINK" --version >/dev/null
 

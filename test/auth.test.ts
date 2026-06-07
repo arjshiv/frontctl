@@ -34,7 +34,8 @@ test("checkFrontSession does not touch Keychain and reports missing session", as
   assert.equal(status.security.authorizationModel, "one-time-keychain-unlock");
   assert.equal(status.security.promptsOnCheck, false);
   assert.equal(status.security.promptsOnLiveRead, false);
-  assert.equal(status.security.promptsOnUnlock, true);
+  assert.equal(status.security.promptsOnUnlock, false);
+  assert.equal(status.security.promptsOnExplicitKeychainUnlock, true);
   assert.match(status.note, /auth unlock/);
 });
 
@@ -45,6 +46,7 @@ test("auth security exposes the one-time unlock model", async () => {
   assert.deepEqual(command, direct);
   assert.equal(direct.keychainService, "Front Safe Storage");
   assert.equal(direct.keychainBackedSessionKey, false);
+  assert.match(direct.note, /without --source uses non-prompting sources/);
   assert.match(direct.note, /normal status\/live-read commands do not access Keychain/);
 });
 
@@ -118,6 +120,19 @@ test("agentcookie plaintext cookie reader imports only Front cookies", async () 
   assert.equal(rows.every((row) => row.host_key === "app.frontapp.com"), true);
 });
 
+test("agentcookie reader does not shell out to browser export when sidecar is absent", async () => {
+  const root = await makeTempDir("frontctl-agentcookie-export");
+  const missingSidecar = join(root, "missing-cookies-plain.db");
+
+  const rows = await readAgentcookieFrontCookies(missingSidecar, {
+    ...process.env,
+    FRONTCTL_AGENTCOOKIE_BIN: join(root, "agentcookie-that-must-not-run"),
+    FRONTCTL_DEFAULT_BROWSER: "edge",
+  });
+
+  assert.deepEqual(rows, []);
+});
+
 test("auth unlock --source agentcookie uses plaintext cookie sidecar without Keychain", async () => {
   const root = await makeTempDir("frontctl-auth-agentcookie-command");
   const cookiePath = join(root, "cookies-plain.db");
@@ -133,6 +148,29 @@ test("auth unlock --source agentcookie uses plaintext cookie sidecar without Key
     assert.equal((result as any).valid, true);
     assert.equal((result as any).keychainAccessed, false);
     assert.equal((result as any).source, "agentcookie");
+  } finally {
+    if (previousCookiePath === undefined) delete process.env.FRONTCTL_AGENTCOOKIE_COOKIES_PATH;
+    else process.env.FRONTCTL_AGENTCOOKIE_COOKIES_PATH = previousCookiePath;
+    if (previousSessionPath === undefined) delete process.env.FRONTCTL_SESSION_PATH;
+    else process.env.FRONTCTL_SESSION_PATH = previousSessionPath;
+  }
+});
+
+test("auth unlock defaults to non-prompting agentcookie when available", async () => {
+  const root = await makeTempDir("frontctl-auth-auto-agentcookie");
+  const cookiePath = join(root, "cookies-plain.db");
+  const sessionPath = join(root, "session.json");
+  await makePlainCookieDb(cookiePath);
+  const previousCookiePath = process.env.FRONTCTL_AGENTCOOKIE_COOKIES_PATH;
+  const previousSessionPath = process.env.FRONTCTL_SESSION_PATH;
+  process.env.FRONTCTL_AGENTCOOKIE_COOKIES_PATH = cookiePath;
+  process.env.FRONTCTL_SESSION_PATH = sessionPath;
+  try {
+    const result = await authCommand(["unlock"]);
+
+    assert.equal((result as any).valid, true);
+    assert.equal((result as any).keychainAccessed, false);
+    assert.equal((result as any).source, "agentcookie:auto");
   } finally {
     if (previousCookiePath === undefined) delete process.env.FRONTCTL_AGENTCOOKIE_COOKIES_PATH;
     else process.env.FRONTCTL_AGENTCOOKIE_COOKIES_PATH = previousCookiePath;

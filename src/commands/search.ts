@@ -12,31 +12,31 @@ export async function searchConversations(args: string[], paths: FrontPaths = de
     throw new CliError("Missing search query", 64);
   }
 
-  if (args.includes("--live")) {
-    const client = await createFrontPrivateClient(paths);
-    const routes = buildFrontRoutes(client.context);
-    const data = await client.getJson<Record<string, unknown>>(routes.searchRaw(query));
-    const raw = Array.isArray(data.conversations)
-      ? data.conversations
-      : Array.isArray(data.conversation_search_results)
-        ? data.conversation_search_results
-        : [];
-    const conversations = raw
-      .map(normalizeConversation)
-      .filter((conversation): conversation is NonNullable<typeof conversation> => Boolean(conversation))
-      .slice(0, limit);
-
-    return maybeRenderConversationList({
-      source: "live-private",
-      stale: false,
-      publicApiUsed: false,
-      query,
-      count: conversations.length,
-      conversations,
-    }, args);
+  if (args.includes("--offline-cache")) {
+    return maybeRenderConversationList(await searchCachedConversations(paths.cacheDataPath, query, limit), args);
   }
 
-  return maybeRenderConversationList(await searchCachedConversations(paths.cacheDataPath, query, limit), args);
+  const client = await createFrontPrivateClient(paths);
+  const routes = buildFrontRoutes(client.context);
+  const data = await client.getJson<Record<string, unknown>>(routes.searchRaw(query));
+  const raw = Array.isArray(data.conversations)
+    ? data.conversations
+    : Array.isArray(data.conversation_search_results)
+      ? data.conversation_search_results
+      : [];
+  const conversations = raw
+    .map(normalizeConversation)
+    .filter((conversation): conversation is NonNullable<typeof conversation> => Boolean(conversation))
+    .slice(0, limit);
+
+  return maybeRenderConversationList({
+    source: "live-private",
+    stale: false,
+    publicApiUsed: false,
+    query,
+    count: conversations.length,
+    conversations,
+  }, args);
 }
 
 function readNumberFlag(args: string[], flag: string): number | undefined {

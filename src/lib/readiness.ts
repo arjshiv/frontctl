@@ -39,7 +39,7 @@ export function buildUserReadiness(input: {
       name: "liveMode",
       ok: input.authValid,
       label: "Live mode",
-      userAction: "Click Enable Live Mode or run `frontctl auth unlock --ttl-hours 12 --json`.",
+      userAction: "Click Enable Live Mode or run `frontctl setup --enable-live --json`.",
     },
     {
       name: "agentSkills",
