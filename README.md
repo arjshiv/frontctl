@@ -109,6 +109,10 @@ Execute only after review:
 frontctl archive CONVERSATION_ID --reason "User approved" --yes --json
 ```
 
+When a state-changing command executes, frontctl writes a visible agent identity comment first and
+then applies the requested action last. Agents should pass `--actor NAME` and `--reason "..."`; they
+do not need to manually add a separate identity comment.
+
 `frontctl send` is always blocked.
 
 ## For Agents
@@ -125,7 +129,7 @@ Agents should:
 
 - Prefer read-only commands until the user approves a write.
 - Pass `--actor` and `--reason` for any state-changing preview or execution.
-- Never add a Front-visible comment just to identify themselves.
+- Let frontctl add the required visible identity comment before executable state changes.
 - Never send email.
 
 ## How It Works

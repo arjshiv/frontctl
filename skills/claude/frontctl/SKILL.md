@@ -168,12 +168,11 @@ Mutation execution requires `--yes`, an unlocked local session, and known non-se
 verification or a matching sanitized discovery fixture. `--dry-run` forces preview mode even when
 `--yes` is present. Do not use `--yes` unless the user explicitly asked for that exact state change
 and `canExecute` is true.
-When taking an action, pass `--actor Claude` and a concise `--reason "..."`. This records identity
-in the frontctl preview and audit log. Do not add a Front comment just to identify yourself; comments
-can alter thread state, including archived/snoozed workflows. Only run `frontctl comment add` when
-the user explicitly wants a visible internal Front comment. If the user wants both a visible comment
-and an archive/snooze, add the comment first, then run the archive/snooze last so the final state is
-the intended state.
+When taking an action, pass `--actor Claude` and a concise `--reason "..."`. For every executable
+conversation state change, frontctl itself writes a visible identity comment before the action and
+then applies the requested action last. Do not manually add a separate identity comment. Only run
+`frontctl comment add` when the user wants an additional internal note beyond the automatic action
+trail.
 Use `frontctl audit list --json` when reviewing recent previews or attempts. Audit output is
 redacted metadata only: action, mode, route, body keys, and body hash, never raw comment or draft text.
 For snooze, inspect `details.normalizedUntil` in the preview and include that exact timestamp in
@@ -204,8 +203,9 @@ cookies, tokens, HAR contents, or raw mailbox payloads.
 Use `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` only when the user wants
 proof against a real low-risk conversation. It mutates and verifies archive/unarchive,
 snooze/unsnooze, tag add/remove, comment add/remove, and reply draft/discard, then cleans up
-temporary artifacts and archives the conversation last. Add `--leave-proof-comment` only when the
-user explicitly wants a visible Front comment left behind.
+temporary artifacts and archives the conversation last. The normal mutation layer already leaves
+visible identity comments before state changes; `--leave-proof-comment` adds an extra final proof
+comment only when the user explicitly wants one.
 Use `frontctl discovery relaunch-front --remote-debugging-port 9222 --yes --json` only with explicit
 user approval because it quits and reopens Front to enable browser/network capture. It checks the
 local draft cache first and refuses when potential drafts are present unless

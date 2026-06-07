@@ -31,7 +31,9 @@ test("archiveConversation dry-run builds discovered private route without unlock
   assert.equal(result.action, "archive");
   assert.deepEqual(result.actor, { name: "Codex", client: "codex", runId: "run-123" });
   assert.equal(result.reason, "Low-value automated notification");
-  assert.equal(result.identity.frontVisibleComment, false);
+  assert.equal(result.identity.frontVisibleComment, true);
+  assert.equal(result.identity.timing, "before-action");
+  assert.equal(result.identity.enforcedByCli, true);
   assert.equal(result.canExecute, true);
   assert.equal(result.request.method, "PATCH");
   assert.match(result.request.path ?? "", /\/conversations$/);
@@ -80,6 +82,49 @@ test("archiveConversation can execute with built-in known route coverage", async
   assert.equal(request.method, "PATCH");
   assert.match(request.url, /\/conversations$/);
   assert.deepEqual(request.body, { conversations: [{ id: "conversation-1", status: "archived" }] });
+});
+
+test("archiveConversation writes visible agent identity comment before archive execution", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-archive-identity-comment");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const requests = await withMockedFrontRequests(async () => {
+    const result = await archiveConversation([
+      "conversation-1",
+      "--actor",
+      "Codex",
+      "--client",
+      "codex",
+      "--run-id",
+      "run-123",
+      "--reason",
+      "User approved archive",
+      "--yes",
+    ], paths) as any;
+    assert.equal(result.mode, "execute");
+    assert.equal(result.identity.frontVisibleComment, true);
+    assert.equal(result.identity.timing, "before-action");
+    assert.equal(result.identity.requiredBeforeAction, true);
+    assert.equal(result.identity.comment.activityId, "activity-1");
+    assert.deepEqual(result.result, { ok: true, id: "activity-1" });
+  }, { ok: true, id: "activity-1" });
+
+  const writes = requests.filter((request) => request.method !== "GET");
+  assert.equal(writes.length, 3);
+  assert.equal(writes[0].method, "PUT");
+  assert.match(writes[0].url, /\/conversations\/conversation-1\/comments\/[a-f0-9]{32}\?include_conversation=true$/);
+  assert.match(String((writes[0].body as any).text), /frontctl agent action/);
+  assert.match(String((writes[0].body as any).text), /Actor: Codex/);
+  assert.match(String((writes[0].body as any).text), /Client: codex/);
+  assert.match(String((writes[0].body as any).text), /Run ID: run-123/);
+  assert.match(String((writes[0].body as any).text), /Action: archive/);
+  assert.match(String((writes[0].body as any).text), /Reason: User approved archive/);
+  assert.equal(writes[1].method, "POST");
+  assert.match(writes[1].url, /\/conversations\/conversation-1\/timeline$/);
+  assert.equal((writes[1].body as any).type, "comment");
+  assert.equal(writes[2].method, "PATCH");
+  assert.match(writes[2].url, /\/conversations$/);
+  assert.deepEqual(writes[2].body, { conversations: [{ id: "conversation-1", status: "archived" }] });
 });
 
 test("archiveConversation rejects batch archive until a batch route is verified", async () => {
@@ -229,7 +274,8 @@ test("commentConversation audit log hashes body instead of storing raw text", as
 
   assert.equal(result.mode, "dry-run");
   assert.equal(result.actor.name, "frontctl agent");
-  assert.equal(result.identity.frontVisibleComment, false);
+  assert.equal(result.identity.frontVisibleComment, true);
+  assert.equal(result.identity.timing, "command-comment");
   assert.equal(result.canExecute, true);
   assert.match(result.request.path ?? "", /\/conversations\/conversation-1\/timeline$/);
   assert.equal(result.request.body.type, "comment");
@@ -657,14 +703,22 @@ async function withMockedFrontRequest(
   fn: () => Promise<void>,
   responseBody: unknown | ((input: string | URL | Request, init?: RequestInit) => unknown) = { ok: true },
 ) {
+  const requests = await withMockedFrontRequests(fn, responseBody);
+  return requests.at(-1)!;
+}
+
+async function withMockedFrontRequests(
+  fn: () => Promise<void>,
+  responseBody: unknown | ((input: string | URL | Request, init?: RequestInit) => unknown) = { ok: true },
+) {
   const previousFetch = globalThis.fetch;
-  let request: { url: string; method: string; body?: unknown } | undefined;
+  const requests: Array<{ url: string; method: string; body?: unknown }> = [];
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-    request = {
+    requests.push({
       url: String(input),
       method: init?.method ?? "GET",
       body: typeof init?.body === "string" ? JSON.parse(init.body) as unknown : undefined,
-    };
+    });
     const body = typeof responseBody === "function" ? responseBody(input, init) : responseBody;
     return new Response(JSON.stringify(body), {
       status: 200,
@@ -676,6 +730,6 @@ async function withMockedFrontRequest(
   } finally {
     globalThis.fetch = previousFetch;
   }
-  assert.ok(request);
-  return request;
+  assert.ok(requests.length);
+  return requests;
 }

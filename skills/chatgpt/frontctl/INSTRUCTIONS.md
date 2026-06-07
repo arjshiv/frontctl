@@ -23,10 +23,9 @@ Requirements:
 - Never print cookies, auth headers, or raw private payloads.
 - After initial setup or a broad sync, run `frontctl memory init --limit 500 --json` so future
   triage can use local aggregate preferences.
-- When taking an action, pass `--actor ChatGPT` and a concise `--reason "..."`. Do not add a Front
-  comment just to identify yourself; comments can change thread state. Only comment when the user
-  explicitly wants a visible internal Front comment. If the user wants a visible comment plus
-  archive/snooze, add the comment first and run the archive/snooze last.
+- When taking an action, pass `--actor ChatGPT` and a concise `--reason "..."`. frontctl itself
+  writes a visible identity comment before executable conversation state changes, then applies the
+  requested action last. Do not manually add a separate identity comment.
 
 Safe starting commands:
 
@@ -70,8 +69,9 @@ Mutation rule:
 Run a dry-run preview first. Use `--yes` only after the user explicitly approves the exact action.
 Drafting is allowed, but `frontctl send` is intentionally blocked.
 When the user asks for proof on a real low-risk thread, run
-`frontctl discovery verify-live-writes CONVERSATION_ID --yes --json`; add `--leave-proof-comment`
-only if the user explicitly wants a visible Front comment left behind.
+`frontctl discovery verify-live-writes CONVERSATION_ID --yes --json`. The normal mutation layer
+already leaves visible identity comments before state changes; add `--leave-proof-comment` only if
+the user explicitly wants an extra final proof comment.
 
 Browser route discovery:
 

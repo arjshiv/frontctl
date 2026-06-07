@@ -332,8 +332,9 @@ from preview-only commands. A ready install should show `allVerified: true`; sta
 present, should appear in `blockedActions` until implemented.
 `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` mutates one real low-risk
 conversation to prove those actions work live, then cleans up temporary tag/comment/draft artifacts
-and archives the conversation last. Use `--leave-proof-comment` only when the user wants visible
-proof inside Front.
+and archives the conversation last. Normal state-changing commands already write a visible identity
+comment before each action; use `--leave-proof-comment` only when the user wants an extra final
+proof comment inside Front.
 If browser capture is unavailable, `frontctl discovery browser-status --json` reports whether the
 local DevTools endpoint is reachable and whether Front or Edge were launched with remote debugging.
 If it finds a usable browser port, run `frontctl discovery browser-probe CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --json`
@@ -372,11 +373,10 @@ frontctl audit list --conversation CONVERSATION_ID --json
 If `canExecute` is false, the assistant must not add `--yes`. The user should see the preview and
 the reason. `--dry-run` forces preview mode even if `--yes` is present.
 Agents should identify themselves with `--actor NAME` and a concise `--reason "..."` on state
-changes. This records identity in frontctl previews and audit logs without adding a visible Front
-comment. Do not add a comment only to identify the agent; that can change thread state and can undo
-archive/snooze UX. Add a Front comment only when the user explicitly asks for a visible internal
-comment. If the user wants a visible comment plus archive/snooze, add the comment first and run the
-archive/snooze last so the final command leaves the thread in the intended state.
+changes. frontctl writes the visible Front identity comment first, then applies the requested action
+last so archive/snooze UX ends in the intended state. This is enforced by the CLI mutation layer,
+not left to each agent. Add a separate Front comment only when the user wants an additional internal
+note beyond the automatic action trail.
 `FRONTCTL_REQUIRE_DISCOVERY_FIXTURES=1` restores strict local fixture-only execution, and
 `FRONTCTL_DISCOVERY_FIXTURES_PATH` can override the default fixture store only when needed.
 Snooze accepts ISO timestamps and safe shortcuts such as `in:30m`, `in:2h`, `later`, `tomorrow`,

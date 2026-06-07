@@ -34,6 +34,12 @@ interface MutationSpec {
   execute?: (client: Awaited<ReturnType<typeof createFrontPrivateClient>>) => Promise<unknown>;
 }
 
+interface AgentIdentityComment {
+  commentUid: string;
+  activityId?: unknown;
+  body: string;
+}
+
 export async function archiveConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
   const ids = positional(args);
   if (!ids.length) {
@@ -375,16 +381,19 @@ async function runMutation(args: string[], spec: MutationSpec, _paths: FrontPath
   }
 
   const client = await createFrontPrivateClient(_paths);
+  const agentComment = shouldWriteAgentIdentityComment(identifiedSpec)
+    ? await addAgentIdentityComment(client, identifiedSpec)
+    : undefined;
   const result = identifiedSpec.execute
     ? await identifiedSpec.execute(client)
     : await client.requestJson(identifiedSpec.url, { method: identifiedSpec.method, body: identifiedSpec.body });
   return {
-    ...preview(identifiedSpec, mode),
+    ...preview(identifiedSpec, mode, agentComment),
     result: summarizeMutationResult(result),
   };
 }
 
-function preview(spec: MutationSpec, mode: MutationMode) {
+function preview(spec: MutationSpec, mode: MutationMode, agentComment?: AgentIdentityComment) {
   return {
     source: "live-private",
     publicApiUsed: false,
@@ -393,10 +402,7 @@ function preview(spec: MutationSpec, mode: MutationMode) {
     action: spec.action,
     actor: spec.actor,
     reason: spec.reason,
-    identity: {
-      frontVisibleComment: false,
-      note: "Action identity is recorded in frontctl preview/audit metadata. No Front comment is added automatically, so archive/snooze state is not disturbed.",
-    },
+    identity: identitySummary(spec, mode, agentComment),
     canExecute: spec.canExecute,
     verification: spec.verification,
     conversationId: spec.conversationId,
@@ -408,6 +414,90 @@ function preview(spec: MutationSpec, mode: MutationMode) {
     details: spec.details,
     note: noteFor(spec, mode),
   };
+}
+
+async function addAgentIdentityComment(
+  client: Awaited<ReturnType<typeof createFrontPrivateClient>>,
+  spec: MutationSpec,
+): Promise<AgentIdentityComment> {
+  if (!spec.conversationId) {
+    throw new CliError(`Cannot write agent identity comment without a conversation id for ${spec.action}`, 69);
+  }
+  const routes = buildFrontRoutes(client.context);
+  const commentUid = randomBytes(16).toString("hex");
+  const body = agentIdentityCommentBody(spec);
+  await client.requestJson(`${routes.comment(spec.conversationId, commentUid)}?include_conversation=true`, {
+    method: "PUT",
+    body: commentSaveBody(body),
+  });
+  const result = await client.requestJson<Record<string, unknown>>(routes.timeline(spec.conversationId), {
+    method: "POST",
+    body: commentPublishBody(commentUid),
+  });
+  return {
+    commentUid,
+    activityId: findCommentActivityId(result, commentUid) ?? result.id,
+    body,
+  };
+}
+
+function shouldWriteAgentIdentityComment(spec: MutationSpec) {
+  return Boolean(
+    spec.conversationId
+      && spec.canExecute
+      && spec.method
+      && spec.url
+      && spec.action !== "comment.add",
+  );
+}
+
+function identitySummary(spec: MutationSpec, mode: MutationMode, agentComment?: AgentIdentityComment) {
+  if (spec.action === "comment.add") {
+    return {
+      frontVisibleComment: true,
+      timing: "command-comment",
+      enforcedByCli: true,
+      note: "This command itself creates the visible Front comment. No extra identity comment is added.",
+    };
+  }
+  if (shouldWriteAgentIdentityComment(spec)) {
+    return {
+      frontVisibleComment: true,
+      timing: "before-action",
+      enforcedByCli: true,
+      requiredBeforeAction: mode === "execute",
+      note: mode === "execute"
+        ? "frontctl wrote the visible agent identity comment before applying the requested action."
+        : "frontctl will write a visible agent identity comment before applying this action.",
+      comment: agentComment
+        ? {
+          commentUid: agentComment.commentUid,
+          activityId: agentComment.activityId,
+        }
+        : undefined,
+    };
+  }
+  return {
+    frontVisibleComment: false,
+    timing: "none",
+    enforcedByCli: false,
+    note: spec.canExecute
+      ? "No visible Front identity comment is required for this command."
+      : "Execution is blocked, so no Front identity comment will be written.",
+  };
+}
+
+function agentIdentityCommentBody(spec: MutationSpec) {
+  const lines = [
+    "frontctl agent action",
+    `Actor: ${spec.actor?.name ?? "frontctl agent"}`,
+    spec.actor?.client ? `Client: ${spec.actor.client}` : undefined,
+    spec.actor?.runId ? `Run ID: ${spec.actor.runId}` : undefined,
+    `Action: ${spec.action}`,
+    spec.reason ? `Reason: ${spec.reason}` : "Reason: not provided",
+    "Note: this comment was written before the requested action so the action can set the final thread state.",
+  ].filter((line): line is string => Boolean(line));
+  return lines.join("\n");
 }
 
 function actorFromArgs(args: string[]): MutationActor {

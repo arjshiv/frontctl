@@ -106,6 +106,23 @@ test("normalizeTimeline preserves rich message text with bounded truncation meta
   assert.equal(timeline[1].textTruncated, true);
 });
 
+test("normalizeTimeline preserves Front comment text", () => {
+  const timeline = normalizeTimeline([
+    {
+      id: "activity-1",
+      type: "comment",
+      comment: {
+        uid: "comment-1",
+        text: "frontctl agent action\nActor: Codex\nAction: archive",
+      },
+    },
+  ]);
+
+  assert.equal(timeline[0].type, "comment");
+  assert.match(timeline[0].text ?? "", /frontctl agent action/);
+  assert.match(timeline[0].text ?? "", /Action: archive/);
+});
+
 test("readCachedConversation returns cached timeline snippets without raw cache request text", async () => {
   const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cache-read"));
   await writeFakeFrontCacheFixture(paths);

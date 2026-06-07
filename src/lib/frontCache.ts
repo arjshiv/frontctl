@@ -343,6 +343,7 @@ export function normalizeTimeline(value: unknown): CachedTimelineItem[] {
       }
       const raw = item as Record<string, unknown>;
       const message = raw.message && typeof raw.message === "object" ? (raw.message as Record<string, unknown>) : undefined;
+      const comment = raw.comment && typeof raw.comment === "object" ? (raw.comment as Record<string, unknown>) : undefined;
       const id = raw.id ?? message?.id;
       if (id === undefined || id === null) {
         return undefined;
@@ -355,7 +356,20 @@ export function normalizeTimeline(value: unknown): CachedTimelineItem[] {
       assignIfPresent(timelineItem, "date", timestampField(raw.date ?? message?.date));
       assignIfPresent(timelineItem, "from", contactName(raw.from ?? message?.from));
       assignIfPresent(timelineItem, "subject", stringField(message?.subject));
-      assignText(timelineItem, stringField(message?.text ?? message?.body ?? message?.html ?? message?.blurb));
+      assignText(timelineItem, stringField(
+        message?.text
+          ?? message?.body
+          ?? message?.html
+          ?? message?.blurb
+          ?? comment?.text
+          ?? comment?.body
+          ?? comment?.html
+          ?? comment?.blurb
+          ?? raw.text
+          ?? raw.body
+          ?? raw.html
+          ?? raw.blurb,
+      ));
       const attachments = normalizeAttachments(message?.attachments ?? raw.attachments);
       assignIfPresent(timelineItem, "attachments", attachments.length ? attachments : undefined);
       assignIfPresent(timelineItem, "hasAttachments", attachments.length > 0 ? true : booleanField(message?.has_attachments));

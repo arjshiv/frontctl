@@ -95,11 +95,10 @@ Front browser tab. `browser-status` finds the port, `browser-probe` proves Front
 `browser-seed` can reuse the existing short-lived `frontctl` session in that tab without printing
 cookie values or touching Keychain again.
 
-Agent identity should be visible without changing mailbox state. State-changing commands should
-accept `--actor NAME` and `--reason "..."`, record both in frontctl previews and audit logs, and not
-add a Front comment unless the user explicitly asked for a visible internal comment. This avoids the
-bad UX where an agent archives or snoozes a thread and then immediately changes the thread again by
-commenting on it.
+Agent identity should be visible without leaving the final mailbox state wrong. State-changing
+commands accept `--actor NAME` and `--reason "..."`, write a Front identity comment first, and then
+apply the requested action last. That ordering avoids the bad UX where an agent archives or snoozes
+a thread and then immediately changes the thread again by commenting on it.
 
 First-run learning should be explicit and local. After live mode is enabled, the setup app can offer
 `Learn Preferences`, backed by `frontctl setup --learn --json` or

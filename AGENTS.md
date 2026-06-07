@@ -101,10 +101,10 @@ source of truth.
 Reading, summarizing, searching, triaging, tagging, commenting, archiving, snoozing, and drafting are
 useful enough. Sending is a different risk tier. Do not blur that line.
 
-When an agent takes an action, identity belongs in frontctl metadata first: pass `--actor NAME` and
-`--reason "..."`. Do not add a Front comment just to identify the agent. Comments are real mailbox
-state and can change archive/snooze behavior; only add a visible internal comment when the user
-explicitly asks for one.
+When an agent takes an action, pass `--actor NAME` and `--reason "..."`. The CLI must write a
+visible Front identity comment before any executable conversation state change, then apply the
+requested action last so archive/snooze state lands correctly. This is a product invariant, not an
+agent judgment.
 
 ### Make Prompting Rare
 
@@ -251,7 +251,7 @@ Make the obvious agent assumption true:
   headers, or raw timeline bodies.
 - `frontctl workflows daily --json` should produce one simple agent-facing workflow report rather
   than many competing automations.
-- Mutation previews should include actor/reason identity without adding Front comments.
+- Mutation previews should show that frontctl will add the visible identity comment before execution.
 - `frontctl inbox list --json` should use the unlocked local session.
 - `frontctl diagnose --json` should be safe to share.
 - `frontctl send --json` should fail.
