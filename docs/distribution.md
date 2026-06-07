@@ -202,6 +202,9 @@ or signed attachment URLs.
 - The default TTL is 12 hours.
 - `frontctl auth clear` deletes the live-session cache.
 - `frontctl uninstall --yes` removes frontctl local state and installed local agent skills.
+- `frontctl discovery browser-seed --yes` may copy the existing short-lived frontctl session into a
+  selected Chrome/Edge tab through DevTools, including CSRF, but it must not print cookie values and
+  must not read Keychain directly.
 
 Future native hardening can move the session encryption key into a signed helper that uses
 Keychain + LocalAuthentication. Until that helper is production-signed, avoid making ordinary
