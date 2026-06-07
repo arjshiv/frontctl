@@ -58,6 +58,8 @@ test("read-only CLI matrix stays JSON-safe and secret-free", async () => {
     ["draft", "list", "--limit", "5", "--json"],
     ["sync", "--limit", "10", "--json"],
     ["memory", "report", "--fresh", "--json"],
+    ["workflows", "list", "--json"],
+    ["workflows", "daily", "--actor", "Codex", "--json"],
     ["cache", "stats", "--json"],
     ["cache", "search", "Deel", "--json"],
     ["cache", "read", "93727705553", "--json"],

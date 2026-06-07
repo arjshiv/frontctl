@@ -34,6 +34,7 @@ import { triageCommand } from "./commands/triage.js";
 import { uninstallCommand } from "./commands/uninstall.js";
 import { unsupportedMutation } from "./commands/unsupported.js";
 import { whoami } from "./commands/whoami.js";
+import { workflowsCommand } from "./commands/workflows.js";
 import { CliError, parseGlobalOptions, printResult } from "./lib/cli.js";
 
 type CommandHandler = (args: string[]) => Promise<unknown>;
@@ -62,6 +63,8 @@ const commandTree: Record<string, CommandHandler | Record<string, CommandHandler
   memory: memoryCommand,
   mq: mqCommand,
   whoami,
+  workflows: workflowsCommand,
+  workflow: workflowsCommand,
   inbox: {
     list: listInbox,
   },
@@ -161,6 +164,7 @@ function usage() {
       "frontctl sync [--live] [--limit 100] [--all] [--json]",
       "frontctl cache stats|search|read ... [--max-age-hours 12] [--format markdown|plain] [--json]",
       "frontctl memory init|report|path [--live] [--all] [--limit 500] [--fresh] [--json]",
+      "frontctl workflows list|daily [--months 6] [--limit 8] [--actor NAME] [--json]",
       "frontctl mq check|install|query|example [--json]",
       "frontctl whoami [--json]",
       "frontctl inbox list [--limit 20] [--all] [--format markdown|plain] [--json]",

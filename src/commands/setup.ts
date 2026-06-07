@@ -92,6 +92,7 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
         ? [
           "frontctl inbox list --live --limit 20 --json",
           "frontctl memory init --live --all --limit 200 --json",
+          "frontctl workflows daily --actor Codex --json",
           "frontctl triage inbox --live --limit 20 --json",
           "frontctl search \"query\" --live --json",
           "frontctl read CONVERSATION_ID --live --json",
@@ -101,6 +102,7 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
         ? [
           "frontctl auth unlock --ttl-hours 12 --json",
           "frontctl setup --learn --json",
+          "frontctl workflows daily --actor Codex --json",
           "frontctl triage inbox --limit 20 --json",
           "frontctl inbox list --live --limit 20 --json",
         ]
@@ -108,7 +110,7 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
     userReadiness,
     failureMode: legacyFailureMode(userReadiness.state),
     agentPrompt:
-      "Use the frontctl skill. Run frontctl auth check --json, then help me triage Front. Do not send email.",
+      "Use the frontctl skill. Run frontctl auth check --json, then frontctl workflows daily --actor Codex --json. Do not send email.",
   };
 }
 

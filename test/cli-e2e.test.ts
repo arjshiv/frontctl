@@ -397,7 +397,8 @@ test("CLI setup reports install steps and agent prompt", async () => {
   assert.match(result.userReadiness.nextAction, /Enable Live Mode|auth unlock/);
   assert.match(result.agents.installCommand, /frontctl setup --agent all --yes --json/);
   assert.equal(result.agents.chatgptPromptCommand, "frontctl agents prompt --agent chatgpt --json");
-  assert.ok(result.nextSteps.length >= 2);
+  assert.ok(result.nextSteps.some((step) => step === "frontctl workflows daily --actor Codex --json"));
+  assert.match(result.agentPrompt, /frontctl workflows daily --actor Codex --json/);
   assert.match(result.agentPrompt, /Do not send email/);
 });
 
@@ -620,6 +621,25 @@ test("CLI memory init writes a local preference profile from the store", async (
   assert.equal(result.profile.privacy.storesRawTimelineBodies, false);
   assert.ok(result.profile.corpus.conversations >= 1);
   assert.ok(result.profile.suggestedNextCommands.some((command) => /memory init/.test(command)));
+  assert.doesNotMatch(stdout, /SECRET_COOKIE_VALUE|AUTHORIZATION|front.id/);
+});
+
+test("CLI workflows daily returns agent-ready workflow queues", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-workflows"));
+  await writeFakeFrontCacheFixture(paths);
+  const env = { ...envForPaths(paths), FRONTCTL_NOW: "2026-06-06T12:00:00.000Z" };
+
+  await execFileAsync("node", ["dist/src/cli.js", "sync", "--all", "--json"], { env });
+  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "workflows", "daily", "--actor", "Codex", "--json"], { env });
+  const result = JSON.parse(stdout) as {
+    publicApiUsed: boolean;
+    workflows: Array<{ id: string; items: Array<{ commands: { read: string; archivePreview?: string; snoozePreview?: string } }> }>;
+  };
+
+  assert.equal(result.publicApiUsed, false);
+  assert.ok(result.workflows.some((workflow) => workflow.id === "daily-triage"));
+  assert.ok(result.workflows.some((workflow) => workflow.id === "noise-review"));
+  assert.match(stdout, /--actor Codex/);
   assert.doesNotMatch(stdout, /SECRET_COOKIE_VALUE|AUTHORIZATION|front.id/);
 });
 
