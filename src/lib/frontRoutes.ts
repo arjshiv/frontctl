@@ -18,13 +18,13 @@ export interface FrontRoutes {
   searchRaw: (query: string) => string;
   searchHints: (query: string) => string;
   conversations: string;
-  conversationStatus: (id: string, status: string) => string;
-  conversationBatchArchive: string;
-  tagConversation: (id: string, tagAlias: string) => string;
-  untagConversation: (id: string, tagAlias: string) => string;
   comments: (id: string) => string;
+  comment: (conversationId: string, commentUid: string) => string;
+  commentTimeline: (conversationId: string, commentUid: string) => string;
+  timelineActivity: (conversationId: string, activityId: string) => string;
   message: (id: string) => string;
   messages: (id: string) => string;
+  conversationMessage: (conversationId: string, messageUid: string) => string;
 }
 
 const ROUTE_PATTERN =
@@ -77,15 +77,16 @@ export function buildFrontRoutes(context: FrontRouteContext): FrontRoutes {
     searchRaw: (query) => `${root}/search_raw/${encodeURIComponent(query)}`,
     searchHints: (query) => `${root}/search_hints/${encodeURIComponent(query)}`,
     conversations: `${root}/conversations`,
-    conversationStatus: (id, status) =>
-      `${root}/conversations/${encodeURIComponent(id)}/status/${encodeURIComponent(status)}`,
-    conversationBatchArchive: `${root}/conversation_batch/archive`,
-    tagConversation: (id, tagAlias) =>
-      `${root}/conversations/${encodeURIComponent(id)}/tag/${encodeURIComponent(tagAlias)}`,
-    untagConversation: (id, tagAlias) =>
-      `${root}/conversations/${encodeURIComponent(id)}/untag/${encodeURIComponent(tagAlias)}`,
     comments: (id) => `${root}/conversations/${encodeURIComponent(id)}/comments`,
+    comment: (conversationId, commentUid) =>
+      `${root}/conversations/${encodeURIComponent(conversationId)}/comments/${encodeURIComponent(commentUid)}`,
+    commentTimeline: (conversationId, commentUid) =>
+      `${root}/conversations/${encodeURIComponent(conversationId)}/comments/${encodeURIComponent(commentUid)}/timeline`,
+    timelineActivity: (conversationId, activityId) =>
+      `${root}/conversations/${encodeURIComponent(conversationId)}/timeline/${encodeURIComponent(activityId)}`,
     message: (id) => `${root}/messages/${encodeURIComponent(id)}`,
     messages: (id) => `${root}/conversations/${encodeURIComponent(id)}/messages`,
+    conversationMessage: (conversationId, messageUid) =>
+      `${root}/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageUid)}`,
   };
 }
