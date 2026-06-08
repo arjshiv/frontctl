@@ -443,6 +443,26 @@ test("CLI setup ready state does not recommend enabling live mode again after CD
   assert.ok(!result.nextSteps.includes("frontctl discovery launch --remote-debugging-port 9222 --json"));
 });
 
+test("CLI setup enable-live is idempotent when a non-prompting session is already valid", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-setup-session-ready"));
+  await writeFakeFrontCacheFixture(paths);
+  const env = envForPaths(paths);
+  await writeFakeFrontSession(env.FRONTCTL_SESSION_PATH as string);
+
+  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "setup", "--enable-live", "--json"], { env });
+  const result = JSON.parse(stdout) as {
+    auth: { valid: boolean };
+    bridge: { test?: unknown; enableSkipped?: boolean; enableNote?: string };
+    userReadiness: { state: string };
+  };
+
+  assert.equal(result.auth.valid, true);
+  assert.notEqual(result.userReadiness.state, "live-mode-locked");
+  assert.equal(result.bridge.test, undefined);
+  assert.equal(result.bridge.enableSkipped, true);
+  assert.match(result.bridge.enableNote ?? "", /already available/);
+});
+
 test("CLI setup distinguishes installed Front from incomplete sign-in state", async () => {
   const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-setup-partial"));
   const home = await makeTempDir("frontctl-cli-setup-partial-home");

@@ -212,13 +212,7 @@ function browserBridgeEnabled(env: NodeJS.ProcessEnv) {
   if (env.FRONTCTL_BROWSER_BRIDGE_MOCK_RESPONSES) {
     return true;
   }
-  if (env.NODE_ENV === "test" || env.npm_lifecycle_event === "test") {
-    return false;
-  }
-  if (process.argv.some((arg) => /(?:^|\/)(?:dist\/)?test\//.test(arg))) {
-    return false;
-  }
-  return true;
+  return false;
 }
 
 function preferredBridgeBrowsers(env: NodeJS.ProcessEnv, defaultBrowser?: BrowserKind): BrowserKind[] {

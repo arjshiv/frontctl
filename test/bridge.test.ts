@@ -82,6 +82,26 @@ test("bridge permission helpers are explicit and non-Keychain", async () => {
   });
 });
 
+test("bridge status keeps Apple Events fallback disabled by default", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-bridge-status-no-apple-events"));
+  const previousBrowserBridge = process.env.FRONTCTL_BROWSER_BRIDGE;
+  delete process.env.FRONTCTL_BROWSER_BRIDGE;
+  try {
+    const result = await bridgeCommand(["status"], paths) as any;
+
+    assert.equal(result.ok, false);
+    assert.equal(result.recommended, "cdp");
+    assert.equal(result.appleEvents.enabled, false);
+    assert.equal(result.appleEvents.availableWithoutKeychain, false);
+    assert.equal(result.appleEvents.promptClass, "none");
+    assert.equal(result.touchesKeychain, false);
+    assert.match(result.nextCommand, /discovery launch/);
+  } finally {
+    if (previousBrowserBridge === undefined) delete process.env.FRONTCTL_BROWSER_BRIDGE;
+    else process.env.FRONTCTL_BROWSER_BRIDGE = previousBrowserBridge;
+  }
+});
+
 test("bridge enable-javascript-events validates browser names", async () => {
   await assert.rejects(
     () => bridgeCommand(["enable-javascript-events", "--browser", "safari"]),

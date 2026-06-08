@@ -28,7 +28,7 @@ export async function bridgeCommand(args: string[], paths: FrontPaths = defaultF
       browserBridgeStatus(),
     ]);
     return {
-      ok: cdp.availableWithoutKeychain || cdp.proofValid || appleEvents.proofValid,
+      ok: cdp.availableWithoutKeychain || cdp.proofValid || (appleEvents.enabled && appleEvents.proofValid),
       source: "bridge-status",
       recommended: "cdp",
       cdp,
@@ -41,8 +41,7 @@ export async function bridgeCommand(args: string[], paths: FrontPaths = defaultF
   }
   if (subcommand === "test") {
     const context = await discoverFrontRouteContext(paths.cacheDataPath)
-      ?? await discoverFrontRouteContextFromCdpBridge()
-      ?? await discoverFrontRouteContextFromBrowserBridge();
+      ?? await discoverFrontRouteContextFromCdpBridge();
     if (!context) {
       throw new CliError("Could not discover Front private route context. Open Front inbox in a signed-in browser once, then rerun bridge test.", 69);
     }
@@ -65,12 +64,13 @@ export async function bridgeCommand(args: string[], paths: FrontPaths = defaultF
     };
   }
   if (subcommand === "test-apple-events") {
+    const appleEventsEnv = { ...process.env, FRONTCTL_BROWSER_BRIDGE: "1" };
     const context = await discoverFrontRouteContext(paths.cacheDataPath)
-      ?? await discoverFrontRouteContextFromBrowserBridge();
+      ?? await discoverFrontRouteContextFromBrowserBridge(appleEventsEnv);
     if (!context) {
       throw new CliError("Could not discover Front private route context. Open Front inbox once, then rerun bridge test-apple-events.", 69);
     }
-    const client = await createBrowserBridgeClient(context);
+    const client = await createBrowserBridgeClient(context, appleEventsEnv);
     if (!client) {
       throw new CliError("No signed-in Front browser tab was reachable through Apple Events.", 69);
     }
@@ -112,7 +112,8 @@ export async function bridgeCommand(args: string[], paths: FrontPaths = defaultF
     };
   }
   if (subcommand === "enable-javascript-events") {
-    const status = await browserBridgeStatus();
+    const appleEventsEnv = { ...process.env, FRONTCTL_BROWSER_BRIDGE: "1" };
+    const status = await browserBridgeStatus(appleEventsEnv);
     const browser = readBrowserFlag(args) ?? status.preferredBrowser ?? "edge";
     const appName = appNameForBrowser(browser);
     const approved = args.includes("--yes");
@@ -128,7 +129,7 @@ export async function bridgeCommand(args: string[], paths: FrontPaths = defaultF
       };
     }
     await clickJavascriptAppleEventsMenuItem(appName);
-    const probe = await probeBrowserJavascriptAppleEvents(browser).catch((error) => ({
+    const probe = await probeBrowserJavascriptAppleEvents(browser, appleEventsEnv).catch((error) => ({
       ok: false,
       reason: error instanceof Error ? error.message : String(error),
     }));

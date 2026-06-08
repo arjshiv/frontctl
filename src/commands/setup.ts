@@ -27,7 +27,9 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
   const memory = args.includes("--learn")
     ? await memoryCommand(["init", "--live", "--all", "--limit", String(readNumberFlag(args, "--learn-limit") ?? 200)], paths)
     : undefined;
-  const bridgeTest = args.includes("--enable-live")
+  const enableLiveRequested = args.includes("--enable-live");
+  const liveAlreadyAvailableBeforeBridge = auth.valid || bridgeStatusBefore.proofValid;
+  const bridgeTest = enableLiveRequested && !liveAlreadyAvailableBeforeBridge
     ? await bridgeCommand(["test"], paths)
     : undefined;
   const bridgeStatusAfter = bridgeTest ? await cdpBridgeStatus() : bridgeStatusBefore;
@@ -81,6 +83,10 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
     bridge: {
       status: bridgeStatusAfter,
       test: bridgeTest,
+      enableSkipped: enableLiveRequested && liveAlreadyAvailableBeforeBridge,
+      enableNote: enableLiveRequested && liveAlreadyAvailableBeforeBridge
+        ? "Live reads are already available through a non-prompting session or existing CDP proof; no browser permission setup was attempted."
+        : undefined,
       enableCommand: "frontctl setup --enable-live --json",
     },
     memory,
