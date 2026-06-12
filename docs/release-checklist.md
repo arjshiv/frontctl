@@ -61,7 +61,7 @@ Use this checklist before giving `frontctl` to an early tester or non-technical 
 4. Setup app tells them one of:
    - Front is missing: install Front for macOS.
    - Front sign-in is missing: open Front and sign in.
-   - Live mode is locked: click Enable Live Mode and approve Touch ID/password once.
+   - Live session is locked: click Unlock Live Session and approve Touch ID/password once.
    - Agent skills are missing: click Install Agent Skills.
    - Ready: paste the shown prompt into Claude, ChatGPT with local command access, or Codex.
 
@@ -69,5 +69,5 @@ Use this checklist before giving `frontctl` to an early tester or non-technical 
 
 - Ask for `frontctl-support.json`, not screenshots of mail or raw terminal dumps.
 - Support bundles must not contain cookie values, auth headers, message bodies, email subjects, or signed attachment URLs.
-- Treat repeated Keychain prompts as a bug unless the user explicitly ran `frontctl auth unlock --force` or the 12-hour session expired.
+- Treat repeated Keychain prompts as a bug unless the user explicitly ran `frontctl auth unlock --force` or the 30-day session expired.
 - For install failures, verify the manifest hash before debugging local machine state.

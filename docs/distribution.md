@@ -183,7 +183,7 @@ It is a native first-run wrapper around:
 - `frontctl diagnose --output ~/Desktop/frontctl-support.json --json`
 
 The window translates setup JSON into a plain-language checklist for Front installation, Front
-sign-in, live mode, and agent skills. If the CLI is missing, it tells the user to run the installer
+sign-in, live session, and agent skills. If the CLI is missing, it tells the user to run the installer
 package from the DMG. It reads `userReadiness.state` and `userReadiness.nextAction` from setup
 output so the user sees one clear next action. It also includes a copyable agent prompt for Claude,
 ChatGPT, or Codex.
@@ -211,11 +211,11 @@ or signed attachment URLs.
 - `frontctl auth security --json` reports the prompt model for onboarding, agents, and support.
 - `frontctl auth unlock` is the only command expected to touch macOS Keychain.
 - A successful unlock may ask for Touch ID or the account password once to read Front Safe Storage,
-  then writes a short-lived encrypted session cache under `~/.frontctl/session.json`.
-- The default TTL is 12 hours.
+  then writes an encrypted session cache under `~/.frontctl/session.json`.
+- The default TTL is 720 hours, capped by the underlying Front cookie expiration.
 - `frontctl auth clear` deletes the live-session cache.
 - `frontctl uninstall --yes` removes frontctl local state and installed local agent skills.
-- `frontctl discovery browser-seed --yes` may copy the existing short-lived frontctl session into a
+- `frontctl discovery browser-seed --yes` may copy the existing reusable frontctl session into a
   selected Chrome/Edge tab through DevTools, including CSRF, but it must not print cookie values and
   must not read Keychain directly.
 

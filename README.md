@@ -27,7 +27,7 @@ For non-technical users, ship the macOS DMG:
 1. Open `frontctl-<version>.dmg`.
 2. Run `Install Frontctl for This User.command`.
 3. Open `Frontctl Setup.app`.
-4. Click `Check Setup`, `Install Agent Skills`, then `Enable Live Mode`.
+4. Click `Check Setup`, `Install Agent Skills`, then `Unlock Live Session`.
 
 This default path installs into the user's home directory and does not need an administrator
 password. The `.pkg` is still included for managed or system-wide installs.
@@ -61,37 +61,31 @@ frontctl read CONVERSATION_ID --format markdown
 frontctl summarize CONVERSATION_ID --format plain
 ```
 
-Enable live mode through the signed-in browser tab:
+For normal use, read from the live private session. If live reads are locked and browser cookies are
+available, approve one unlock that lasts up to 30 days:
+
+```bash
+frontctl auth unlock --source default-browser --ttl-hours 720 --json
+```
+
+That explicit command may ask macOS Keychain once because Chromium and Electron encrypt cookie
+secrets behind Safe Storage. After that, normal reads reuse `~/.frontctl/session.json` and do not
+touch Keychain. Repeated Keychain prompts during normal reads are a bug.
+
+The CDP browser bridge is an optional developer/debug path when a browser is launched with remote
+debugging:
 
 ```bash
 frontctl setup --enable-live --json
 frontctl bridge status --json
-```
-
-The default live path uses the open Front tab in Microsoft Edge or Chrome through Chrome DevTools
-Protocol. It does not decrypt browser cookies from disk, does not touch Keychain, and does not need
-macOS Automation permission. If no CDP browser is reachable, run the launch helper and sign into
-Front in that browser window:
-
-```bash
 frontctl discovery launch --remote-debugging-port 9222 --json
 ```
 
-Apple Events and cookie unlocks are fallback/debug paths, not normal onboarding.
+Apple Events are a fallback/debug path, not normal onboarding.
 
-Explicit browser/app cookie unlock is still available as a fallback, but it is not the normal setup
-path:
-
-```bash
-frontctl auth unlock --source default-browser --ttl-hours 12 --json
-```
-
-That explicit command may ask macOS Keychain because Chromium and Electron encrypt cookie secrets
-behind Safe Storage. Treat a Keychain prompt in the default setup/read path as a bug.
-
-Stale Front HTTP cache reads are not used for normal inbox state. They are available only for
-diagnostics or offline recovery with `--offline-cache`, or through `frontctl cache ...` after checking
-freshness.
+Stale Front HTTP cache reads are never used for normal inbox state. They are available only for
+explicit diagnostics or offline recovery with `--offline-cache`, or through `frontctl cache ...` when
+the user asks for historical/local-index analysis.
 
 Preview state-changing actions first:
 
@@ -199,7 +193,7 @@ If the CLI has a valid session but the browser tab is not authenticated:
 frontctl discovery browser-seed --remote-debugging-port 9222 --target-url-contains conversations/CONVERSATION_ID --yes --json
 ```
 
-This copies the short-lived `frontctl` session into the selected browser tab through CDP without
+This copies the reusable `frontctl` session into the selected browser tab through CDP without
 printing cookie values or touching Keychain.
 
 ## Build And Release

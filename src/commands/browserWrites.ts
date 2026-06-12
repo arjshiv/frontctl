@@ -33,7 +33,7 @@ export async function browserSeedCommand(args: string[], paths: FrontPaths) {
       cookieNames: ["front.id", "front.id.sig", "front.csrf"],
       valuePrinted: false,
       command: `frontctl discovery browser-seed --remote-debugging-port ${remoteDebuggingPort} --target-url-contains ${shellToken(targetUrlContains)} --yes --json`,
-      note: "Seeds the existing short-lived frontctl session into the selected browser tab via CDP. Cookie values are not printed.",
+      note: "Seeds the existing reusable frontctl session into the selected browser tab via CDP. Cookie values are not printed.",
     };
   }
 

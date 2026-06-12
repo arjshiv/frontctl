@@ -23,14 +23,14 @@ run `frontctl readiness --json`. For a readiness report plus local skill install
 When reporting setup state, prefer `userReadiness.ready`, `userReadiness.state`, and
 `userReadiness.nextAction` from `frontctl readiness --json`, `frontctl setup --json`, or
 `frontctl diagnose --json`.
-For live private reads, run `frontctl readiness --json`; if live mode is locked, run
-`frontctl setup --enable-live --json` first. The default live path is the CDP browser bridge and
-must not touch Keychain or macOS Automation. If that fails, inspect `frontctl bridge status --json`;
-if no CDP browser is reachable, use `frontctl discovery launch --remote-debugging-port 9222 --json`
-to launch a managed signed-in browser. Ask before running
-`frontctl auth unlock --source default-browser --ttl-hours 12 --json` or
-`frontctl auth unlock --source front-app --ttl-hours 12 --json` because explicit app/browser unlock
-may touch macOS Keychain.
+For live private reads, run `frontctl auth check --json` first. If it is valid, run the requested
+read command directly. If it is not valid, run `frontctl readiness --json` once and stop: report the
+`authSources.*.unlockCommand` the user can approve. Do not run `frontctl setup --enable-live`,
+`frontctl discovery launch`, Apple Events, browser permission helpers, `auth unlock`, or any cache
+fallback unless the user explicitly asks for that setup/debug action. The normal recovery path is a
+single user-approved unlock such as
+`frontctl auth unlock --source default-browser --ttl-hours 720 --json`; the resulting local session
+is reused and normal reads do not touch Keychain.
 Never rerun unlock just to be safe when `auth check` is valid. `auth unlock` reuses a valid cache,
 and `--force` should be used only when the user explicitly wants to refresh the Front cookies.
 
@@ -89,12 +89,13 @@ frontctl open CONVERSATION_ID --web --print-only --json
 ```
 
 Normal read commands are live private-session reads. Do not answer current inbox questions from
-Front's stale local HTTP cache. Use `--offline-cache` only for diagnostics, offline recovery, or
-tests where stale data is explicitly acceptable.
+Front's stale local HTTP cache. If live reads fail, stop and report the live-read setup issue; do not
+switch to `--offline-cache`, `frontctl cache ...`, or local index reads unless the user explicitly
+asks for offline diagnostics.
 Use `frontctl open CONVERSATION_ID --print-only --json` to inspect the Front deeplink without
 launching. Omit `--print-only` only when the user wants Front opened locally.
 
-Local index commands:
+Historical/local analytics commands. Do not use these for current inbox state:
 
 ```bash
 frontctl sync --limit 100 --json
@@ -108,10 +109,9 @@ frontctl memory report --json
 frontctl workflows daily --actor Codex --json
 ```
 
-After `frontctl auth unlock`, prefer `frontctl sync` before broad repeated searches. Then use
-`frontctl cache search/read` for fast follow-up work without repeated Front or Keychain access.
-Cache stats/search/read include `freshness`; if `freshness.fresh` is false, run
-`frontctl sync --limit 100 --json` before relying on the local index.
+Use `frontctl sync` and `frontctl cache ...` only for explicit historical search, analytics,
+preference learning, or offline diagnostics. Never use them as a fallback for "what is in my inbox
+right now?"
 After first setup or a broad live sync, run `frontctl memory init --limit 500 --json` to create the
 local preference profile. Use `frontctl memory report --json` before suggesting archive/tag/snooze
 rules. Memory is local-only and stores aggregate signals, not cookies, auth headers, or raw timeline
@@ -191,7 +191,7 @@ If `frontctl discovery verify-writes --json` reports a route mismatch, guide the
 the selected browser tab is authenticated to Front. If the probe reports `authentication_required`,
 and `frontctl auth check --json` is valid, use
 `frontctl discovery browser-seed --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --yes --json`
-to copy the existing short-lived frontctl session into the selected browser tab without printing
+to copy the existing reusable frontctl session into the selected browser tab without printing
 cookie values or touching Keychain. Then rerun `browser-probe`. Use
 `frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json`
 when browser-backed proof is required; choose `TAG_ID` from `frontctl tag list --json` and do

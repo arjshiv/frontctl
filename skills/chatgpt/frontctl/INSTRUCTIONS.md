@@ -8,14 +8,15 @@ Requirements:
 - Run `frontctl doctor --json` first.
 - Use `frontctl readiness --json`, `frontctl setup --json`, or `frontctl diagnose --json` and
   prefer `userReadiness.nextAction` when explaining setup status.
-- Run `frontctl auth check --json` before live private reads.
-- If live mode is locked, run `frontctl setup --enable-live --json` first. The default live path is
-  the CDP browser bridge and must not touch Keychain or macOS Automation. If that fails, inspect
-  `frontctl bridge status --json`; if no CDP browser is reachable, use
-  `frontctl discovery launch --remote-debugging-port 9222 --json` to launch a managed signed-in
-  browser. Ask before running
-  `frontctl auth unlock --source default-browser --ttl-hours 12 --json` or
-  `frontctl auth unlock --source front-app --ttl-hours 12 --json`.
+- Run `frontctl auth check --json` before live private reads. If it is valid, run the requested read
+  command directly.
+- If live mode is locked, run `frontctl readiness --json` once and stop: report the
+  `authSources.*.unlockCommand` the user can approve. Do not run `frontctl setup --enable-live`,
+  `frontctl discovery launch`, Apple Events, browser permission helpers, `auth unlock`, or any
+  cache fallback unless the user explicitly asks for that setup/debug action. The normal recovery
+  path is a single user-approved unlock such as
+  `frontctl auth unlock --source default-browser --ttl-hours 720 --json`; normal reads reuse that
+  local session and do not touch Keychain.
 - Never rerun unlock just to be safe when `auth check` is valid. Unlock reuses the valid session
   cache and should not repeatedly prompt for Keychain access.
 - Never use the public Front API.
@@ -50,15 +51,15 @@ frontctl inbox list --limit 20 --json
 frontctl triage inbox --limit 20 --json
 frontctl read CONVERSATION_ID --json
 frontctl sync --limit 100 --json
-frontctl cache search "query" --limit 10 --json
 frontctl memory init --limit 500 --json
 frontctl memory report --json
 frontctl workflows daily --actor ChatGPT --json
 ```
 
 Normal read commands are live private-session reads. Do not answer current inbox questions from
-Front's stale local HTTP cache. Use `--offline-cache` only for diagnostics, offline recovery, or
-tests where stale data is explicitly acceptable.
+Front's stale local HTTP cache. If live reads fail, stop and report the live-read setup issue; do not
+switch to `--offline-cache`, `frontctl cache ...`, or local index reads unless the user explicitly
+asks for offline diagnostics.
 
 For normal product use after memory exists, prefer `frontctl workflows daily --actor ChatGPT --json`.
 It returns daily triage, noise review, follow-up, tag hygiene, and ops/risk queues with safe preview
@@ -83,7 +84,7 @@ reachability does not prove the browser is signed into Front. Before relying on 
 If the probe reports `authentication_required`, ask the user to sign into Front in that browser
 profile, or use `frontctl discovery browser-seed --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --yes --json`
 when `frontctl auth check --json` is already valid. This seeds the selected browser tab from the
-short-lived local `frontctl` session without printing cookie values or touching Keychain. Capture
+reusable local `frontctl` session without printing cookie values or touching Keychain. Capture
 output must stay sanitized:
 
 ```bash

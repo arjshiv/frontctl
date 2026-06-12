@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { installAgentSkills } from "../src/commands/agents.js";
@@ -42,6 +43,24 @@ test("readinessCommand reports the first nontechnical next action", async () => 
     assert.equal(result.front.localProfileVisible, false);
     assert.equal(result.auth.valid, false);
     assert.equal(result.nextCommand, "frontctl doctor --json");
+  });
+});
+
+test("readinessCommand recommends long-lived browser unlock before browser launch", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-readiness-browser-unlock"));
+  const home = await makeTempDir("frontctl-readiness-browser-unlock-home");
+
+  await withHome(home, async () => {
+    process.env.FRONTCTL_SESSION_PATH = join(home, ".frontctl", "session.json");
+    await mkdir(join(home, "Edge", "Default"), { recursive: true });
+    await writeFile(join(home, "Edge", "Default", "Cookies"), "fake-cookie-db");
+    const result = await readinessCommand([], paths) as any;
+
+    assert.equal(result.ok, false);
+    assert.equal(result.userReadiness.state, "live-mode-locked");
+    assert.match(result.userReadiness.nextAction, /Approve one live-session unlock/);
+    assert.equal(result.authSources.recommendedUnlockCommand, "frontctl auth unlock --source default-browser --ttl-hours 720 --json");
+    assert.equal(result.nextCommand, "frontctl auth unlock --source default-browser --ttl-hours 720 --json");
   });
 });
 

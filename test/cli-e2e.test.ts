@@ -396,7 +396,7 @@ test("CLI setup reports install steps and agent prompt", async () => {
   assert.equal(result.agents.install, undefined);
   assert.equal(result.userReadiness.ready, false);
   assert.equal(result.userReadiness.state, "live-mode-locked");
-  assert.match(result.userReadiness.nextAction, /Enable Live Mode|auth unlock/);
+  assert.match(result.userReadiness.nextAction, /live-session unlock|CDP browser bridge/);
   assert.match(result.agents.installCommand, /frontctl setup --agent all --yes --json/);
   assert.equal(result.agents.chatgptPromptCommand, "frontctl agents prompt --agent chatgpt --json");
   assert.ok(result.nextSteps.some((step) => step === "frontctl workflows daily --actor Codex --json"));

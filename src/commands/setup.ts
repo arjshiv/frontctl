@@ -1,4 +1,4 @@
-import { checkFrontSession } from "../lib/auth.js";
+import { checkFrontSession, DEFAULT_SESSION_TTL_HOURS } from "../lib/auth.js";
 import { agentcookieStatus } from "../lib/agentcookie.js";
 import { cdpBridgeStatus } from "../lib/cdpBridge.js";
 import { listBrowserProfiles } from "../lib/browserProfiles.js";
@@ -41,6 +41,11 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
   const finalAgentStatus = agentInstall ? await agentsStatus(agent) : agentCheck;
   const frontAppInstalled = checkOk(doctorResult.checks, "frontApp");
   const localProfileVisible = doctorResult.onboarding.readyForAgentUse;
+  const liveSetupCommand = agentcookie.frontCookiesAvailable
+    ? `frontctl auth unlock --source agentcookie --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`
+    : explicitBrowserCookieFallbackAvailable
+      ? `frontctl auth unlock --source default-browser --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`
+      : "frontctl discovery launch --remote-debugging-port 9222 --json";
   const userReadiness = buildUserReadiness({
     frontAppInstalled,
     localProfileVisible,
@@ -124,8 +129,7 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
         : doctorResult.issues.map((issue) => issue.remedy).filter(Boolean)
       : doctorResult.ok
         ? [
-          "frontctl setup --enable-live --json",
-          "frontctl discovery launch --remote-debugging-port 9222 --json",
+          liveSetupCommand,
           "frontctl setup --learn --json",
           "frontctl workflows daily --actor Codex --json",
           "frontctl triage inbox --limit 20 --json",

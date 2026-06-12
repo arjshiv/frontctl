@@ -33,8 +33,8 @@ struct ContentView: View {
                     model.runFrontctl(["setup", "--agent", "all", "--yes", "--json"], title: "Installing agent skills")
                 }
 
-                Button("Enable Live Mode") {
-                    model.runFrontctl(["auth", "unlock", "--ttl-hours", "12", "--json"], title: "Enabling live mode")
+                Button("Unlock Live Session") {
+                    model.runFrontctl(["auth", "unlock", "--source", "default-browser", "--ttl-hours", "720", "--json"], title: "Unlocking live session")
                 }
 
                 Button("Support Bundle") {
@@ -334,7 +334,7 @@ func summarizeReadiness(_ json: [String: Any], result: ProcessResult) -> (status
     lines.append("")
     lines.append(statusLine("Front app", frontInstalled, ready: "Installed", missing: "Install Front for macOS"))
     lines.append(statusLine("Front sign-in", localProfileVisible, ready: "Detected", missing: "Open Front and sign in"))
-    lines.append(statusLine("Live mode", authValid, ready: "Enabled", missing: "Click Enable Live Mode"))
+    lines.append(statusLine("Live session", authValid, ready: "Unlocked", missing: "Click Unlock Live Session"))
     lines.append(statusLine("Agent skills", agentsInstalled, ready: "Installed", missing: "Click Install Agent Skills"))
     lines.append("")
     lines.append("Current state: \(readinessState)")
@@ -378,7 +378,7 @@ func summarizeSetup(_ json: [String: Any], result: ProcessResult) -> (status: St
     lines.append("")
     lines.append(statusLine("Front app", frontInstalled, ready: "Installed", missing: "Install Front for macOS"))
     lines.append(statusLine("Front sign-in", localProfileVisible, ready: "Detected", missing: "Open Front and sign in"))
-    lines.append(statusLine("Live mode", authValid, ready: "Enabled", missing: "Click Enable Live Mode"))
+    lines.append(statusLine("Live session", authValid, ready: "Unlocked", missing: "Click Unlock Live Session"))
     lines.append(statusLine("Agent skills", agentsInstalled, ready: "Installed", missing: "Click Install Agent Skills"))
     lines.append("")
     lines.append("Current state: \(readinessState)")
@@ -412,7 +412,7 @@ func summarizeAuthUnlock(_ json: [String: Any], result: ProcessResult) -> (statu
     let promptsOnLiveRead = boolAt(json, ["security", "promptsOnLiveRead"]) ?? false
 
     var lines: [String] = []
-    lines.append(valid ? "Live mode is enabled." : "Live mode is not enabled yet.")
+    lines.append(valid ? "Live session is unlocked." : "Live session is not unlocked yet.")
     lines.append("")
     lines.append(statusLine("Session", valid, ready: "Unlocked", missing: "Unlock failed"))
     lines.append("Keychain used now: \(keychainAccessed ? "yes" : "no")")

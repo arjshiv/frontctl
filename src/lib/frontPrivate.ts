@@ -48,7 +48,7 @@ export async function createFrontPrivateClient(paths: FrontPaths): Promise<Front
 
   if (!session) {
     throw new CliError(
-      "No live Front CDP bridge or unlocked session. Open Front in Edge/Chrome with remote debugging and sign into Front, or run `frontctl discovery launch --remote-debugging-port 9222 --json` for a launch command.",
+      "No live Front session is available. Run `frontctl readiness --json` and approve its recommended unlock command; do not use cache for current inbox state.",
       69,
     );
   }

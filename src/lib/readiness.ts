@@ -38,8 +38,8 @@ export function buildUserReadiness(input: {
     {
       name: "liveMode",
       ok: input.authValid,
-      label: "Live mode",
-      userAction: "Click Enable Live Mode or run `frontctl setup --enable-live --json`.",
+      label: "Live session",
+      userAction: "Approve one live-session unlock, or configure a CDP browser bridge. Run `frontctl readiness --json` for the exact command.",
     },
     {
       name: "agentSkills",

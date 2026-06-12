@@ -1,6 +1,7 @@
 import {
   checkFrontSession,
   clearFrontSession,
+  DEFAULT_SESSION_TTL_HOURS,
   sessionSecurityStatus,
   unlockFrontSessionFromPlainCookies,
   unlockFrontSession,
@@ -47,7 +48,7 @@ export async function authCommand(args: string[], paths: FrontPaths = defaultFro
         });
       }
       throw new CliError(
-        "No non-prompting Front auth source was found. Set up agentcookie, or explicitly run `frontctl auth unlock --source default-browser --ttl-hours 12 --json` if you accept a one-time browser Keychain prompt.",
+        `No non-prompting Front auth source was found. Set up agentcookie, or explicitly run \`frontctl auth unlock --source default-browser --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json\` if you accept a one-time browser Keychain prompt.`,
         69,
       );
     }

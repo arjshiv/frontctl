@@ -26,7 +26,7 @@ Preferred non-technical install after release:
 1. Download the signed `frontctl` DMG.
 2. Open it and run the installer package.
 3. Open `Frontctl Setup.app`.
-4. Click **Check Setup**, **Install Agent Skills**, then **Enable Live Mode**.
+4. Click **Check Setup**, **Install Agent Skills**, then **Unlock Live Session**.
 
 Current local install from this repo:
 
@@ -138,20 +138,29 @@ frontctl cookies inspect --json
 
 The assistant should summarize readiness without printing cookie values.
 
-### 5b. Enable Live Mode
+### 5b. Unlock Live Session
 
-For live private Front requests, first use the CDP browser bridge:
+For live private Front requests, prefer one explicit unlock that writes a reusable local session
+cache:
+
+```bash
+frontctl auth unlock --source default-browser --ttl-hours 720 --json
+```
+
+Explicit app/browser unlock may ask for macOS Keychain access once because it reads browser or app
+Safe Storage. Rerunning `frontctl auth unlock` while the cache is valid reuses the cache and does not
+touch Keychain. Use `frontctl auth unlock --force --ttl-hours 720 --json` only when the cached Front
+session has expired or you need to refresh it deliberately.
+
+The CDP browser bridge is optional and mostly useful for development/debugging when a browser is
+launched with remote debugging:
 
 ```bash
 frontctl setup --enable-live --json
 frontctl bridge status --json
 ```
 
-The default bridge uses the already-signed-in Front tab in Microsoft Edge or Chrome through Chrome
-DevTools Protocol. It must not read Front.app, Chrome, or Edge Safe Storage, must not trigger
-Keychain, and must not require macOS Automation permission.
-
-If no CDP browser is reachable, the setup app should show one instruction: launch a managed Edge or
+If no CDP browser is reachable, the setup app may show one instruction: launch a managed Edge or
 Chrome window, sign into Front, then retry.
 
 ```bash
@@ -159,19 +168,6 @@ frontctl discovery launch --remote-debugging-port 9222 --json
 ```
 
 Apple Events are a fallback/debug path only. They are not the consumer onboarding path.
-
-If the browser bridge cannot be used and the user explicitly accepts a cookie-unlock fallback, use
-the explicit browser source:
-
-```bash
-frontctl browser list --json
-frontctl auth unlock --source default-browser --ttl-hours 12 --json
-```
-
-Explicit app/browser unlock may ask for macOS Keychain access because it reads browser or app Safe
-Storage. That is a fallback, not the consumer path. Rerunning `frontctl auth unlock` while the cache
-is valid reuses the cache and does not touch Keychain. Use `frontctl auth unlock --force --ttl-hours
-12 --json` only when the cached Front session has expired or you need to refresh it deliberately.
 
 `--source default-browser` auto-detects Chrome or Microsoft Edge from macOS Launch Services and
 uses the signed-in browser profile. Safari is open-only for the MVP; use optional `agentcookie`
@@ -241,7 +237,7 @@ If these commands cannot reach a live session, setup is not ready. Do not answer
 questions from Front's local HTTP cache. Use `--offline-cache` only for diagnostics, offline
 recovery, or tests where stale data is explicitly acceptable.
 
-For repeated searches, build a local index after live unlock:
+For explicit historical search or preference learning, build a local index after live unlock:
 
 ```bash
 frontctl sync --limit 100 --json
@@ -257,8 +253,8 @@ timeline snippets so agents can search without hitting Front or macOS Keychain e
 not store cookies or auth headers.
 Timeline text is preserved up to 20,000 characters per item and marks clipped items with
 `textTruncated` plus `textLength`, so agents can tell when they need a live read for full context.
-Cache stats/search/read include freshness metadata. By default, cached index results are treated as
-fresh for 12 hours. Override with `--max-age-hours N` or `FRONTCTL_STORE_MAX_AGE_HOURS`.
+Cache stats/search/read include freshness metadata. Do not use cache or local-index reads for
+current inbox questions unless the user explicitly asks for offline diagnostics.
 
 For first-run preference learning after setup:
 
@@ -342,7 +338,7 @@ before capturing routes. The probe distinguishes an attachable browser from an a
 browser session and reports `authentication_required` without printing cookies, headers, or message
 body text.
 When `auth check` is valid but the browser profile is not authenticated, `frontctl discovery browser-seed --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --yes --json`
-can copy the existing short-lived `frontctl` session into the selected browser tab without printing
+can copy the existing reusable `frontctl` session into the selected browser tab without printing
 cookie values or touching Keychain. After the probe is authenticated, use
 `frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json`
 to prove archive/unarchive, snooze/unsnooze, tag add/remove, comment add/remove, and reply

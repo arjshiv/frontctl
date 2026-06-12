@@ -42,7 +42,8 @@ All setup surfaces should use the same readiness states from `frontctl readiness
 
 - `front-not-installed`: install Front for macOS.
 - `front-sign-in-missing`: open Front and sign in.
-- `live-mode-locked`: click `Enable Live Mode` and approve macOS Automation if prompted.
+- `live-mode-locked`: approve one live-session unlock, preferably the default-browser unlock with
+  a 720-hour TTL. Do not route normal users into macOS Automation.
 - `agent-skills-missing`: click `Install Agent Skills`.
 - `ready`: paste the agent prompt and start with read-only triage.
 
@@ -60,21 +61,21 @@ The expected prompt model is:
 - `frontctl auth check --json`: no Keychain prompt.
 - `frontctl bridge test --json`: no Keychain prompt and no macOS Automation prompt on the default CDP path.
 - `frontctl inbox list --json`: no Keychain prompt after bridge proof, agentcookie, or explicit unlock.
-- `frontctl auth unlock --ttl-hours 12 --json`: no Keychain prompt; uses non-prompting sources
+- `frontctl auth unlock --ttl-hours 720 --json`: no Keychain prompt; uses non-prompting sources
   such as agentcookie or fails with an explicit next action.
-- `frontctl auth unlock --source default-browser --ttl-hours 12 --json`: may prompt once for the
+- `frontctl auth unlock --source default-browser --ttl-hours 720 --json`: may prompt once for the
   signed-in Chrome or Microsoft Edge safe-storage item, then reuses the frontctl cache.
-- `frontctl auth unlock --force --ttl-hours 12 --json`: may prompt because the user explicitly
+- `frontctl auth unlock --force --ttl-hours 720 --json`: may prompt because the user explicitly
   requested a refresh.
 
 Repeated Keychain prompts during setup checks or live reads are a product bug. The fix is to use the
-short-lived encrypted session cache written by `auth unlock`, not to train the user to keep
-approving prompts.
+reusable encrypted session cache written by `auth unlock`, not to train the user to keep approving
+prompts.
 
 Do not auto-export browser cookies as a fallback. Chrome, Edge, and Electron encrypt browser cookie
 secrets with a macOS Safe Storage key, and reading that key is exactly what causes repeated Keychain
 prompts when the binary is not already trusted. Default flows should either use an existing
-short-lived frontctl session, read an agentcookie plaintext sidecar, or fail closed.
+reusable frontctl session, read an agentcookie plaintext sidecar, or fail closed.
 
 For the “I already have Front open in Edge” case, the product-grade answer is the CDP browser bridge:
 evaluate the request inside the live signed-in Front tab and ask that tab to call the same private
@@ -92,7 +93,7 @@ when Chrome or Edge has a signed-in Front profile; Safari should explain that co
 optional `agentcookie` support or a future signed helper.
 For browser-backed route verification, do not confuse a reachable DevTools port with a signed-in
 Front browser tab. `browser-status` finds the port, `browser-probe` proves Front auth, and
-`browser-seed` can reuse the existing short-lived `frontctl` session in that tab without printing
+`browser-seed` can reuse the existing reusable `frontctl` session in that tab without printing
 cookie values or touching Keychain again.
 
 Agent identity should be visible without leaving the final mailbox state wrong. State-changing
@@ -100,7 +101,7 @@ commands accept `--actor NAME` and `--reason "..."`, write a Front identity comm
 apply the requested action last. That ordering avoids the bad UX where an agent archives or snoozes
 a thread and then immediately changes the thread again by commenting on it.
 
-First-run learning should be explicit and local. After live mode is enabled, the setup app can offer
+First-run learning should be explicit and local. After the live session is unlocked, the setup app can offer
 `Learn Preferences`, backed by `frontctl setup --learn --json` or
 `frontctl memory init --live --all --limit 200 --json`. The memory profile should remain local,
 aggregate preference hypotheses such as fast-archive patterns and tag opportunities, and avoid
@@ -116,7 +117,7 @@ Every failure should resolve to one user action:
 - Install Front for macOS.
 - Open Front and sign in.
 - Run the package installer from the DMG.
-- Click `Enable Live Mode`.
+- Click `Unlock Live Session`.
 - Click `Install Agent Skills`.
 - Click `Support Bundle`.
 

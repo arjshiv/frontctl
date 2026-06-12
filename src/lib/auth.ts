@@ -17,6 +17,7 @@ const FRONT_SESSION_COOKIE_NAMES = [...REQUIRED_FRONT_COOKIE_NAMES, ...OPTIONAL_
 const FRONT_KEYCHAIN_SERVICE = "Front Safe Storage";
 const SESSION_CRYPTO_VERSION = 1;
 const SESSION_ENCRYPTION_MODE = "local-derived-v1";
+export const DEFAULT_SESSION_TTL_HOURS = 24 * 30;
 
 export interface FrontSessionSecurity {
   authorizationModel: "one-time-keychain-unlock";
@@ -113,7 +114,7 @@ export function sessionSecurityStatus(): FrontSessionSecurity {
     note: [
       "`frontctl auth unlock` without --source uses non-prompting sources such as agentcookie.",
       "Explicit app or browser unlock may prompt once for the selected local app or browser Keychain item.",
-      "After unlock, frontctl reads its short-lived local session cache and normal status/live-read commands do not access Keychain.",
+      "After unlock, frontctl reads its reusable local session cache and normal status/live-read commands do not access Keychain.",
     ].join(" "),
   };
 }
@@ -201,7 +202,7 @@ export async function unlockFrontSession(
   }
 
   const createdAtMs = Date.now();
-  const ttlMs = Math.max(1, options.ttlHours ?? 12) * 60 * 60 * 1000;
+  const ttlMs = Math.max(1, options.ttlHours ?? DEFAULT_SESSION_TTL_HOURS) * 60 * 60 * 1000;
   const expiresAtMs = Math.min(createdAtMs + ttlMs, ...expirations);
   const session: FrontSession = {
     host: FRONT_COOKIE_HOST,
@@ -245,7 +246,7 @@ export async function unlockFrontSessionFromPlainCookies(
   const selected = selectFrontCookieRows(rows.map((row) => plainFrontCookieRowSchema.parse(row)));
   const csrfToken = selected.find((row) => row.name === "front.csrf")?.value;
   const createdAtMs = Date.now();
-  const ttlMs = Math.max(1, options.ttlHours ?? 12) * 60 * 60 * 1000;
+  const ttlMs = Math.max(1, options.ttlHours ?? DEFAULT_SESSION_TTL_HOURS) * 60 * 60 * 1000;
   const expirations = selected
     .map((row) => chromeTimeToUnixMs(row.expires_utc))
     .filter((expiresAt): expiresAt is number => Boolean(expiresAt && expiresAt > Date.now()));

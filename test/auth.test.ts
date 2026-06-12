@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import test from "node:test";
 import {
   checkFrontSession,
+  DEFAULT_SESSION_TTL_HOURS,
   decryptChromiumCookieValue,
   encryptChromiumCookieValueForTest,
   readFrontSession,
@@ -107,6 +108,7 @@ test("unlockFrontSessionFromPlainCookies writes reusable browser/agentcookie ses
   assert.equal(session?.source, "agentcookie");
   assert.equal(session?.keychainServiceUsedForUnlock, undefined);
   assert.equal(session?.cookieHeader, "front.id=SECRET_COOKIE_VALUE; front.id.sig=SECRET_SIG_VALUE");
+  assert.ok(Date.parse(result.expiresAt as string) - Date.now() > (DEFAULT_SESSION_TTL_HOURS - 1) * 60 * 60 * 1000);
 });
 
 test("agentcookie plaintext cookie reader imports only Front cookies", async () => {

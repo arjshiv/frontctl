@@ -97,7 +97,7 @@ Implemented:
 
 - Added a macOS Electron/Chromium cookie decryptor for Front cookies.
 - Strips Chromium's host-key digest prefix before constructing cookie headers.
-- `frontctl auth unlock` performs the explicit Keychain step once and writes a short-lived encrypted
+- `frontctl auth unlock` performs the explicit Keychain step once and writes a reusable encrypted
   `0600` session cache.
 - `frontctl auth check` is non-prompting.
 - `frontctl whoami` proves authenticated private Front reads work.
@@ -131,7 +131,7 @@ Implemented:
   proves whether the selected browser tab is authenticated to Front. CDP reachability alone is not
   enough.
 - `frontctl discovery browser-seed --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --yes --json`
-  copies the existing short-lived `frontctl` session into the selected browser tab, including CSRF,
+  copies the existing reusable `frontctl` session into the selected browser tab, including CSRF,
   without printing cookie values or touching Keychain again.
 - `frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json`
   runs the deployable write set from inside the authenticated browser runtime, cleans up temporary

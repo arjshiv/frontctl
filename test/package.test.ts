@@ -234,7 +234,8 @@ test("setup app exposes non-technical recovery actions", async () => {
 
   assert.match(source, /frontctl is not installed yet/);
   assert.match(source, /Install Agent Skills/);
-  assert.match(source, /Enable Live Mode/);
+  assert.match(source, /Unlock Live Session/);
+  assert.match(source, /"--ttl-hours", "720"/);
   assert.match(source, /Support Bundle/);
   assert.match(source, /frontctl-support\.json/);
   assert.match(source, /Agent Prompts/);

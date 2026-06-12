@@ -1,4 +1,4 @@
-import { checkFrontSession } from "../lib/auth.js";
+import { checkFrontSession, DEFAULT_SESSION_TTL_HOURS } from "../lib/auth.js";
 import { agentcookieStatus } from "../lib/agentcookie.js";
 import { cdpBridgeStatus } from "../lib/cdpBridge.js";
 import { detectDefaultBrowser, listBrowserProfiles } from "../lib/browserProfiles.js";
@@ -61,7 +61,7 @@ export async function readinessCommand(_args: string[], paths: FrontPaths = defa
       frontApp: {
         available: frontAppInstalled && localProfileVisible,
         valid: auth.valid,
-        unlockCommand: "frontctl auth unlock --source front-app --ttl-hours 12 --json",
+        unlockCommand: `frontctl auth unlock --source front-app --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`,
       },
       defaultBrowser,
       browsers: browserProfiles.map((profile) => ({
@@ -70,18 +70,24 @@ export async function readinessCommand(_args: string[], paths: FrontPaths = defa
         cookiesExists: profile.cookiesExists,
         supportsCookieImport: profile.supportsCookieImport,
         unlockCommand: profile.cookiesExists
-          ? `frontctl auth unlock --source ${profile.browser} --profile ${shellQuote(profile.profile)} --ttl-hours 12 --json`
+          ? `frontctl auth unlock --source ${profile.browser} --profile ${shellQuote(profile.profile)} --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`
           : undefined,
       })),
       agentcookie: {
         installed: agentcookie.installed,
         plainCookiesExists: agentcookie.plainCookiesExists,
         frontCookiesAvailable: agentcookie.frontCookiesAvailable,
-        unlockCommand: "frontctl auth unlock --source agentcookie --ttl-hours 12 --json",
+        unlockCommand: `frontctl auth unlock --source agentcookie --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`,
       },
       explicitBrowserCookieFallbackAvailable,
       nonPromptingLiveAvailable,
-      recommendedUnlockCommand: recommendedUnlockCommand(auth.valid, bridge.proofValid, bridge.availableWithoutKeychain, agentcookie.frontCookiesAvailable),
+      recommendedUnlockCommand: recommendedUnlockCommand(
+        auth.valid,
+        bridge.proofValid,
+        bridge.availableWithoutKeychain,
+        agentcookie.frontCookiesAvailable,
+        explicitBrowserCookieFallbackAvailable,
+      ),
     },
     safety: {
       publicApiUsed: false,
@@ -89,7 +95,13 @@ export async function readinessCommand(_args: string[], paths: FrontPaths = defa
       touchesKeychain: false,
       note: "Readiness checks do not read mailbox contents and do not access Keychain.",
     },
-    nextCommand: nextCommandFor(userReadiness.state, recommendedUnlockCommand(auth.valid, bridge.proofValid, bridge.availableWithoutKeychain, agentcookie.frontCookiesAvailable)),
+    nextCommand: nextCommandFor(userReadiness.state, recommendedUnlockCommand(
+      auth.valid,
+      bridge.proofValid,
+      bridge.availableWithoutKeychain,
+      agentcookie.frontCookiesAvailable,
+      explicitBrowserCookieFallbackAvailable,
+    )),
   };
 }
 
@@ -111,6 +123,7 @@ function recommendedUnlockCommand(
   bridgeProofValid: boolean,
   bridgeAvailableWithoutKeychain: boolean,
   agentcookieAvailable: boolean | undefined,
+  browserCookieFallbackAvailable: boolean,
 ) {
   if (authValid) return undefined;
   if (bridgeProofValid) return undefined;
@@ -118,7 +131,10 @@ function recommendedUnlockCommand(
     return "frontctl bridge test --json";
   }
   if (agentcookieAvailable) {
-    return "frontctl auth unlock --source agentcookie --ttl-hours 12 --json";
+    return `frontctl auth unlock --source agentcookie --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`;
+  }
+  if (browserCookieFallbackAvailable) {
+    return `frontctl auth unlock --source default-browser --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`;
   }
   return "frontctl discovery launch --remote-debugging-port 9222 --json";
 }
