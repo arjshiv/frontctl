@@ -74,6 +74,39 @@ export async function searchFrontHints(query: string, paths: FrontPaths, limit =
   };
 }
 
+export async function searchFrontCards(query: string, paths: FrontPaths, limit = 20) {
+  const client = await createFrontPrivateClient(paths);
+  const routes = buildFrontRoutes(client.context);
+  const data = await client.getJson<unknown>(routes.searchCards(query, limit));
+  const rawCards = isObject(data) && Array.isArray(data.cards) ? data.cards : [];
+  const cards = rawCards
+    .map(compactCard)
+    .filter((card): card is Record<string, unknown> => Boolean(card))
+    .slice(0, limit);
+  return {
+    source: "live-private",
+    stale: false,
+    publicApiUsed: false,
+    query,
+    count: cards.length,
+    cards,
+  };
+}
+
+export async function readFrontCard(cardId: string, paths: FrontPaths) {
+  const client = await createFrontPrivateClient(paths);
+  const routes = buildFrontRoutes(client.context);
+  const data = await client.getJson<unknown>(routes.card(cardId));
+  const card = compactCard(data);
+  return {
+    source: "live-private",
+    stale: false,
+    publicApiUsed: false,
+    cardId,
+    card,
+  };
+}
+
 function bootResourceArray(boot: Record<string, unknown>, kind: ResourceKind) {
   if (kind === "teammates") {
     return arrayValue(boot.team);
@@ -101,6 +134,66 @@ function compactSearchHint(value: unknown) {
   });
 }
 
+function compactCard(value: unknown) {
+  if (!isObject(value)) {
+    return undefined;
+  }
+  const raw = value as Record<string, unknown>;
+  return stripUndefined({
+    id: stringField(raw.id),
+    namespace: stringField(raw.namespace),
+    url: stringField(raw.url),
+    name: stringField(raw.name ?? raw.display_name),
+    displayName: stringField(raw.display_name),
+    type: stringField(raw.type ?? raw.class),
+    bio: stringField(raw.bio),
+    description: stringField(raw.description),
+    updatedAt: timestampField(raw.updated_at),
+    createdAt: timestampField(raw.created_at),
+    contacts: arrayValue(raw.contacts).map(compactContact).filter(Boolean),
+    links: arrayValue(raw.links).map(compactLink).filter(Boolean),
+    groups: arrayValue(raw.groups).map(compactResource).filter(Boolean),
+    accountAssociations: arrayValue(raw.account_associations).map(compactResource).filter(Boolean),
+    customFieldAttributes: arrayValue(raw.custom_field_attributes).map(compactCustomFieldAttribute).filter(Boolean),
+  });
+}
+
+function compactContact(value: unknown) {
+  if (!isObject(value)) {
+    return undefined;
+  }
+  const raw = value as Record<string, unknown>;
+  return stripUndefined({
+    id: stringField(raw.id),
+    url: stringField(raw.url),
+    source: stringField(raw.source),
+    handle: stringField(raw.handle),
+  });
+}
+
+function compactLink(value: unknown) {
+  if (!isObject(value)) {
+    return typeof value === "string" ? { url: value } : undefined;
+  }
+  const raw = value as Record<string, unknown>;
+  return stripUndefined({
+    id: stringField(raw.id),
+    url: stringField(raw.url),
+    name: stringField(raw.name),
+  });
+}
+
+function compactCustomFieldAttribute(value: unknown) {
+  if (!isObject(value)) {
+    return undefined;
+  }
+  const raw = value as Record<string, unknown>;
+  return stripUndefined({
+    customFieldId: stringField(raw.custom_field_id ?? raw.id),
+    value: primitiveField(raw.value),
+  });
+}
+
 function arrayValue(value: unknown) {
   return Array.isArray(value) ? value : [];
 }
@@ -111,6 +204,10 @@ function stringField(value: unknown) {
 
 function booleanField(value: unknown) {
   return typeof value === "boolean" ? value : undefined;
+}
+
+function primitiveField(value: unknown) {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? value : undefined;
 }
 
 function timestampField(value: unknown) {

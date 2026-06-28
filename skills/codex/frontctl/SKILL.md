@@ -88,6 +88,8 @@ frontctl summarize CONVERSATION_ID --format plain
 frontctl attachments list CONVERSATION_ID --json
 frontctl resources list inboxes --json
 frontctl resources search "person or company" --json
+frontctl cards search "person@example.com" --json
+frontctl cards read CARD_ID --json
 frontctl open CONVERSATION_ID --print-only --json
 frontctl open CONVERSATION_ID --web --print-only --json
 ```

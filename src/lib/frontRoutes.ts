@@ -18,6 +18,7 @@ export interface FrontRoutes {
   content: (id: string) => string;
   searchRaw: (query: string) => string;
   searchHints: (query: string) => string;
+  searchCards: (query: string, limit?: number) => string;
   conversations: string;
   conversationEvents: (id: string) => string;
   conversationInboxes: (id: string) => string;
@@ -32,6 +33,7 @@ export interface FrontRoutes {
   conversationMessage: (conversationId: string, messageUid: string) => string;
   newConversationMessage: (messageUid: string) => string;
   attachment: (id: string) => string;
+  card: (id: string) => string;
   contacts: string;
   accounts: string;
   links: string;
@@ -90,6 +92,8 @@ export function buildFrontRoutes(context: FrontRouteContext): FrontRoutes {
     content: (id) => `${root}/conversations/${encodeURIComponent(id)}/content`,
     searchRaw: (query) => `${root}/search_raw/${encodeURIComponent(query)}`,
     searchHints: (query) => `${root}/search_hints/${encodeURIComponent(query)}`,
+    searchCards: (query, limit) =>
+      `${root}/search_card/${encodeURIComponent(query.toLowerCase())}${limit ? `?limit=${encodeURIComponent(String(limit))}` : ""}`,
     conversations: `${root}/conversations`,
     conversationEvents: (id) => `${root}/conversations/${encodeURIComponent(id)}/events`,
     conversationInboxes: (id) => `${root}/conversations/${encodeURIComponent(id)}/inboxes`,
@@ -110,6 +114,7 @@ export function buildFrontRoutes(context: FrontRouteContext): FrontRoutes {
     newConversationMessage: (messageUid) =>
       `${root}/conversations/new/messages/${encodeURIComponent(messageUid)}`,
     attachment: (id) => `${root}/download/${encodeURIComponent(id)}`,
+    card: (id) => `${root}/cards/${encodeURIComponent(id)}`,
     contacts: `${root}/contacts`,
     accounts: `${root}/accounts`,
     links: `${root}/links`,

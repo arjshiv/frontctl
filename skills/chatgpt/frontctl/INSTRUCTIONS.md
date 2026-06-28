@@ -46,6 +46,8 @@ frontctl read CONVERSATION_ID --full --json
 frontctl summarize CONVERSATION_ID --format plain
 frontctl resources list inboxes --json
 frontctl resources search "person or company" --json
+frontctl cards search "person@example.com" --json
+frontctl cards read CARD_ID --json
 ```
 
 Live commands after `frontctl auth check --json` reports a valid session:
@@ -54,6 +56,8 @@ Live commands after `frontctl auth check --json` reports a valid session:
 frontctl inbox list --limit 20 --json
 frontctl triage inbox --limit 20 --json
 frontctl read CONVERSATION_ID --json
+frontctl cards search "person@example.com" --json
+frontctl cards read CARD_ID --json
 frontctl sync --limit 100 --json
 frontctl memory init --limit 500 --json
 frontctl memory report --json

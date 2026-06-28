@@ -13,6 +13,7 @@ Apple Mail, or a browser. `frontctl` fills that gap without using the public Fro
 - Archive, unarchive, delete-to-trash, restore, snooze, unsnooze, tag, and comment on threads.
 - Draft replies, compose/create/update/forward drafts, and discard drafts without sending.
 - Look up Front resources such as inboxes, channels, teammates, teams, tags, signatures, and custom fields.
+- Search/read Front cards and contact records, including card-scoped custom field readback.
 - Run sequential batch reads, archives, and tag changes while preserving the comment-first mutation rule.
 - Learn local triage preferences from recent Front usage.
 - Install Codex and Claude skills, plus ChatGPT-ready instructions.
@@ -65,6 +66,8 @@ frontctl summarize CONVERSATION_ID --format plain
 frontctl read CONVERSATION_ID --full --json
 frontctl resources list inboxes --json
 frontctl resources search "person or company" --json
+frontctl cards search "person@example.com" --json
+frontctl cards read CARD_ID --json
 ```
 
 For normal use, read from the live private session. If live reads are locked and browser cookies are
@@ -133,7 +136,8 @@ Live reads:
 - inbox list, search, read, summarize, triage
 - `read --full` for conversation detail, timeline, content, events, inboxes, and followers
 - attachment list and session-backed attachment download
-- resource list/search for inboxes, channels, teammates, teams, tags, signatures, custom fields, and search hints
+- resource list/search for inboxes, channels, teammates, teams, tags, signatures, custom fields, search hints, and cards
+- `cards search` and `cards read` for contact/card records and card custom-field readback
 
 Preview or capture-gated:
 

@@ -1,5 +1,5 @@
 import { CliError } from "../lib/cli.js";
-import { listBootResources, searchFrontHints, type ResourceKind } from "../lib/frontResources.js";
+import { listBootResources, readFrontCard, searchFrontCards, searchFrontHints, type ResourceKind } from "../lib/frontResources.js";
 import { defaultFrontPaths, type FrontPaths } from "../lib/paths.js";
 
 const RESOURCE_KINDS = new Set<ResourceKind>([
@@ -43,7 +43,20 @@ export async function resourcesCommand(args: string[], paths: FrontPaths = defau
     }
     return searchFrontHints(query, paths, limit);
   }
-  throw new CliError("Usage: frontctl resources list KIND | resources search QUERY", 64);
+  if (operation === "search-cards") {
+    const query = [kindOrQuery, ...rest].filter(Boolean).join(" ").trim();
+    if (!query) {
+      throw new CliError("Usage: frontctl resources search-cards QUERY [--limit 20]", 64);
+    }
+    return searchFrontCards(query, paths, limit);
+  }
+  if (operation === "read-card") {
+    if (!kindOrQuery) {
+      throw new CliError("Usage: frontctl resources read-card CARD_ID", 64);
+    }
+    return readFrontCard(kindOrQuery, paths);
+  }
+  throw new CliError("Usage: frontctl resources list KIND | resources search QUERY | resources search-cards QUERY | resources read-card CARD_ID", 64);
 }
 
 function positional(args: string[]) {

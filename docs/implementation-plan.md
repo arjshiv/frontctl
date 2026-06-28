@@ -384,6 +384,9 @@ Custom-field follow-up:
   persisting the card field. The browser runtime also confirmed the card path:
   `GET /cards/:id` exposes `custom_field_attributes`, while `PUT /cards/:id` with
   `custom_field_attributes` returned HTTP 403 for this session.
+- `frontctl cards search QUERY --json` and `frontctl cards read CARD_ID --json` are read-only live
+  helpers for this card path. They are useful for proving card/contact identity and reading
+  card-scoped custom fields without attempting the blocked card write.
 - Keep `custom-field set` blocked for non-conversation fields. Do not promote card custom-field
   writes until a harmless card-scoped route can execute and read back successfully.
 
