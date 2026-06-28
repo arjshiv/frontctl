@@ -116,7 +116,7 @@ export async function restoreConversation(args: string[], paths: FrontPaths = de
 
 export async function createTestConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
   const subject = readStringFlag(args, "--subject") ?? "frontctl test conversation";
-  const body = readStringFlag(args, "--body") ?? "frontctl local integration test. Safe to archive, restore, comment, tag, snooze, and delete.";
+  const body = readStringFlag(args, "--body") ?? "frontctl local integration test. Safe to archive, comment, tag, snooze, link, move, assign, and draft.";
   const routes = await getRoutes(paths);
   const commentUid = randomBytes(16).toString("hex");
   const saveBody = internalTaskCommentSaveBody(body, readStringFlag(args, "--original-conversation-id"));
@@ -227,6 +227,9 @@ export async function followerConversation(args: string[], paths: FrontPaths = d
   const [operation, id, teammateId] = positional(args);
   if (!operation || !["add", "remove"].includes(operation) || !id || !teammateId) {
     throw new CliError("Usage: frontctl follower add|remove CONVERSATION_ID TEAMMATE_ID_OR_EMAIL", 64);
+  }
+  if (operation === "remove" && isExecute(args) && !args.includes("--allow-self-remove")) {
+    await assertNotRemovingActiveUserFollower(teammateId, paths);
   }
   const routes = await getRoutes(paths);
   const teammate = numericOrString(teammateId);
@@ -1431,6 +1434,23 @@ function numericOrString(value: string | null | undefined) {
     return undefined;
   }
   return /^\d+$/.test(value) ? Number(value) : value;
+}
+
+function isExecute(args: string[]) {
+  return args.includes("--yes") && !args.includes("--dry-run");
+}
+
+async function assertNotRemovingActiveUserFollower(teammateId: string, paths: FrontPaths) {
+  const boot = await getBoot(paths).catch(() => undefined);
+  const user = isObject(boot?.user) ? boot.user as Record<string, unknown> : undefined;
+  const currentUserId = stringOrNumberField(user?.id);
+  const currentUserEmail = stringOrNumberField(user?.email);
+  if (teammateId === currentUserId || teammateId.toLowerCase() === currentUserEmail?.toLowerCase()) {
+    throw new CliError(
+      "Refusing to remove the active Front user as a follower before writing an identity comment. Front can reject or revoke access for self-removal on personal/internal-task conversations. Use --allow-self-remove only on a disposable conversation when you are prepared to lose access.",
+      69,
+    );
+  }
 }
 
 function numericTagId(resolution: { tag?: FrontTag; input: string; resolvedAlias: string }) {

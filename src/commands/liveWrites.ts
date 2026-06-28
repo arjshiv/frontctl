@@ -1,14 +1,19 @@
 import {
+  assignConversation,
   archiveConversation,
   commentConversation,
+  createTestConversation,
   draftCommand,
+  followerConversation,
+  linkConversation,
+  moveConversation,
   snoozeConversation,
   tagConversation,
   unarchiveConversation,
   unsnoozeConversation,
 } from "./mutations.js";
 import { CliError } from "../lib/cli.js";
-import { createFrontPrivateClient } from "../lib/frontPrivate.js";
+import { createFrontPrivateClient, getBoot } from "../lib/frontPrivate.js";
 import { buildFrontRoutes } from "../lib/frontRoutes.js";
 import { defaultFrontPaths, type FrontPaths } from "../lib/paths.js";
 import { verifyAllWriteFixtures } from "../lib/writeVerification.js";
@@ -16,6 +21,14 @@ import { verifyAllWriteFixtures } from "../lib/writeVerification.js";
 const SUPPORTED_LIVE_ACTIONS = [
   "archive",
   "unarchive",
+  "assign",
+  "unassign",
+  "move",
+  "follower.add",
+  "follower.remove.self-guard",
+  "conversation.create-test",
+  "link.add",
+  "link.remove",
   "snooze",
   "unsnooze",
   "tag.add",
@@ -32,6 +45,10 @@ interface LiveState {
   status: unknown;
   reminders: unknown[];
   tags: Array<{ id: string; alias?: string; name?: string }>;
+  assigneeId?: string | null;
+  inboxIds: string[];
+  trackers: Array<{ teammateId?: string; status?: string; stage?: string }>;
+  linkedConversationCount: number;
   hasDrafts: boolean;
   draftCount: number;
   containsMarker: boolean;
@@ -56,7 +73,9 @@ export async function verifyLiveWritesCommand(args: string[], paths: FrontPaths 
       finalState: {
         status: "archived",
         reminders: 0,
+        assigneeCleared: true,
         temporaryTagRemoved: true,
+        temporaryLinkRemoved: true,
         temporaryCommentRemoved: true,
         temporaryDraftDiscarded: true,
         identityCommentsRemain: true,
@@ -67,7 +86,8 @@ export async function verifyLiveWritesCommand(args: string[], paths: FrontPaths 
   }
 
   const routeVerification = await verifyAllWriteFixtures();
-  const bad = routeVerification.actions.filter((action) => !action.verified);
+  const liveActionSet = new Set<string>(SUPPORTED_LIVE_ACTIONS);
+  const bad = routeVerification.actions.filter((action) => liveActionSet.has(action.action) && !action.verified);
   if (bad.length) {
     throw new CliError(`Deployable write routes are not verified: ${bad.map((action) => action.action).join(", ")}`, 69);
   }
@@ -75,34 +95,118 @@ export async function verifyLiveWritesCommand(args: string[], paths: FrontPaths 
   const marker = `frontctl live verification ${new Date().toISOString()}`;
   const cleanupState = {
     addedTagId: undefined as string | undefined,
+    linkActivityId: undefined as string | undefined,
+    linkedTargetId: undefined as string | undefined,
     commentActivityIds: [] as string[],
     draftTargets: [] as Array<{ conversationId: string; messageUid: string }>,
   };
   const steps: Array<{ action: string; ok: boolean; result?: unknown }> = [];
 
+  const cleanupArgs = (reason: string) => ["--actor", actor, "--reason", reason, "--yes", "--json"];
   const cleanup = async () => {
     for (const target of cleanupState.draftTargets) {
       await draftCommand(["discard", target.conversationId, target.messageUid, "--yes", "--json"], paths).catch(() => undefined);
     }
     for (const activityId of cleanupState.commentActivityIds) {
-      await commentConversation(["remove", conversationId, activityId, "--yes", "--json"], paths).catch(() => undefined);
+      await commentConversation(["remove", conversationId, activityId, ...cleanupArgs("Live write verification cleanup: remove temporary comment")], paths).catch(() => undefined);
+    }
+    if (cleanupState.linkActivityId) {
+      await linkConversation(["remove", conversationId, cleanupState.linkActivityId, ...cleanupArgs("Live write verification cleanup: remove temporary link")], paths).catch(() => undefined);
     }
     if (cleanupState.addedTagId) {
-      await tagConversation(["remove", conversationId, cleanupState.addedTagId, "--yes", "--json"], paths).catch(() => undefined);
+      await tagConversation(["remove", conversationId, cleanupState.addedTagId, ...cleanupArgs("Live write verification cleanup: remove temporary tag")], paths).catch(() => undefined);
     }
-    await unsnoozeConversation([conversationId, "--yes", "--json"], paths).catch(() => undefined);
-    await archiveConversation([conversationId, "--yes", "--json"], paths).catch(() => undefined);
+    await unsnoozeConversation([conversationId, ...cleanupArgs("Live write verification cleanup: clear temporary snooze")], paths).catch(() => undefined);
+    await assignConversation(["unassign", conversationId, ...cleanupArgs("Live write verification cleanup: clear assignee")], paths).catch(() => undefined);
+    await archiveConversation([conversationId, ...cleanupArgs("Live write verification cleanup: archive test conversation")], paths).catch(() => undefined);
+    if (cleanupState.linkedTargetId) {
+      await archiveConversation([cleanupState.linkedTargetId, ...cleanupArgs("Live write verification cleanup: archive disposable link target")], paths).catch(() => undefined);
+    }
   };
 
   try {
     const before = await conversationState(conversationId, marker, paths, { includeContent: false });
     const tag = await pickTemporaryTag(before.tags, paths);
+    const liveContext = await liveVerificationContext(paths);
 
     await runStep(steps, "unarchive", () =>
       unarchiveConversation([conversationId, "--actor", actor, "--reason", "Live write verification restore before archive test", "--yes", "--json"], paths));
     await assertEventually("unarchive", async () => {
       const current = await conversationState(conversationId, marker, paths, { includeContent: false });
       return current.status !== "archived" && current.reminders.length === 0;
+    });
+
+    await runStep(steps, "assign", () =>
+      assignConversation([conversationId, liveContext.userId, "--actor", actor, "--reason", "Live write verification assign test", "--yes", "--json"], paths));
+    await assertEventually("assign", async () => {
+      const current = await conversationState(conversationId, marker, paths, { includeContent: false });
+      return current.assigneeId === liveContext.userId;
+    });
+
+    await runStep(steps, "unassign", () =>
+      assignConversation(["unassign", conversationId, "--actor", actor, "--reason", "Live write verification unassign cleanup", "--yes", "--json"], paths));
+    await assertEventually("unassign", async () => {
+      const current = await conversationState(conversationId, marker, paths, { includeContent: false });
+      return current.assigneeId === null || current.assigneeId === undefined;
+    });
+
+    if (liveContext.inboxId) {
+      await runStep(steps, "move", () =>
+        moveConversation([conversationId, liveContext.inboxId!, "--actor", actor, "--reason", "Live write verification move test", "--yes", "--json"], paths));
+      await assertEventually("move", async () => {
+        const current = await conversationState(conversationId, marker, paths, { includeContent: false });
+        return current.inboxIds.includes(liveContext.inboxId!);
+      });
+    }
+
+    await runStep(steps, "follower.add", () =>
+      followerConversation(["add", conversationId, liveContext.userId, "--actor", actor, "--reason", "Live write verification follower add test", "--yes", "--json"], paths));
+    await assertEventually("follower.add", async () => {
+      const current = await conversationState(conversationId, marker, paths, { includeContent: false });
+      return current.trackers.some((tracker) => tracker.teammateId === liveContext.userId);
+    });
+
+    await runExpectedFailureStep(steps, "follower.remove.self-guard", () =>
+      followerConversation(["remove", conversationId, liveContext.userId, "--actor", actor, "--reason", "Live write verification follower self-remove guard", "--yes", "--json"], paths),
+    /Refusing to remove the active Front user as a follower/);
+
+    const linkTarget = await runStep(steps, "conversation.create-test", () =>
+      createTestConversation([
+        "--subject",
+        `frontctl live verification link target ${new Date().toISOString()}`,
+        "--body",
+        "Disposable Front internal task created by frontctl live verification for link add/remove. Safe to archive.",
+        "--actor",
+        actor,
+        "--reason",
+        "Live write verification disposable link target",
+        "--yes",
+        "--json",
+      ], paths));
+    const linkTargetId = resultId(linkTarget, ["conversationId"]);
+    if (!linkTargetId) {
+      throw new CliError("conversation.create-test did not return a conversation id", 69);
+    }
+    cleanupState.linkedTargetId = linkTargetId;
+
+    const linkResult = await runStep(steps, "link.add", () =>
+      linkConversation(["add", conversationId, linkTargetId, "--actor", actor, "--reason", "Live write verification link add test", "--yes", "--json"], paths));
+    const linkActivityId = resultId(linkResult, ["activityId"]);
+    if (!linkActivityId) {
+      throw new CliError("link.add did not return an activity id", 69);
+    }
+    cleanupState.linkActivityId = linkActivityId;
+    await assertEventually("link.add", async () => {
+      const current = await conversationState(conversationId, marker, paths, { includeContent: false });
+      return current.linkedConversationCount > 0;
+    });
+
+    await runStep(steps, "link.remove", () =>
+      linkConversation(["remove", conversationId, linkActivityId, "--actor", actor, "--reason", "Live write verification link remove cleanup", "--yes", "--json"], paths));
+    cleanupState.linkActivityId = undefined;
+    await assertEventually("link.remove", async () => {
+      const current = await conversationState(conversationId, marker, paths, { includeContent: false });
+      return current.linkedConversationCount === 0;
     });
 
     await runStep(steps, "archive", () =>
@@ -244,6 +348,15 @@ export async function verifyLiveWritesCommand(args: string[], paths: FrontPaths 
       };
     }
 
+    if (cleanupState.linkedTargetId) {
+      await runStep(steps, "linked-target.archive", () =>
+        archiveConversation([cleanupState.linkedTargetId!, "--actor", actor, "--reason", "Live write verification cleanup: archive disposable link target", "--yes", "--json"], paths));
+      await assertEventually("linked-target.archive", async () => {
+        const current = await conversationState(cleanupState.linkedTargetId!, marker, paths, { includeContent: false });
+        return current.status === "archived";
+      });
+    }
+
     await runStep(steps, "final.archive", () =>
       archiveConversation([conversationId, "--actor", actor, "--reason", "Live write verification final cleanup", "--yes", "--json"], paths));
     await assertEventually("final.archive", async () => {
@@ -260,7 +373,8 @@ export async function verifyLiveWritesCommand(args: string[], paths: FrontPaths 
       conversationId,
       marker,
       actor,
-      verifiedActions: SUPPORTED_LIVE_ACTIONS,
+      supportedActions: SUPPORTED_LIVE_ACTIONS,
+      verifiedActions: steps.filter((step) => step.ok).map((step) => step.action),
       routeVerification: {
         scope: routeVerification.scope,
         allVerified: routeVerification.allVerified,
@@ -269,6 +383,7 @@ export async function verifyLiveWritesCommand(args: string[], paths: FrontPaths 
         blockedActions: routeVerification.blockedActions,
       },
       tagUsed: { id: tag.id, alias: tag.alias, name: tag.name },
+      linkedTargetConversationId: cleanupState.linkedTargetId,
       proof,
       visibleIdentityCommentsRemain: true,
       steps,
@@ -298,6 +413,32 @@ async function runStep(
   return result;
 }
 
+async function runExpectedFailureStep(
+  steps: Array<{ action: string; ok: boolean; result?: unknown }>,
+  action: string,
+  fn: () => Promise<unknown>,
+  expected: RegExp,
+) {
+  try {
+    await fn();
+  } catch (error) {
+    const message = String((error as Error).message ?? error);
+    if (!expected.test(message)) {
+      throw error;
+    }
+    steps.push({
+      action,
+      ok: true,
+      result: {
+        blocked: true,
+        error: message,
+      },
+    });
+    return;
+  }
+  throw new CliError(`${action} unexpectedly succeeded`, 69);
+}
+
 function summarizeStepResult(result: Record<string, unknown>) {
   const raw = (result.result && typeof result.result === "object") ? result.result as Record<string, unknown> : {};
   return {
@@ -307,7 +448,27 @@ function summarizeStepResult(result: Record<string, unknown>) {
     status: raw.status,
     id: raw.id,
     activityId: raw.activityId,
+    conversationId: raw.conversationId,
+    linkedConversationId: raw.linkedConversationId,
     messageUid: raw.messageUid,
+  };
+}
+
+async function liveVerificationContext(paths: FrontPaths) {
+  const boot = await getBoot(paths);
+  const user = isObject(boot.user) ? boot.user : {};
+  const userId = stringOrNumberField(user.id);
+  if (!userId) {
+    throw new CliError("Could not resolve active Front user id for live write verification.", 69);
+  }
+  const inboxes = Array.isArray(boot.inboxes) ? boot.inboxes as Array<Record<string, unknown>> : [];
+  const ownNamespace = `tea:${userId}`;
+  const inbox = inboxes.find((candidate) => String(candidate.namespace ?? "") === ownNamespace)
+    ?? inboxes.find((candidate) => candidate.is_private === true && stringOrNumberField(candidate.id))
+    ?? inboxes.find((candidate) => stringOrNumberField(candidate.id));
+  return {
+    userId,
+    inboxId: stringOrNumberField(inbox?.id),
   };
 }
 
@@ -354,11 +515,25 @@ async function conversationState(
       };
     })
     : [];
+  const trackers = Array.isArray(raw.trackers)
+    ? raw.trackers.map((tracker) => {
+      const item = tracker as Record<string, unknown>;
+      return {
+        teammateId: stringOrNumberField(item.teammate_id),
+        status: typeof item.status === "string" ? item.status : undefined,
+        stage: typeof item.stage === "string" ? item.stage : undefined,
+      };
+    })
+    : [];
   const drafts = content && Array.isArray(content.draft_messages) ? content.draft_messages : [];
   return {
     status: raw.status,
     reminders: Array.isArray(raw.reminders) ? raw.reminders : [],
     tags,
+    assigneeId: raw.assignee_id === null ? null : stringOrNumberField(raw.assignee_id),
+    inboxIds: Array.isArray(raw.inbox_ids) ? raw.inbox_ids.map((id) => String(id)) : [],
+    trackers,
+    linkedConversationCount: typeof raw.num_linked_conversations === "number" ? raw.num_linked_conversations : 0,
     hasDrafts: Boolean(raw.has_drafts) || drafts.length > 0,
     draftCount: drafts.length,
     containsMarker: text.includes(marker),
@@ -394,6 +569,10 @@ function summarizeState(state: LiveState) {
     status: state.status,
     reminders: state.reminders.length,
     tags: state.tags.map((tag) => tag.alias ?? tag.name ?? tag.id),
+    assigneeId: state.assigneeId,
+    inboxIds: state.inboxIds,
+    trackers: state.trackers,
+    linkedConversationCount: state.linkedConversationCount,
     hasDrafts: state.hasDrafts,
     draftCount: state.draftCount,
     containsMarker: state.containsMarker,
@@ -410,6 +589,14 @@ function resultId(result: unknown, keys: string[]) {
     }
   }
   return undefined;
+}
+
+function stringOrNumberField(value: unknown) {
+  return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isMissingReplySource(error: unknown) {

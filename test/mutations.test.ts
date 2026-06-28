@@ -388,6 +388,38 @@ test("moveConversation and follower add/remove execute through verified conversa
   });
 });
 
+test("followerConversation blocks active-user self remove before writing an identity comment", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-follower-self-remove");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const requests = await withMockedFrontRequests(async () => {
+    await assert.rejects(
+      () => followerConversation([
+        "remove",
+        "conversation-1",
+        "6088721",
+        "--actor",
+        "Codex",
+        "--reason",
+        "Follower self remove test",
+        "--yes",
+      ], paths),
+      /Refusing to remove the active Front user as a follower/,
+    );
+  }, (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/boot/app/8")) {
+      return { user: { id: 6088721, email: "arjun@example.com" } };
+    }
+    return { ok: true };
+  });
+
+  assert.deepEqual(
+    requests.map((request) => request.method),
+    ["GET"],
+  );
+});
+
 test("customFieldConversation previews observed custom_attributes patch but remains fixture-gated", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-custom-field");
 
