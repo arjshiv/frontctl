@@ -96,11 +96,16 @@ writing an identity comment; use `--allow-self-remove` only on a disposable conv
 user explicitly accepts possible access loss.
 When the user asks for proof on a real low-risk thread, run
 `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json`. It verifies archive/unarchive,
-assign/unassign, move, follower add, guarded active-user follower-remove refusal,
-card-scoped custom-field refusal, Front conversation link add/remove, snooze/unsnooze, tag add/remove,
-comment add/remove, and draft save/update/discard, then archives test conversations last. The normal mutation layer already leaves
-visible identity comments before state changes; add `--leave-proof-comment` only if the user
-explicitly wants an extra final proof comment.
+delete-to-trash/restore, assign/unassign, move, follower add, guarded active-user follower-remove
+refusal, card-scoped custom-field refusal, Front conversation link add/remove, snooze/unsnooze, tag
+add/remove, comment add/remove, and draft compose/update/discard, then archives test conversations
+last. The normal mutation layer already leaves visible identity comments before state changes; add
+`--leave-proof-comment` only if the user explicitly wants an extra final proof comment.
+When proving installed behavior, first create a disposable thread with
+`frontctl create-test-conversation --subject "frontctl live verification" --body "Disposable test thread" --actor ChatGPT --reason "Create test thread" --yes --json`,
+then pass the returned `result.conversationId` to `verify-live-writes`. This is not a dry run; it
+should report `source: live-private`, `publicApiUsed: false`, `sendsEmail: false`, and all route
+contracts verified.
 
 Browser route discovery:
 

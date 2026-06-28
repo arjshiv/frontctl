@@ -31,7 +31,11 @@ The first working loop exists:
 - browser session seeding from the short-lived `frontctl` session cache without repeated Keychain prompts
 - live browser-runtime write verification for archive/unarchive, snooze/unsnooze, move,
   follower-add/remove, Front conversation link add/remove, tag add/remove, comment add/remove,
-  card-scoped custom-field refusal, and reply draft/discard
+  card-scoped custom-field refusal, and draft compose/update/discard
+- installed-binary live verification against disposable Front test conversations, covering
+  archive/unarchive, delete/restore, assign/unassign, move, follower add, guarded active-user
+  follower-remove refusal, card-scoped custom-field refusal, link add/remove, snooze/unsnooze, tag
+  add/remove, comment add/remove, draft compose/update/discard, and final archived cleanup
 - local memory profiling for first-run preference learning
 - local daily workflows for triage, noise review, follow-up, tag hygiene, and ops/risk alerts
 - hard-blocked sending
@@ -192,6 +196,9 @@ A change is not deployable merely because it compiles. For this repo, deployable
 - `npm run release:verify:local` passes for the GitHub preview channel.
 - On a signed-in Front test machine, `script/verify_release_ready.sh --local --with-live-front`
   passes.
+- For mutation-route changes, an installed `frontctl` binary creates a disposable test conversation
+  and `frontctl discovery verify-live-writes CONVERSATION_ID --actor Codex --yes --json` passes
+  without public API use or sending.
 
 For UI/setup-app changes, also verify the user path in plain language:
 
@@ -251,6 +258,7 @@ npm run release:verify:strict
 - `macos/FrontctlSetup/Sources/FrontctlSetup/main.swift`: native setup app
 - `script/verify_release_ready.sh`: one-command release gate
 - `docs/product-packaging.md`: user/product packaging contract
+- `docs/api.md`: CLI/API contract and verified private route families
 - `docs/github-preview-release.md`: current self-distribution path
 
 ## When In Doubt
