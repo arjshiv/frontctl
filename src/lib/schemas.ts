@@ -257,6 +257,20 @@ export const draftForwardBodySchema = draftComposeBodySchema.extend({
   forward_modified: z.literal(false),
 });
 
+export const tagCreateBodySchema = z.object({
+  name: nonEmptyString,
+  immutable_alias: z.string().optional(),
+  description: z.string().optional(),
+  namespace: z.string().optional(),
+  parent_tag_id: frontId.optional(),
+  highlight: z.union([z.string(), z.null()]).optional(),
+  is_visible_in_p2: z.boolean().optional(),
+  all_inboxes: z.boolean().optional(),
+  inbox_ids: z.array(frontId).optional(),
+  is_sla_applies_tag: z.boolean().optional(),
+  type: z.string().optional(),
+}).strict();
+
 export const composeDraftPreviewBodySchema = z.object({
   body: z.string().min(1),
   draft: z.literal(true),
@@ -339,6 +353,8 @@ export function validateMutationPayload(action: string, body: unknown) {
         : (() => { throw new Error("Delete payload must set status deleted"); })();
     case "comment.add":
       return commentPublishBodySchema.parse(body);
+    case "tag.create":
+      return tagCreateBodySchema.parse(body);
     case "link.add":
       return conversationBatchLinkBodySchema.parse(body);
     case "link.remove":

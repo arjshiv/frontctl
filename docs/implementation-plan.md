@@ -346,7 +346,7 @@ The M0-M5 plan is complete for the current supported scope:
 - Optional Markdown querying: `frontctl mq check|install|query|example`.
 - Safe non-send mutations:
   `frontctl archive`, `snooze`, `move`, `follower add|remove`, `link add|remove`,
-  `tag add|remove`, `comment add`, `draft reply|compose|discard`.
+  `tag create|add|remove`, `comment add`, `draft reply|compose|forward|discard`.
 - `follower remove` can intentionally revoke the active user's read access when used on an
   unassigned/internal task conversation where that user is the only tracker; keep the conversation id
   and treat a later 403 as likely evidence that access was removed.
@@ -380,7 +380,15 @@ Custom-field follow-up:
 - Front's bundled runtime serializes conversation custom attributes as
   `custom_attributes.add: [{ custom_field_id, value }]` on the same private `PATCH /conversations`
   route used for other conversation updates.
-- Installed `frontctl` tested that shape on dedicated conversation `96868354641`; Front returned
-  `ok`, but live `read --full` still showed `customFieldAttributes.count: 0`.
+- Installed `frontctl` tested that shape on dedicated conversations `96868354641` and
+  `96869189969`; Front returned `ok`, but live raw reads still showed
+  `custom_field_attributes.length === 0`.
 - Keep `custom-field set` preview/capture-gated until a Front UI/runtime capture and live readback
   prove the field actually persists on this account.
+
+Tag creation follow-up:
+
+- Front's bundled runtime creates tags with `POST /tags`; installed `frontctl` live-tested
+  disposable tag `frontctl-test-delete-me-2026-06-28` and received created tag id `224924561`.
+- Tag add/remove was then verified against dedicated test conversation `96869189969`.
+- Tag deletion/archive is not implemented yet, so tests should use clearly disposable names.

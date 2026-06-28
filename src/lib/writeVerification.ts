@@ -50,6 +50,7 @@ const ACTION_ROUTE_KIND: Record<string, string> = {
   unsnooze: "conversation.update",
   "tag.add": "conversation.update",
   "tag.remove": "conversation.update",
+  "tag.create": "tag.create",
   "comment.add": "comment.add",
   "comment.remove": "comment.remove",
   snooze: "conversation.update",
@@ -69,6 +70,7 @@ const BUILT_IN_VERIFIED_ACTIONS = new Set([
   "snooze",
   "tag.add",
   "tag.remove",
+  "tag.create",
   "comment.add",
   "comment.remove",
   "draft.reply",
@@ -256,6 +258,17 @@ const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" |
       "Capture tag remove separately from tag add.",
     ],
   },
+  "tag.create": {
+    action: "tag.create",
+    safeFrontAction: "Create one clearly disposable workspace tag for Front verification.",
+    previewCommand: "frontctl tag create frontctl-test-delete-me --json",
+    captureName: "tag.create",
+    notes: [
+      "Do not create customer- or team-facing tags during capture.",
+      "Use a clearly disposable name such as frontctl-test-delete-me-YYYY-MM-DD.",
+      "Tag deletion is not implemented yet, so expect the created tag to remain until cleaned up manually in Front.",
+    ],
+  },
   "comment.add": {
     action: "comment.add",
     safeFrontAction: "Add one private internal comment such as 'frontctl discovery test' to a low-risk conversation.",
@@ -382,6 +395,12 @@ export const WRITE_ACTION_SPECS = [
     method: "PATCH",
     path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
     body: { conversations: [{ id: 123, tags: { remove: [456] } }] },
+  },
+  {
+    action: "tag.create",
+    method: "POST",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/tags",
+    body: { name: "frontctl-test-delete-me" },
   },
   {
     action: "conversation.create-test",

@@ -137,7 +137,7 @@ Live reads:
 
 Preview or capture-gated:
 
-- custom field set, tag creation
+- custom field set
 
 Executable non-send drafts:
 
@@ -146,6 +146,7 @@ Executable non-send drafts:
 Executable non-send test thread:
 
 - `create-test-conversation` creates a harmless internal task-style Front conversation through the same non-send comment route Front.app uses. Use it for archive, restore, snooze, tag, comment, and draft tests.
+- `tag create` creates a workspace tag through Front's private app route. Use disposable names for tests; tag deletion is not implemented yet.
 
 To capture a new safe route, start with:
 

@@ -362,7 +362,7 @@ export async function tagConversation(args: string[], paths: FrontPaths = defaul
       body: { name },
       details: {
         name,
-        note: "Workspace-level tag creation is preview-only until the private route is captured on this account.",
+        note: "Creates a workspace-level Front tag through the verified private tag route. Use disposable names for tests because tag deletion is not implemented yet.",
       },
       canExecute: false,
     }), paths });

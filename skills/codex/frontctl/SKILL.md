@@ -185,8 +185,8 @@ verification or a matching sanitized discovery fixture. `--dry-run` forces previ
 user explicitly asked for that exact state change and `canExecute` is true.
 `create-test-conversation` creates a harmless internal task-style test conversation through Front's
 non-send comment save/publish route when `canExecute` is true. Assign/unassign, move,
-follower add/remove, and Front conversation link add/remove are executable routes when `canExecute`
-is true. Custom-field and tag-create routes are capture-gated unless `canExecute` is true.
+follower add/remove, Front conversation link add/remove, and tag create are executable routes when
+`canExecute` is true. Custom-field routes are capture-gated unless `canExecute` is true.
 Standalone compose/create drafts, draft updates, and forward drafts are executable when `canExecute` is true.
 For `follower remove`, removing the active user can immediately revoke read access on an
 unassigned/internal task conversation; keep the conversation id and report a later 403 as likely

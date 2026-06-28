@@ -722,6 +722,24 @@ test("tagConversation dry-run supports add and remove", async () => {
   assert.equal(remove.canExecute, true);
 });
 
+test("tagConversation create executes through the verified private tag route", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-tag-create");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const request = await withMockedFrontRequest(async () => {
+    const result = await tagConversation(["create", "frontctl-test-delete-me", "--yes"], paths) as any;
+    assert.equal(result.mode, "execute");
+    assert.equal(result.action, "tag.create");
+    assert.equal(result.canExecute, true);
+    assert.equal(result.sendsEmail, false);
+    assert.equal(result.result.id, 224924561);
+  }, { id: 224924561, name: "frontctl-test-delete-me", updated_at: 1782660000000 });
+
+  assert.equal(request.method, "POST");
+  assert.match(request.url, /\/tags$/);
+  assert.deepEqual(request.body, { name: "frontctl-test-delete-me" });
+});
+
 test("tagConversation rejects ambiguous tag names instead of guessing", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-tag-ambiguous");
   await writeFile(
@@ -1351,7 +1369,7 @@ async function fakeMutationContext(name: string) {
   const auditPath = join(paths.supportPath, "audit.jsonl");
   process.env.FRONTCTL_AUDIT_PATH = auditPath;
   process.env.FRONTCTL_SESSION_PATH = join(paths.supportPath, "frontctl-session.json");
-  delete process.env.FRONTCTL_DISCOVERY_FIXTURES_PATH;
+  process.env.FRONTCTL_DISCOVERY_FIXTURES_PATH = join(paths.supportPath, "discovery-fixtures");
   delete process.env.FRONTCTL_REQUIRE_DISCOVERY_FIXTURES;
   delete process.env.FRONTCTL_NOW;
   return { paths, auditPath };

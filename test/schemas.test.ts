@@ -15,6 +15,7 @@ import {
   draftReplyBodySchema,
   frontConversationSchema,
   internalTaskCommentSaveBodySchema,
+  tagCreateBodySchema,
   validateMutationPayload,
 } from "../src/lib/schemas.js";
 
@@ -124,6 +125,13 @@ test("mutation schemas accept known safe Front write bodies", () => {
     format: "html",
     handle_time_increment: 0,
   })).forward_include, true);
+
+  assert.equal(tagCreateBodySchema.parse(validateMutationPayload("tag.create", {
+    name: "frontctl-test-delete-me",
+    description: "",
+    highlight: null,
+    is_visible_in_p2: false,
+  })).name, "frontctl-test-delete-me");
 
   assert.equal(internalTaskCommentSaveBodySchema.parse({
     linked_conversation_type: "internal_task",
