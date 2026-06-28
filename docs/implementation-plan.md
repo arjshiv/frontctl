@@ -377,18 +377,20 @@ Known non-goals for this plan:
 
 Custom-field follow-up:
 
-- Front's bundled runtime serializes conversation custom attributes as
-  `custom_attributes.add: [{ custom_field_id, value }]` on the same private `PATCH /conversations`
-  route used for other conversation updates.
-- Installed `frontctl` tested that shape on dedicated conversations `96868354641` and
-  `96869189969`; Front returned `ok`, but live raw reads still showed
-  `custom_field_attributes.length === 0`.
-- Keep `custom-field set` preview/capture-gated until a Front UI/runtime capture and live readback
-  prove the field actually persists on this account.
+- Front's bundled runtime has two custom-field paths. Conversation-scoped fields use
+  `custom_attributes.add` on `PATCH /conversations`, but the observed `PMS Admin` field is
+  `resource_type: "card"`.
+- Installed/browser-seeded `frontctl` confirmed `PATCH /conversations` returns `ok` without
+  persisting the card field. The browser runtime also confirmed the card path:
+  `GET /cards/:id` exposes `custom_field_attributes`, while `PUT /cards/:id` with
+  `custom_field_attributes` returned HTTP 403 for this session.
+- Keep `custom-field set` blocked for non-conversation fields. Do not promote card custom-field
+  writes until a harmless card-scoped route can execute and read back successfully.
 
 Tag creation follow-up:
 
 - Front's bundled runtime creates tags with `POST /tags`; installed `frontctl` live-tested
   disposable tag `frontctl-test-delete-me-2026-06-28` and received created tag id `224924561`.
 - Tag add/remove was then verified against dedicated test conversation `96869189969`.
-- Tag deletion/archive is not implemented yet, so tests should use clearly disposable names.
+- Tag deletion is implemented as `frontctl tag delete TAG_ID --yes`; use clearly disposable tag names
+  and numeric ids for cleanup.

@@ -415,6 +415,38 @@ test("customFieldConversation previews observed custom_attributes patch but rema
   assert.match(result.details.note, /fixture-gated/);
 });
 
+test("customFieldConversation blocks card-scoped fields instead of previewing a no-op conversation patch", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-custom-field-card");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  await withMockedFrontRequests(async () => {
+    await assert.rejects(
+      customFieldConversation([
+        "set",
+        "conversation-1",
+        "272081",
+        "true",
+      ], paths),
+      /scoped to Front card records/,
+    );
+  }, (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/boot/app/8")) {
+      return {
+        custom_fields: [
+          {
+            id: 272081,
+            name: "PMS Admin",
+            type: "boolean",
+            resource_type: "card",
+          },
+        ],
+      };
+    }
+    return {};
+  });
+});
+
 test("linkConversation add and remove execute through verified linked-conversation routes", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-link");
   await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);

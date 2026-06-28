@@ -21,9 +21,10 @@ The first working loop exists:
 - guarded assign/unassign, move, follower-add/remove, Front conversation link add/remove, and internal test-conversation routes
 - guarded workspace tag creation
 - preview/capture-gated custom-field routes
-- custom-field set builds Front's observed `custom_attributes.add` patch shape, but a live test on
-  an internal task returned `ok` without persisting `custom_field_attributes`; do not promote it to
-  built-in executable coverage until a UI/runtime capture plus live readback proves persistence
+- `custom-field set` must respect Front custom-field `resource_type`. The observed `PMS Admin`
+  field is scoped to `card`, not `conversation`; `PATCH /conversations` returns `ok` but does not
+  persist it, while the observed card route `PUT /cards/:id` returned HTTP 403 for this session.
+  Keep this write blocked until a card-scoped test route can be executed and read back.
 - browser/CDP discovery with explicit browser auth probing
 - browser session seeding from the short-lived `frontctl` session cache without repeated Keychain prompts
 - live browser-runtime write verification for archive/unarchive, snooze/unsnooze, move,

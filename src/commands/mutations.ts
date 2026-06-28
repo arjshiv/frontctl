@@ -29,6 +29,7 @@ type CustomFieldResolution = {
   input: string;
   name?: string;
   type?: string;
+  resourceType?: string;
 };
 
 export async function archiveConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
@@ -301,6 +302,13 @@ export async function customFieldConversation(args: string[], paths: FrontPaths 
     throw new CliError("Usage: frontctl custom-field set CONVERSATION_ID FIELD_NAME VALUE", 64);
   }
   const field = await resolveCustomFieldArgument(fieldName, paths);
+  if (field.resourceType && field.resourceType !== "conversation") {
+    throw new CliError(
+      `Custom field "${field.name ?? field.input}" is scoped to Front ${field.resourceType} records, not conversations. ` +
+      "This account's observed card custom-field route is PUT /cards/:id with custom_field_attributes, but live card updates returned HTTP 403, so frontctl keeps this write blocked.",
+      69,
+    );
+  }
   const value = normalizeCustomFieldValue(field, valueParts.join(" "));
   const routes = await getRoutes(paths);
   return runMutation({ args, spec: await verifiedSpec({
@@ -1436,10 +1444,27 @@ function numericTagId(resolution: { tag?: FrontTag; input: string; resolvedAlias
 }
 
 async function resolveCustomFieldArgument(input: string, paths: FrontPaths): Promise<CustomFieldResolution> {
+  const boot = await getBoot(paths).catch(() => undefined);
+  const customFields = boot ? customFieldCatalog(boot, input) : [];
   if (/^\d+$/.test(input)) {
-    return { id: Number(input), input };
+    const id = Number(input);
+    return customFields.find((field) => field.id === id) ?? { id, input };
   }
-  const boot = await getBoot(paths);
+  if (!boot) {
+    throw new CliError(`Could not resolve custom field "${input}" without live Front metadata. Run frontctl resources list custom-fields --json and use a numeric id.`, 69);
+  }
+  const normalizedInput = normalizeLookup(input);
+  const matches = customFields.filter((field) => normalizeLookup(field.name) === normalizedInput);
+  if (matches.length === 1) {
+    return { ...matches[0], input };
+  }
+  if (matches.length > 1) {
+    throw new CliError(`Custom field name is ambiguous: ${input}. Use the numeric field id.`, 64);
+  }
+  throw new CliError(`Could not resolve custom field "${input}". Run frontctl resources list custom-fields --json and use a listed id or exact name.`, 69);
+}
+
+function customFieldCatalog(boot: Record<string, unknown>, input: string): CustomFieldResolution[] {
   const customFields: CustomFieldResolution[] = [];
   for (const rawField of Array.isArray(boot.custom_fields) ? boot.custom_fields : []) {
     if (!isObject(rawField)) {
@@ -1454,17 +1479,10 @@ async function resolveCustomFieldArgument(input: string, paths: FrontPaths): Pro
       input,
       name: stringField(rawField.name),
       type: stringField(rawField.type),
+      resourceType: stringField(rawField.resource_type),
     });
   }
-  const normalizedInput = normalizeLookup(input);
-  const matches = customFields.filter((field) => normalizeLookup(field.name) === normalizedInput);
-  if (matches.length === 1) {
-    return { ...matches[0], input };
-  }
-  if (matches.length > 1) {
-    throw new CliError(`Custom field name is ambiguous: ${input}. Use the numeric field id.`, 64);
-  }
-  throw new CliError(`Could not resolve custom field "${input}". Run frontctl resources list custom-fields --json and use a listed id or exact name.`, 69);
+  return customFields;
 }
 
 function normalizeCustomFieldValue(field: CustomFieldResolution, rawValue: string) {
