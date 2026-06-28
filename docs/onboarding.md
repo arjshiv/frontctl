@@ -319,13 +319,14 @@ frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port
 
 Draft list/read are local read-only IndexedDB scans. Draft reply returns `result.messageUid` and
 `result.discardCommand` for deleting the saved draft. Standalone draft compose accepts optional
-`--to`, `--cc`, `--bcc`, and `--subject` fields for preview only until its private route is captured
-and implemented; it rejects `--yes`. Reply draft and discard commands default to preview and require
-explicit `--yes` before they can write through Front's private routes. Optional endpoint discovery must write sanitized fixtures only; do not share raw HAR
+`--to`, `--cc`, `--bcc`, and `--subject` fields and saves through Front's non-send draft route when
+`--yes` is explicitly approved. Reply draft, standalone compose, discard, and test-conversation
+commands default to preview and require explicit `--yes` before they can write through Front's
+private routes. Optional endpoint discovery must write sanitized fixtures only; do not share raw HAR
 files.
 `frontctl discovery verify-writes --json` reports the deployable v1 thread-action scope separately
-from preview-only commands. A ready install should show `allVerified: true`; standalone compose, if
-present, should appear in `blockedActions` until implemented.
+from preview-only commands. A ready install should show `allVerified: true` and an empty
+`blockedActions` list.
 `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` mutates one real low-risk
 conversation to prove those actions work live, then cleans up temporary tag/comment/draft artifacts
 and archives the conversation last. Normal state-changing commands already write a visible identity
@@ -342,7 +343,8 @@ can copy the existing reusable `frontctl` session into the selected browser tab 
 cookie values or touching Keychain. After the probe is authenticated, use
 `frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json`
 to prove archive/unarchive, snooze/unsnooze, tag add/remove, comment add/remove, and reply
-draft/discard from the browser runtime itself.
+draft/discard from the browser runtime itself. Move, follower-add, and Front conversation
+link add/remove use guarded private routes and should be proven on dedicated test conversations.
 Only with user approval, `frontctl discovery relaunch-front --remote-debugging-port 9222 --yes --json`
 quits and reopens Front with remote debugging enabled for browser/network capture. It checks the
 local draft cache first and requires `--allow-existing-drafts` if potential drafts are present.

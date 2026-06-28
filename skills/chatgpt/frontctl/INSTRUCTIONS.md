@@ -40,8 +40,12 @@ frontctl agents prompt --agent chatgpt --json
 frontctl inbox list --limit 20 --json
 frontctl triage inbox --limit 20 --json
 frontctl search "query" --json
+frontctl search ids "query" --limit 20 --json
 frontctl read CONVERSATION_ID --json
+frontctl read CONVERSATION_ID --full --json
 frontctl summarize CONVERSATION_ID --format plain
+frontctl resources list inboxes --json
+frontctl resources search "person or company" --json
 ```
 
 Live commands after `frontctl auth check --json` reports a valid session:
@@ -71,6 +75,11 @@ Mutation rule:
 
 Run a dry-run preview first. Use `--yes` only after the user explicitly approves the exact action.
 Drafting is allowed, but `frontctl send` is intentionally blocked.
+Archive/unarchive/delete-to-trash/restore/snooze/unsnooze, tag add/remove, comment add/remove,
+assign/unassign, move, follower add, Front conversation link add/remove, reply draft, standalone
+compose/create draft, draft discard, and `create-test-conversation` are the executable v1 action set
+when `canExecute` is true. Follower remove, custom-field, tag-create, and standalone update/forward
+drafts are capture-gated preview routes unless `canExecute` is true.
 When the user asks for proof on a real low-risk thread, run
 `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json`. The normal mutation layer
 already leaves visible identity comments before state changes; add `--leave-proof-comment` only if

@@ -80,10 +80,14 @@ frontctl inbox list --limit 20 --json
 frontctl inbox list --all --limit 50 --json
 frontctl triage inbox --limit 20 --json
 frontctl search "query" --json
+frontctl search ids "query" --limit 20 --json
 frontctl read CONVERSATION_ID --json
+frontctl read CONVERSATION_ID --full --json
 frontctl read CONVERSATION_ID --format markdown
 frontctl summarize CONVERSATION_ID --format plain
 frontctl attachments list CONVERSATION_ID --json
+frontctl resources list inboxes --json
+frontctl resources search "person or company" --json
 frontctl open CONVERSATION_ID --print-only --json
 frontctl open CONVERSATION_ID --web --print-only --json
 ```
@@ -140,17 +144,19 @@ Draft commands:
 frontctl draft list --limit 20 --json
 frontctl draft read DRAFT_ID --json
 frontctl draft reply CONVERSATION_ID --body-file reply.md --json
+frontctl draft update DRAFT_ID --body-file draft.md --json
+frontctl draft forward CONVERSATION_ID --to person@example.com --body-file note.md --json
 frontctl draft compose --to person@example.com --subject "Draft subject" --body-file draft.md --json
 frontctl draft discard DRAFT_ID --json
 frontctl draft discard CONVERSATION_ID MESSAGE_UID --json
 frontctl tag list --json
 ```
 
-`draft list/read` are read-only local IndexedDB scans. `draft reply/discard` do not send;
-standalone `draft compose` is preview-only until its private route is captured and implemented.
+`draft list/read` are read-only local IndexedDB scans. `draft reply`, `draft compose/create`, and
+`draft discard` do not send. Standalone compose/create saves through Front's non-send draft route
+and returns `result.conversationId`, `result.messageUid`, and `result.discardCommand`.
 Draft writes require preview plus explicit `--yes` and known non-send route verification.
-`draft reply` returns `result.messageUid` and `result.discardCommand`; use that discard command to
-delete the saved draft. Never call `frontctl send`.
+Use the returned discard command to delete the saved draft. Never call `frontctl send`.
 
 Guarded mutation pattern:
 
@@ -158,11 +164,15 @@ Guarded mutation pattern:
 frontctl --dry-run archive CONVERSATION_ID --yes --json
 frontctl archive CONVERSATION_ID --actor Codex --reason "User approved archiving this low-priority thread" --json
 frontctl unarchive CONVERSATION_ID --actor Codex --reason "User approved restore after archive" --yes --json
+frontctl delete CONVERSATION_ID --actor Codex --reason "User approved moving this test thread to trash" --json
+frontctl restore CONVERSATION_ID --actor Codex --reason "User approved restoring this test thread" --json
 frontctl snooze CONVERSATION_ID tomorrow-9am --actor Codex --reason "User approved follow-up tomorrow" --json
 frontctl tag list --json
 frontctl tag add CONVERSATION_ID "Needs Reply" --json
 frontctl comment add CONVERSATION_ID --body "..." --json
 frontctl comment add CONVERSATION_ID --body-file note.md --json
+frontctl batch archive --ids-file ids.txt --actor Codex --reason "User approved these archive candidates" --json
+frontctl create-test-conversation --subject "frontctl test conversation" --body "Safe local integration test" --json
 frontctl audit list --conversation CONVERSATION_ID --json
 ```
 
@@ -170,6 +180,12 @@ Mutation execution requires `--yes`, an unlocked local session, and known non-se
 verification or a matching sanitized discovery fixture. `--dry-run` forces preview mode even when
 `--yes` is present. Drafting previews are allowed; sending is not. Do not use `--yes` unless the
 user explicitly asked for that exact state change and `canExecute` is true.
+`create-test-conversation` creates a harmless internal task-style test conversation through Front's
+non-send comment save/publish route when `canExecute` is true. Assign/unassign, move, follower add,
+and Front conversation link add/remove are executable routes when `canExecute` is true. Follower
+remove, custom-field, tag-create, and standalone update/forward draft routes are capture-gated
+unless `canExecute` is true. Standalone compose/create drafts are executable when `canExecute` is
+true.
 When taking an action, pass `--actor Codex` and a concise `--reason "..."`. For every executable
 conversation state change, frontctl itself writes a visible identity comment before the action and
 then applies the requested action last. Do not manually add a separate identity comment. Only run

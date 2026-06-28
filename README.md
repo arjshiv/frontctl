@@ -9,8 +9,11 @@ Apple Mail, or a browser. `frontctl` fills that gap without using the public Fro
 **What it can do**
 
 - Read, search, summarize, and triage Front conversations.
-- Archive, unarchive, snooze, unsnooze, tag, and comment on threads.
-- Draft replies and discard drafts.
+- Read full conversation context, attachment metadata, inboxes, followers, and resource hints.
+- Archive, unarchive, delete-to-trash, restore, snooze, unsnooze, tag, and comment on threads.
+- Draft replies, compose/create drafts, discard drafts, and preview update/forward draft shapes without sending.
+- Look up Front resources such as inboxes, channels, teammates, teams, tags, signatures, and custom fields.
+- Run sequential batch reads, archives, and tag changes while preserving the comment-first mutation rule.
 - Learn local triage preferences from recent Front usage.
 - Install Codex and Claude skills, plus ChatGPT-ready instructions.
 
@@ -59,6 +62,9 @@ frontctl triage inbox --json
 frontctl search "customer name" --json
 frontctl read CONVERSATION_ID --format markdown
 frontctl summarize CONVERSATION_ID --format plain
+frontctl read CONVERSATION_ID --full --json
+frontctl resources list inboxes --json
+frontctl resources search "person or company" --json
 ```
 
 For normal use, read from the live private session. If live reads are locked and browser cookies are
@@ -91,10 +97,13 @@ Preview state-changing actions first:
 
 ```bash
 frontctl archive CONVERSATION_ID --reason "Low-priority thread" --json
+frontctl delete CONVERSATION_ID --reason "Move harmless test thread to trash" --json
+frontctl restore CONVERSATION_ID --reason "Restore harmless test thread" --json
 frontctl snooze CONVERSATION_ID tomorrow-9am --json
 frontctl tag add CONVERSATION_ID TAG_ID_OR_NAME --json
 frontctl comment add CONVERSATION_ID --body "Internal note" --json
 frontctl draft reply CONVERSATION_ID --body-file reply.md --json
+frontctl batch archive --ids-file ids.txt --reason "User approved these archive candidates" --json
 ```
 
 Execute only after review:
@@ -110,6 +119,41 @@ the mutation does not run. If the final action fails after the comment is writte
 the Front comment UID/activity ID so the user can inspect the visible trail and decide what to do.
 
 `frontctl send` is always blocked.
+
+## Current Capability Surface
+
+Live-proven, executable after preview plus `--yes`:
+
+- archive, unarchive, delete-to-trash, restore, snooze, unsnooze
+- assign/unassign, move inbox, follower add, Front conversation link add/remove, tag add/remove, comment add/remove
+- reply draft save and draft discard
+
+Live reads:
+
+- inbox list, search, read, summarize, triage
+- `read --full` for conversation detail, timeline, content, events, inboxes, and followers
+- attachment list and session-backed attachment download
+- resource list/search for inboxes, channels, teammates, teams, tags, signatures, custom fields, and search hints
+
+Preview or capture-gated:
+
+- follower remove, custom field set
+- tag creation, standalone draft update/forward
+
+Executable non-send drafts:
+
+- `draft reply`, `draft compose`, and `draft create` save drafts only and return a discard command. `frontctl send` remains blocked.
+
+Executable non-send test thread:
+
+- `create-test-conversation` creates a harmless internal task-style Front conversation through the same non-send comment route Front.app uses. Use it for archive, restore, snooze, tag, comment, and draft tests.
+
+To capture a new safe route, start with:
+
+```bash
+frontctl discovery guide assign --json
+frontctl discovery guide move --json
+```
 
 ## For Agents
 
@@ -146,7 +190,9 @@ flowchart TD
   cache["Local SQLite cache<br/>~/.frontctl/frontctl.sqlite"]
   memory["Local preference memory"]
   read["Read / search / summarize"]
-  write["Archive / snooze / tag / comment / draft"]
+  resources["Resources / full conversation context"]
+  test["Preview-only test conversation setup"]
+  write["Archive / snooze / tag / comment / draft / trash"]
   safety["Dry-run, --yes, audit log,<br/>verified non-send routes"]
   blocked["Send blocked"]
 
@@ -165,6 +211,8 @@ flowchart TD
   cli --> session
   session --> live
   live --> read
+  live --> resources
+  live --> test
   live --> write
   live --> cache
   cache --> read

@@ -121,7 +121,8 @@ Implemented:
 - `frontctl discovery guide [ACTION]` provides action-specific safe Front actions, preview
   commands, capture commands, and verification status.
 - `frontctl discovery verify-writes --json` reports deployable v1 write coverage for thread
-  actions, with preview-only standalone compose listed separately under `blockedActions`.
+  actions, move/follower-add, non-send drafts, and internal test-conversation creation with an empty
+  `blockedActions` list.
 - `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` runs the deployable write
   set against one real conversation, verifies state after each mutation, cleans up temporary
   artifacts, and archives the conversation last.
@@ -143,8 +144,8 @@ Optional maintenance path:
 
 - The built-in known route contract covers the supported non-send write routes for the observed
   Front 3.73.0 local app. If a future Front version changes route or payload shape, recapture and
-  install sanitized write fixtures for archive, snooze, tag add/remove, comment add, and
-  draft create/update/discard.
+  install sanitized write fixtures for archive, snooze, move, follower add, tag add/remove,
+  comment add, and draft create/update/discard.
 - Use strict fixture mode only when validating a new local Front version against freshly captured
   fixtures.
 
@@ -227,8 +228,10 @@ Implemented behind non-send route gates:
   non-send route verification or a matching sanitized fixture.
 - `frontctl draft reply CONVERSATION_ID --body-file reply.md` dry-run preview; `--yes` requires
   known non-send route verification or a matching sanitized fixture.
-- `frontctl draft compose --to EMAIL --subject "..." --body "..."` preview-only until the
-  standalone compose route is captured and implemented; it never sends.
+- `frontctl draft compose --to EMAIL --subject "..." --body "..."` dry-run preview; `--yes` saves a
+  standalone draft through Front's non-send draft route and returns a discard command.
+- `frontctl create-test-conversation --subject "..." --body "..."` dry-run preview; `--yes` creates a
+  harmless internal task-style conversation for live write testing.
 - `frontctl draft list --limit N` local IndexedDB draft scan.
 - `frontctl draft read DRAFT_ID` local IndexedDB draft read.
 - `frontctl draft discard DRAFT_ID` resolves cached draft message UIDs and can become executable
@@ -339,7 +342,8 @@ The M0-M5 plan is complete for the current supported scope:
   `frontctl triage inbox`, plus `--format markdown|plain` on read/search/list/summary commands.
 - Optional Markdown querying: `frontctl mq check|install|query|example`.
 - Safe non-send mutations:
-  `frontctl archive`, `snooze`, `tag add|remove`, `comment add`, `draft reply|compose|discard`.
+  `frontctl archive`, `snooze`, `move`, `follower add`, `link add|remove`,
+  `tag add|remove`, `comment add`, `draft reply|compose|discard`.
 - Mutation safety: dry-run by default, `--yes` required for execution, route verification required,
   audit records are redacted, and `frontctl send` is hard blocked.
 - Local agent installation: `frontctl setup --agent all --yes --json` and
@@ -364,3 +368,13 @@ Known non-goals for this plan:
 - Using the public Front API.
 - Guessing new private mutation routes without local route evidence, sanitized fixtures, and tests.
 - Storing raw cookie values, auth headers, signed attachment URLs, or raw network captures.
+
+Custom-field follow-up:
+
+- Front's bundled runtime serializes conversation custom attributes as
+  `custom_attributes.add: [{ custom_field_id, value }]` on the same private `PATCH /conversations`
+  route used for other conversation updates.
+- Installed `frontctl` tested that shape on dedicated conversation `96868354641`; Front returned
+  `ok`, but live `read --full` still showed `customFieldAttributes.count: 0`.
+- Keep `custom-field set` preview/capture-gated until a Front UI/runtime capture and live readback
+  prove the field actually persists on this account.

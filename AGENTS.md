@@ -16,12 +16,17 @@ The first working loop exists:
 - Chrome/Edge/default-browser session unlock, with optional agentcookie cookie-source support
 - non-prompting `auth check` and `readiness`
 - cached and live private-session inbox reads
-- search, read, summarize, triage, attachment metadata, tags, drafts, and local SQLite/FTS cache
-- guarded archive, snooze, tag, comment, draft, and discard flows
+- search, read, full conversation reads, summarize, triage, attachment metadata/downloads, resources, tags, drafts, and local SQLite/FTS cache
+- guarded archive, unarchive, delete-to-trash, restore, snooze, unsnooze, tag, comment, reply draft, compose draft, and discard flows
+- guarded assign/unassign, move, follower-add, Front conversation link add/remove, and internal test-conversation routes
+- preview/capture-gated follower-remove, custom-field, tag-create, and update/forward draft routes
+- custom-field set builds Front's observed `custom_attributes.add` patch shape, but a live test on
+  an internal task returned `ok` without persisting `custom_field_attributes`; do not promote it to
+  built-in executable coverage until a UI/runtime capture plus live readback proves persistence
 - browser/CDP discovery with explicit browser auth probing
 - browser session seeding from the short-lived `frontctl` session cache without repeated Keychain prompts
-- live browser-runtime write verification for archive/unarchive, snooze/unsnooze, tag add/remove,
-  comment add/remove, and reply draft/discard
+- live browser-runtime write verification for archive/unarchive, snooze/unsnooze, move,
+  follower-add, Front conversation link add/remove, tag add/remove, comment add/remove, and reply draft/discard
 - local memory profiling for first-run preference learning
 - local daily workflows for triage, noise review, follow-up, tag hygiene, and ops/risk alerts
 - hard-blocked sending
@@ -79,6 +84,7 @@ is to avoid that class of setup.
 - Do not force-refresh browser cookies unless the user explicitly needs it. Reuse the frontctl
   session cache whenever it is valid.
 - Do not execute mutations without explicit user approval and a verified non-send route contract.
+- Do not execute preview-only/capture-gated routes just because their payload shape looks plausible.
 - Keep support bundles redacted.
 - Keep agent output machine-readable with `--json` where possible.
 
@@ -100,6 +106,10 @@ source of truth.
 
 Reading, summarizing, searching, triaging, tagging, commenting, archiving, snoozing, and drafting are
 useful enough. Sending is a different risk tier. Do not blur that line.
+
+Use `frontctl create-test-conversation --subject "..." --body "..." --yes --json` to create a
+harmless internal task-style test thread for live write verification. It uses Front's non-send
+comment save/publish route and must never be implemented as outbound email compose.
 
 When an agent takes an action, pass `--actor NAME` and `--reason "..."`. The CLI must write a
 visible Front identity comment before any executable conversation state change, then apply the
