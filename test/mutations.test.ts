@@ -8,6 +8,8 @@ import {
   commentConversation,
   createTestConversation,
   draftCommand,
+  followerConversation,
+  moveConversation,
   snoozeConversation,
   tagConversation,
   unarchiveConversation,
@@ -276,6 +278,74 @@ test("assignConversation executes assign and unassign through the verified conve
   );
   assert.deepEqual(unassignRequests.filter((request) => request.method !== "GET")[2].body, {
     conversations: [{ id: "conversation-1", assignee_id: null }],
+  });
+});
+
+test("moveConversation and follower add execute through verified conversation patches", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-move-follower");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const moveRequests = await withMockedFrontRequests(async () => {
+    const result = await moveConversation([
+      "conversation-1",
+      "7946577",
+      "--actor",
+      "Codex",
+      "--reason",
+      "Move test conversation",
+      "--yes",
+    ], paths) as any;
+
+    assert.equal(result.action, "move");
+    assert.equal(result.canExecute, true);
+    assert.equal(result.identity.timing, "before-action");
+    assert.deepEqual(result.request.body, { conversations: [{ id: "conversation-1", inbox_id: 7946577 }] });
+  }, { ok: true, id: "activity-move" });
+
+  assertIdentityCommentBeforeFinalWrite(
+    moveRequests.filter((request) => request.method !== "GET"),
+    "move",
+    "PATCH",
+    /\/conversations$/,
+  );
+  assert.deepEqual(moveRequests.filter((request) => request.method !== "GET")[2].body, {
+    conversations: [{ id: "conversation-1", inbox_id: 7946577 }],
+  });
+
+  const followerRequests = await withMockedFrontRequests(async () => {
+    const result = await followerConversation([
+      "add",
+      "conversation-1",
+      "6088721",
+      "--actor",
+      "Codex",
+      "--reason",
+      "Follower add test",
+      "--yes",
+    ], paths) as any;
+
+    assert.equal(result.action, "follower.add");
+    assert.equal(result.canExecute, true);
+    assert.equal(result.identity.timing, "before-action");
+    assert.deepEqual(result.request.body, {
+      conversations: [{
+        id: "conversation-1",
+        trackers: { add: [{ teammate_id: 6088721, status: "inbox", stage: "follower" }] },
+      }],
+    });
+  }, { ok: true, id: "activity-follower" });
+
+  assertIdentityCommentBeforeFinalWrite(
+    followerRequests.filter((request) => request.method !== "GET"),
+    "follower.add",
+    "PATCH",
+    /\/conversations$/,
+  );
+  assert.deepEqual(followerRequests.filter((request) => request.method !== "GET")[2].body, {
+    conversations: [{
+      id: "conversation-1",
+      trackers: { add: [{ teammate_id: 6088721, status: "inbox", stage: "follower" }] },
+    }],
   });
 });
 

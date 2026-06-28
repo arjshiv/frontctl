@@ -124,6 +124,22 @@ const conversationPatchItemSchema = z.object({
   assignee_id: z.union([frontId, z.null()]).optional(),
   inbox_id: frontId.optional(),
   reminder: z.union([z.number().finite(), z.null()]).optional(),
+  trackers: z.object({
+    add: z.array(z.object({
+      teammate_id: frontId.optional(),
+      teammate_email: z.string().min(1).optional(),
+      status: z.string().optional(),
+      stage: z.string().optional(),
+      bump: z.boolean().optional(),
+      bumped_at: z.number().finite().optional(),
+      reminder: z.union([z.number().finite(), z.null()]).optional(),
+    }).strict().refine((tracker) => tracker.teammate_id !== undefined || tracker.teammate_email !== undefined, {
+      message: "Tracker add requires teammate_id or teammate_email",
+    })).optional(),
+    remove: z.array(z.object({
+      teammate_id: frontId,
+    }).strict()).optional(),
+  }).strict().optional(),
   tags: z.object({
     add: z.array(z.number().finite()).optional(),
     remove: z.array(z.number().finite()).optional(),
@@ -290,6 +306,8 @@ export function validateMutationPayload(action: string, body: unknown) {
     case "assign":
     case "unassign":
     case "move":
+    case "follower.add":
+    case "follower.remove":
       return conversationPatchBodySchema.parse(body).conversations.every((conversation) => allowedConversationStatus(action, conversation.status))
         ? conversationPatchBodySchema.parse(body)
         : (() => { throw new Error(`Invalid conversation status for ${action}`); })();

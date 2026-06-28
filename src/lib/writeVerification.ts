@@ -42,8 +42,8 @@ const ACTION_ROUTE_KIND: Record<string, string> = {
   assign: "conversation.update",
   unassign: "conversation.update",
   move: "conversation.update",
-  "follower.add": "conversation.followers",
-  "follower.remove": "conversation.followers",
+  "follower.add": "conversation.update",
+  "follower.remove": "conversation.update",
   "link.add": "conversation.links",
   "link.remove": "conversation.links",
   "custom-field.set": "conversation.custom-fields",
@@ -75,6 +75,8 @@ const BUILT_IN_VERIFIED_ACTIONS = new Set([
   "conversation.create-test",
   "assign",
   "unassign",
+  "move",
+  "follower.add",
 ]);
 
 const BLOCKED_PREVIEW_ONLY_ACTIONS = new Set<string>();
@@ -141,6 +143,27 @@ const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" |
     notes: [
       "Use the same dedicated test conversation after an assign test.",
       "Capture unassign separately from assign.",
+    ],
+  },
+  move: {
+    action: "move",
+    safeFrontAction: "Move one harmless test conversation into an explicitly chosen inbox.",
+    previewCommand: "frontctl move CONVERSATION_ID INBOX_ID --json",
+    captureName: "move",
+    notes: [
+      "Use only a dedicated test conversation.",
+      "Prefer moving to your own personal inbox for live verification.",
+    ],
+  },
+  "follower.add": {
+    action: "follower.add",
+    safeFrontAction: "Add yourself as a tracker/follower on one harmless test conversation.",
+    previewCommand: "frontctl follower add CONVERSATION_ID TEAMMATE_ID --json",
+    captureName: "follower.add",
+    notes: [
+      "Use only a dedicated test conversation.",
+      "Prefer your own teammate id to avoid notifying another person.",
+      "Follower removal is not deployable until it is separately verified on a safe non-owner tracker.",
     ],
   },
   unsnooze: {
@@ -309,6 +332,18 @@ export const WRITE_ACTION_SPECS = [
     method: "PATCH",
     path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
     body: { conversations: [{ id: 123, assignee_id: null }] },
+  },
+  {
+    action: "move",
+    method: "PATCH",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
+    body: { conversations: [{ id: 123, inbox_id: 456 }] },
+  },
+  {
+    action: "follower.add",
+    method: "PATCH",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
+    body: { conversations: [{ id: 123, trackers: { add: [{ teammate_id: 456, status: "inbox", stage: "follower" }] } }] },
   },
   {
     action: "comment.add",

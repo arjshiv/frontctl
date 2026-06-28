@@ -221,15 +221,21 @@ export async function followerConversation(args: string[], paths: FrontPaths = d
     throw new CliError("Usage: frontctl follower add|remove CONVERSATION_ID TEAMMATE_ID_OR_EMAIL", 64);
   }
   const routes = await getRoutes(paths);
+  const teammate = numericOrString(teammateId);
+  const trackerPatch = operation === "add"
+    ? { trackers: { add: [{ teammate_id: teammate, status: "inbox", stage: "follower" }] } }
+    : { trackers: { remove: [{ teammate_id: teammate }] } };
   return runMutation({ args, spec: await verifiedSpec({
     action: `follower.${operation}`,
     conversationId: id,
-    method: operation === "add" ? "POST" : "DELETE",
-    url: routes.conversationFollowers(id),
-    body: { teammate_ids: [numericOrString(teammateId)] },
+    method: "PATCH",
+    url: routes.conversations,
+    body: conversationPatchBody(id, trackerPatch),
     details: {
       teammateId,
-      note: "Private Front follower route is previewed until captured on this account.",
+      note: operation === "add"
+        ? "Adds a Front tracker/subscriber through the verified private conversation update route."
+        : "Removes a Front tracker/subscriber through the verified private conversation update route.",
     },
     canExecute: false,
   }), paths });
