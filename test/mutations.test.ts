@@ -7,6 +7,7 @@ import {
   archiveConversation,
   commentConversation,
   createTestConversation,
+  deleteConversation,
   customFieldConversation,
   draftCommand,
   followerConversation,
@@ -16,6 +17,7 @@ import {
   tagConversation,
   unarchiveConversation,
   unsnoozeConversation,
+  restoreConversation,
 } from "../src/commands/mutations.js";
 import { makeFakeFrontInstall, makeTempDir, writeFakeFrontSession } from "./helpers.js";
 
@@ -222,6 +224,58 @@ test("unarchiveConversation restores a conversation through the observed status 
   assert.equal(request.method, "PATCH");
   assert.match(request.url, /\/conversations$/);
   assert.deepEqual(request.body, { conversations: [{ id: "conversation-1", status: "open" }] });
+});
+
+test("deleteConversation moves a conversation to trash through the observed tracker status route", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-delete");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const requests = await withMockedFrontRequests(async () => {
+    const result = await deleteConversation([
+      "conversation-1",
+      "--actor",
+      "Codex",
+      "--reason",
+      "Move disposable test conversation to trash",
+      "--yes",
+    ], paths) as any;
+
+    assert.equal(result.action, "delete");
+    assert.equal(result.mode, "execute");
+    assert.equal(result.canExecute, true);
+    assert.equal(result.details.status, "trashed");
+    assert.deepEqual(result.request.body, trackerStatusBody("conversation-1", 6088721, "trashed"));
+  }, mutationResponseWithBoot);
+
+  const writes = requests.filter((request) => request.method !== "GET");
+  assertIdentityCommentBeforeFinalWrite(writes, "delete", "PATCH", /\/conversations$/);
+  assert.deepEqual(writes[2].body, trackerStatusBody("conversation-1", 6088721, "trashed"));
+});
+
+test("restoreConversation restores a trashed conversation through the observed tracker status route", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-restore");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const requests = await withMockedFrontRequests(async () => {
+    const result = await restoreConversation([
+      "conversation-1",
+      "--actor",
+      "Codex",
+      "--reason",
+      "Restore disposable test conversation from trash",
+      "--yes",
+    ], paths) as any;
+
+    assert.equal(result.action, "restore");
+    assert.equal(result.mode, "execute");
+    assert.equal(result.canExecute, true);
+    assert.equal(result.details.status, "inbox");
+    assert.deepEqual(result.request.body, trackerStatusBody("conversation-1", 6088721, "inbox"));
+  }, mutationResponseWithBoot);
+
+  const writes = requests.filter((request) => request.method !== "GET");
+  assertIdentityCommentBeforeFinalWrite(writes, "restore", "PATCH", /\/conversations$/);
+  assert.deepEqual(writes[2].body, trackerStatusBody("conversation-1", 6088721, "inbox"));
 });
 
 test("assignConversation executes assign and unassign through the verified conversation patch route", async () => {
@@ -1557,6 +1611,35 @@ function draftReplyMockResponse(input: string | URL | Request) {
     };
   }
   return { ok: true };
+}
+
+function mutationResponseWithBoot(input: string | URL | Request) {
+  const url = String(input);
+  if (url.includes("/boot/app/8")) {
+    return {
+      user: {
+        id: 6088721,
+        email: "arjun@example.com",
+      },
+    };
+  }
+  return { ok: true, id: "activity-1" };
+}
+
+function trackerStatusBody(conversationId: string, teammateId: number, status: "trashed" | "inbox") {
+  return {
+    conversations: [{
+      id: conversationId,
+      trackers: { add: [{ status, bump: true, teammate_id: teammateId }] },
+      tags: {},
+      pinnedActivities: {},
+      topics: {},
+      custom_attributes: {},
+      timeline: {},
+      macros: {},
+      bulk_reply: {},
+    }],
+  };
 }
 
 async function withMockedFrontRequest(

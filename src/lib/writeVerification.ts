@@ -65,6 +65,8 @@ const ACTION_ROUTE_KIND: Record<string, string> = {
 const BUILT_IN_VERIFIED_ACTIONS = new Set([
   "archive",
   "unarchive",
+  "delete",
+  "restore",
   "unsnooze",
   "snooze",
   "tag.add",
@@ -88,10 +90,7 @@ const BUILT_IN_VERIFIED_ACTIONS = new Set([
   "link.remove",
 ]);
 
-const BLOCKED_PREVIEW_ONLY_ACTIONS = new Set<string>([
-  "delete",
-  "restore",
-]);
+const BLOCKED_PREVIEW_ONLY_ACTIONS = new Set<string>();
 
 const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" | "expectedRouteKind" | "fixturePath" | "captureCommand" | "verifyCommand">> = {
   archive: {
@@ -384,13 +383,37 @@ export const WRITE_ACTION_SPECS = [
     action: "delete",
     method: "PATCH",
     path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
-    body: { conversations: [{ id: 123, status: "deleted" }] },
+    body: {
+      conversations: [{
+        id: 123,
+        trackers: { add: [{ status: "trashed", bump: true, teammate_id: 456 }] },
+        tags: {},
+        pinnedActivities: {},
+        topics: {},
+        custom_attributes: {},
+        timeline: {},
+        macros: {},
+        bulk_reply: {},
+      }],
+    },
   },
   {
     action: "restore",
     method: "PATCH",
     path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
-    body: { conversations: [{ id: 123, status: "open" }] },
+    body: {
+      conversations: [{
+        id: 123,
+        trackers: { add: [{ status: "inbox", bump: true, teammate_id: 456 }] },
+        tags: {},
+        pinnedActivities: {},
+        topics: {},
+        custom_attributes: {},
+        timeline: {},
+        macros: {},
+        bulk_reply: {},
+      }],
+    },
   },
   {
     action: "unsnooze",

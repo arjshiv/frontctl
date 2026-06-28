@@ -42,6 +42,32 @@ test("mutation schemas accept known safe Front write bodies", () => {
   assert.equal(conversationPatchBodySchema.parse(validateMutationPayload("custom-field.set", {
     conversations: [{ id: 123, custom_attributes: { add: [{ custom_field_id: 456, value: "true" }] } }],
   })).conversations[0]?.custom_attributes?.add?.[0]?.custom_field_id, 456);
+  assert.equal(conversationPatchBodySchema.parse(validateMutationPayload("delete", {
+    conversations: [{
+      id: 123,
+      trackers: { add: [{ teammate_id: 456, status: "trashed", bump: true }] },
+      tags: {},
+      pinnedActivities: {},
+      topics: {},
+      custom_attributes: {},
+      timeline: {},
+      macros: {},
+      bulk_reply: {},
+    }],
+  })).conversations[0]?.trackers?.add?.[0]?.status, "trashed");
+  assert.equal(conversationPatchBodySchema.parse(validateMutationPayload("restore", {
+    conversations: [{
+      id: 123,
+      trackers: { add: [{ teammate_id: 456, status: "inbox", bump: true }] },
+      tags: {},
+      pinnedActivities: {},
+      topics: {},
+      custom_attributes: {},
+      timeline: {},
+      macros: {},
+      bulk_reply: {},
+    }],
+  })).conversations[0]?.trackers?.add?.[0]?.status, "inbox");
   assert.equal(conversationBatchLinkBodySchema.parse(validateMutationPayload("link.add", {
     conversation_ids: [456],
     options: { original_conversation_id: 123 },
@@ -143,6 +169,12 @@ test("mutation schemas accept known safe Front write bodies", () => {
 test("mutation schemas reject unsafe or drifted write bodies", () => {
   assert.throws(() => validateMutationPayload("archive", {
     conversations: [{ id: 123, status: "deleted" }],
+  }));
+  assert.throws(() => validateMutationPayload("delete", {
+    conversations: [{ id: 123, status: "deleted" }],
+  }));
+  assert.throws(() => validateMutationPayload("restore", {
+    conversations: [{ id: 123, status: "open" }],
   }));
   assert.throws(() => validateMutationPayload("comment.add", {
     type: "message",

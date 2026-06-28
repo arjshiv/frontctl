@@ -80,14 +80,15 @@ export async function deleteConversation(args: string[], paths: FrontPaths = def
     throw new CliError("Missing conversation id", 64);
   }
   const routes = await getRoutes(paths);
+  const teammateId = await teammateIdForTrackerMutation(args, paths);
   return runMutation({ args, spec: await verifiedSpec({
     action: "delete",
     conversationId: id,
     method: "PATCH",
     url: routes.conversations,
-    body: conversationPatchBody(id, { status: "deleted" }),
+    body: conversationTrackerStatusBody(id, teammateId, "trashed"),
     details: {
-      status: "deleted",
+      status: "trashed",
       note: "Moves the conversation to Front trash; this is not permanent delete.",
     },
     canExecute: false,
@@ -100,14 +101,15 @@ export async function restoreConversation(args: string[], paths: FrontPaths = de
     throw new CliError("Missing conversation id", 64);
   }
   const routes = await getRoutes(paths);
+  const teammateId = await teammateIdForTrackerMutation(args, paths);
   return runMutation({ args, spec: await verifiedSpec({
     action: "restore",
     conversationId: id,
     method: "PATCH",
     url: routes.conversations,
-    body: conversationPatchBody(id, { status: "open" }),
+    body: conversationTrackerStatusBody(id, teammateId, "inbox"),
     details: {
-      status: "open",
+      status: "inbox",
       note: "Restores a trashed/deleted conversation to open state.",
     },
     canExecute: false,
@@ -803,7 +805,7 @@ function positional(args: string[]) {
   const values: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (["--body", "--body-file", "--limit", "--actor", "--agent-name", "--client", "--run-id", "--reason", "--url", "--name", "--from-channel-id", "--inbox-id", "--assignee-id", "--original-conversation-id"].includes(arg)) {
+    if (["--body", "--body-file", "--limit", "--actor", "--agent-name", "--client", "--run-id", "--reason", "--url", "--name", "--from-channel-id", "--inbox-id", "--assignee-id", "--original-conversation-id", "--teammate-id"].includes(arg)) {
       index += 1;
       continue;
     }
@@ -1381,6 +1383,28 @@ function conversationPatchBody(id: string, patch: Record<string, unknown>) {
   };
 }
 
+function conversationTrackerStatusBody(id: string, teammateId: string | number | null | undefined, status: "trashed" | "inbox") {
+  if (teammateId === null || teammateId === undefined) {
+    throw new CliError("Missing active Front teammate id for tracker status mutation.", 69);
+  }
+  return conversationPatchBody(id, {
+    trackers: {
+      add: [{
+        status,
+        bump: true,
+        teammate_id: teammateId,
+      }],
+    },
+    tags: {},
+    pinnedActivities: {},
+    topics: {},
+    custom_attributes: {},
+    timeline: {},
+    macros: {},
+    bulk_reply: {},
+  });
+}
+
 async function resolveCommentActivityId(
   client: Awaited<ReturnType<typeof createFrontPrivateClient>>,
   routes: FrontRoutes,
@@ -1438,6 +1462,23 @@ function numericOrString(value: string | null | undefined) {
 
 function isExecute(args: string[]) {
   return args.includes("--yes") && !args.includes("--dry-run");
+}
+
+async function teammateIdForTrackerMutation(args: string[], paths: FrontPaths) {
+  const explicit = readStringFlag(args, "--teammate-id");
+  if (explicit) {
+    return numericOrString(explicit);
+  }
+  if (!isExecute(args)) {
+    return 0;
+  }
+  const boot = await getBoot(paths);
+  const user = isObject(boot.user) ? boot.user as Record<string, unknown> : undefined;
+  const teammateId = stringOrNumberField(user?.id);
+  if (!teammateId) {
+    throw new CliError("Could not resolve the active Front teammate id for this tracker mutation.", 69);
+  }
+  return numericOrString(teammateId);
 }
 
 async function assertNotRemovingActiveUserFollower(teammateId: string, paths: FrontPaths) {

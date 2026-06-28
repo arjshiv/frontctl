@@ -120,7 +120,7 @@ export type MutationExecutionResult = z.infer<typeof mutationExecutionResultSche
 
 const conversationPatchItemSchema = z.object({
   id: frontId,
-  status: z.enum(["open", "archived", "deleted", "spam"]).optional(),
+  status: z.enum(["open", "archived", "deleted", "trashed", "spam"]).optional(),
   assignee_id: z.union([frontId, z.null()]).optional(),
   inbox_id: frontId.optional(),
   reminder: z.union([z.number().finite(), z.null()]).optional(),
@@ -151,6 +151,11 @@ const conversationPatchItemSchema = z.object({
     }).strict()).optional(),
     remove: z.array(frontId).optional(),
   }).strict().optional(),
+  pinnedActivities: jsonRecord.optional(),
+  topics: jsonRecord.optional(),
+  timeline: jsonRecord.optional(),
+  macros: jsonRecord.optional(),
+  bulk_reply: jsonRecord.optional(),
 }).strict();
 
 export const conversationPatchBodySchema = z.object({
@@ -333,7 +338,6 @@ export function validateMutationPayload(action: string, body: unknown) {
   switch (action) {
     case "archive":
     case "unarchive":
-    case "restore":
     case "unsnooze":
     case "snooze":
     case "tag.add":
@@ -348,9 +352,9 @@ export function validateMutationPayload(action: string, body: unknown) {
         ? conversationPatchBodySchema.parse(body)
         : (() => { throw new Error(`Invalid conversation status for ${action}`); })();
     case "delete":
-      return conversationPatchBodySchema.parse(body).conversations.every((conversation) => conversation.status === "deleted")
-        ? conversationPatchBodySchema.parse(body)
-        : (() => { throw new Error("Delete payload must set status deleted"); })();
+      return trackerStatusPayload(action, body, "trashed");
+    case "restore":
+      return trackerStatusPayload(action, body, "inbox");
     case "comment.add":
       return commentPublishBodySchema.parse(body);
     case "tag.create":
@@ -380,8 +384,19 @@ function allowedConversationStatus(action: string, status: unknown) {
   if (action === "archive" || action === "snooze" || action === "unsnooze") {
     return status === "archived";
   }
-  if (action === "unarchive" || action === "restore") {
+  if (action === "unarchive") {
     return status === "open";
   }
   return status === "open" || status === "archived";
+}
+
+function trackerStatusPayload(action: string, body: unknown, expectedStatus: "trashed" | "inbox") {
+  const parsed = conversationPatchBodySchema.parse(body);
+  if (parsed.conversations.every((conversation) => {
+    const tracker = conversation.trackers?.add?.[0];
+    return tracker?.status === expectedStatus && tracker.bump === true && tracker.teammate_id !== undefined;
+  })) {
+    return parsed;
+  }
+  throw new Error(`${action} payload must add a ${expectedStatus} tracker with bump and teammate_id`);
 }

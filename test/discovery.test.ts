@@ -68,14 +68,14 @@ test("discovery verify-writes accepts only empirically proven built-in route cov
   const result = await discoveryCommand(["verify-writes"]) as any;
 
   assert.equal(result.scope, "deployable-v1-thread-actions");
-  assert.equal(result.allVerified, false);
-  assert.equal(result.verifiedCount, 23);
+  assert.equal(result.allVerified, true);
+  assert.equal(result.verifiedCount, 25);
   assert.equal(result.count, 25);
   assert.deepEqual(
     result.actions.filter((action: { source?: string }) => action.source === "known-route").map((action: { action: string }) => action.action),
-    ["archive", "unarchive", "unsnooze", "tag.add", "tag.remove", "tag.create", "tag.delete", "conversation.create-test", "assign", "unassign", "move", "follower.add", "follower.remove", "link.add", "link.remove", "comment.add", "comment.remove", "snooze", "draft.reply", "draft.compose", "draft.update", "draft.forward", "draft.discard"],
+    ["archive", "unarchive", "delete", "restore", "unsnooze", "tag.add", "tag.remove", "tag.create", "tag.delete", "conversation.create-test", "assign", "unassign", "move", "follower.add", "follower.remove", "link.add", "link.remove", "comment.add", "comment.remove", "snooze", "draft.reply", "draft.compose", "draft.update", "draft.forward", "draft.discard"],
   );
-  assert.deepEqual(result.blockedActions.map((action: { action: string }) => action.action), ["delete", "restore"]);
+  assert.deepEqual(result.blockedActions.map((action: { action: string }) => action.action), []);
 });
 
 test("discovery verify-writes can require local sanitized fixtures", async () => {
@@ -100,9 +100,9 @@ test("discovery guide reports action-specific capture steps", async () => {
   const result = await discoveryCommand(["guide", "--remote-debugging-port", "9333"]) as any;
 
   assert.equal(result.count, WRITE_ACTION_SPECS.length);
-  assert.equal(result.verifiedCount, WRITE_ACTION_SPECS.length - 2);
+  assert.equal(result.verifiedCount, WRITE_ACTION_SPECS.length);
   assert.equal(result.remoteDebuggingPort, 9333);
-  assert.equal(result.nextUnverified, "delete");
+  assert.equal(result.nextUnverified, undefined);
   assert.match(result.launchCommand, /9333/);
   assert.match(result.guides[0].safeFrontAction, /Archive/);
   assert.match(result.guides[0].captureCommand, /--name archive/);
@@ -305,7 +305,7 @@ test("discovery relaunch-front is dry-run unless --yes is passed", async () => {
   ]);
 });
 
-test("discovery verify-writes keeps preview-only actions blocked even with matching fixtures", async () => {
+test("discovery verify-writes accepts all deployable actions with matching fixtures", async () => {
   const dir = await makeTempDir("frontctl-discovery-verify");
   const fixturePath = join(dir, "writes.sanitized.json");
   await writeFile(fixturePath, JSON.stringify({
@@ -325,7 +325,7 @@ test("discovery verify-writes keeps preview-only actions blocked even with match
 
   assert.equal(result.allVerified, true);
   assert.equal(result.verifiedCount, WRITE_ACTION_SPECS.length);
-  assert.deepEqual(result.blockedActions.map((action: { action: string }) => action.action), ["delete", "restore"]);
+  assert.deepEqual(result.blockedActions.map((action: { action: string }) => action.action), []);
 });
 
 test("discovery verify-live-writes previews the real mutation sequence unless --yes is passed", async () => {
@@ -339,6 +339,8 @@ test("discovery verify-live-writes previews the real mutation sequence unless --
   assert.deepEqual(result.actions, [
     "archive",
     "unarchive",
+    "delete",
+    "restore",
     "assign",
     "unassign",
     "move",

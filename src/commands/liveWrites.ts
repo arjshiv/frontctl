@@ -3,10 +3,12 @@ import {
   archiveConversation,
   commentConversation,
   createTestConversation,
+  deleteConversation,
   draftCommand,
   followerConversation,
   linkConversation,
   moveConversation,
+  restoreConversation,
   snoozeConversation,
   tagConversation,
   unarchiveConversation,
@@ -21,6 +23,8 @@ import { verifyAllWriteFixtures } from "../lib/writeVerification.js";
 const SUPPORTED_LIVE_ACTIONS = [
   "archive",
   "unarchive",
+  "delete",
+  "restore",
   "assign",
   "unassign",
   "move",
@@ -118,6 +122,7 @@ export async function verifyLiveWritesCommand(args: string[], paths: FrontPaths 
     }
     await unsnoozeConversation([conversationId, ...cleanupArgs("Live write verification cleanup: clear temporary snooze")], paths).catch(() => undefined);
     await assignConversation(["unassign", conversationId, ...cleanupArgs("Live write verification cleanup: clear assignee")], paths).catch(() => undefined);
+    await restoreConversation([conversationId, ...cleanupArgs("Live write verification cleanup: restore from trash")], paths).catch(() => undefined);
     await archiveConversation([conversationId, ...cleanupArgs("Live write verification cleanup: archive test conversation")], paths).catch(() => undefined);
     if (cleanupState.linkedTargetId) {
       await archiveConversation([cleanupState.linkedTargetId, ...cleanupArgs("Live write verification cleanup: archive disposable link target")], paths).catch(() => undefined);
@@ -207,6 +212,20 @@ export async function verifyLiveWritesCommand(args: string[], paths: FrontPaths 
     await assertEventually("link.remove", async () => {
       const current = await conversationState(conversationId, marker, paths, { includeContent: false });
       return current.linkedConversationCount === 0;
+    });
+
+    await runStep(steps, "delete", () =>
+      deleteConversation([conversationId, "--actor", actor, "--reason", "Live write verification trash test", "--yes", "--json"], paths));
+    await assertEventually("delete", async () => {
+      const current = await conversationState(conversationId, marker, paths, { includeContent: false });
+      return current.status === "trashed" || current.trackers.some((tracker) => tracker.status === "trashed");
+    });
+
+    await runStep(steps, "restore", () =>
+      restoreConversation([conversationId, "--actor", actor, "--reason", "Live write verification restore-from-trash cleanup", "--yes", "--json"], paths));
+    await assertEventually("restore", async () => {
+      const current = await conversationState(conversationId, marker, paths, { includeContent: false });
+      return current.status !== "trashed" && current.trackers.some((tracker) => tracker.status === "inbox");
     });
 
     await runStep(steps, "archive", () =>
