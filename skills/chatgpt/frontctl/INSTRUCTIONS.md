@@ -97,8 +97,8 @@ user explicitly accepts possible access loss.
 When the user asks for proof on a real low-risk thread, run
 `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json`. It verifies archive/unarchive,
 assign/unassign, move, follower add, guarded active-user follower-remove refusal,
-Front conversation link add/remove, snooze/unsnooze, tag add/remove, comment add/remove, and draft
-save/update/discard, then archives test conversations last. The normal mutation layer already leaves
+card-scoped custom-field refusal, Front conversation link add/remove, snooze/unsnooze, tag add/remove,
+comment add/remove, and draft save/update/discard, then archives test conversations last. The normal mutation layer already leaves
 visible identity comments before state changes; add `--leave-proof-comment` only if the user
 explicitly wants an extra final proof comment.
 

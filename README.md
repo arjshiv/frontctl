@@ -154,7 +154,7 @@ Executable non-send test thread:
 
 - `create-test-conversation` creates a harmless internal task-style Front conversation through the same non-send comment route Front.app uses. Use it for archive, trash/restore, snooze, tag, comment, link, move, assign, follower, and draft tests.
 - `tag create` and `tag delete` create and clean up workspace tags through Front's private app route. Delete requires a numeric tag id so `frontctl` never guesses which tag to remove.
-- `discovery verify-live-writes` exercises the deployable write set on a real test thread, creates a disposable linked-conversation target when needed, cleans up temporary link/tag/comment/draft artifacts, and archives the test conversations last.
+- `discovery verify-live-writes` exercises the deployable write set on a real test thread, verifies card-scoped custom-field writes stay blocked, creates a disposable linked-conversation target when needed, cleans up temporary link/tag/comment/draft artifacts, and archives the test conversations last.
 
 To capture a new safe route, start with:
 

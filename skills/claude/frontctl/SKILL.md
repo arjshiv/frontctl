@@ -233,7 +233,7 @@ Use `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` only wh
 proof against a real low-risk conversation. It mutates and verifies archive/unarchive,
 delete-to-trash/restore,
 assign/unassign, move, follower add, guarded active-user follower-remove refusal,
-Front conversation link add/remove, snooze/unsnooze, tag add/remove, comment add/remove, and draft
+card-scoped custom-field refusal, Front conversation link add/remove, snooze/unsnooze, tag add/remove, comment add/remove, and draft
 save/update/discard, then cleans up temporary link/tag/comment/draft artifacts and archives the test
 conversations last. The normal mutation layer already leaves visible identity comments before state
 changes; `--leave-proof-comment` adds an extra final proof comment only when the user explicitly

@@ -30,7 +30,8 @@ The first working loop exists:
 - browser/CDP discovery with explicit browser auth probing
 - browser session seeding from the short-lived `frontctl` session cache without repeated Keychain prompts
 - live browser-runtime write verification for archive/unarchive, snooze/unsnooze, move,
-  follower-add/remove, Front conversation link add/remove, tag add/remove, comment add/remove, and reply draft/discard
+  follower-add/remove, Front conversation link add/remove, tag add/remove, comment add/remove,
+  card-scoped custom-field refusal, and reply draft/discard
 - local memory profiling for first-run preference learning
 - local daily workflows for triage, noise review, follow-up, tag hygiene, and ops/risk alerts
 - hard-blocked sending

@@ -3,6 +3,7 @@ import {
   archiveConversation,
   commentConversation,
   createTestConversation,
+  customFieldConversation,
   deleteConversation,
   draftCommand,
   followerConversation,
@@ -30,6 +31,7 @@ const SUPPORTED_LIVE_ACTIONS = [
   "move",
   "follower.add",
   "follower.remove.self-guard",
+  "custom-field.set.card-scope-guard",
   "conversation.create-test",
   "link.add",
   "link.remove",
@@ -174,6 +176,23 @@ export async function verifyLiveWritesCommand(args: string[], paths: FrontPaths 
     await runExpectedFailureStep(steps, "follower.remove.self-guard", () =>
       followerConversation(["remove", conversationId, liveContext.userId, "--actor", actor, "--reason", "Live write verification follower self-remove guard", "--yes", "--json"], paths),
     /Refusing to remove the active Front user as a follower/);
+
+    if (liveContext.cardScopedCustomFieldId) {
+      await runExpectedFailureStep(steps, "custom-field.set.card-scope-guard", () =>
+        customFieldConversation([
+          "set",
+          conversationId,
+          liveContext.cardScopedCustomFieldId!,
+          "true",
+          "--actor",
+          actor,
+          "--reason",
+          "Live write verification custom field scope guard",
+          "--yes",
+          "--json",
+        ], paths),
+      /scoped to Front card records/);
+    }
 
     const linkTarget = await runStep(steps, "conversation.create-test", () =>
       createTestConversation([
@@ -485,9 +504,12 @@ async function liveVerificationContext(paths: FrontPaths) {
   const inbox = inboxes.find((candidate) => String(candidate.namespace ?? "") === ownNamespace)
     ?? inboxes.find((candidate) => candidate.is_private === true && stringOrNumberField(candidate.id))
     ?? inboxes.find((candidate) => stringOrNumberField(candidate.id));
+  const customFields = Array.isArray(boot.custom_fields) ? boot.custom_fields as Array<Record<string, unknown>> : [];
+  const cardScopedCustomField = customFields.find((candidate) => candidate.resource_type === "card" && stringOrNumberField(candidate.id));
   return {
     userId,
     inboxId: stringOrNumberField(inbox?.id),
+    cardScopedCustomFieldId: stringOrNumberField(cardScopedCustomField?.id),
   };
 }
 

@@ -346,6 +346,7 @@ test("discovery verify-live-writes previews the real mutation sequence unless --
     "move",
     "follower.add",
     "follower.remove.self-guard",
+    "custom-field.set.card-scope-guard",
     "conversation.create-test",
     "link.add",
     "link.remove",
