@@ -273,14 +273,21 @@ async function executeCdpFetch(
       };
       if (bodyJson !== undefined) headers["content-type"] = "application/json";
       if (csrf) headers["x-front-xsrf"] = decodeURIComponent(csrf);
-      const response = await fetch(target, {
-        method,
-        credentials: "include",
-        headers,
-        body: bodyJson
-      });
-      const text = await response.text();
-      return JSON.stringify({ ok: response.ok, status: response.status, text, url: response.url });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      try {
+        const response = await fetch(target, {
+          method,
+          credentials: "include",
+          headers,
+          body: bodyJson,
+          signal: controller.signal
+        });
+        const text = await response.text();
+        return JSON.stringify({ ok: response.ok, status: response.status, text, url: response.url });
+      } finally {
+        clearTimeout(timeout);
+      }
     })();
   `);
   if (!payload.ok) {
@@ -294,6 +301,7 @@ async function evaluateJson<T>(connection: Awaited<ReturnType<typeof connectDevT
     expression,
     awaitPromise: true,
     returnByValue: true,
+    timeout: 12_000,
   });
   const runtimeResult = result.result as Record<string, unknown> | undefined;
   if (runtimeResult?.subtype === "error") {
@@ -345,7 +353,20 @@ async function connectDevTools(webSocketDebuggerUrl: string) {
     send(method: string, params: Record<string, unknown>) {
       return new Promise<Record<string, unknown>>((resolve, reject) => {
         const id = nextId++;
-        pending.set(id, { resolve, reject });
+        const timeout = setTimeout(() => {
+          pending.delete(id);
+          reject(new CliError(`Chrome DevTools command timed out: ${method}`, 69));
+        }, 15_000);
+        pending.set(id, {
+          resolve: (value) => {
+            clearTimeout(timeout);
+            resolve(value);
+          },
+          reject: (error) => {
+            clearTimeout(timeout);
+            reject(error);
+          },
+        });
         socket.send(JSON.stringify({ id, method, params }));
       });
     },

@@ -72,6 +72,70 @@ test("inbox list reads stale cache only when explicitly requested", async () => 
   assert.equal(result.conversations[0].id, "93727705553");
 });
 
+test("inbox list prefers a valid reusable session over CDP bridge", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-inbox-session-before-cdp"));
+  await writeFakeFrontCacheFixture(paths);
+  await writeFile(join(paths.cacheDataPath, "route-cache"), ROUTE_CONTEXT);
+
+  const previousSessionPath = process.env.FRONTCTL_SESSION_PATH;
+  const previousBridge = process.env.FRONTCTL_CDP_BRIDGE;
+  const previousBridgeContext = process.env.FRONTCTL_CDP_BRIDGE_MOCK_CONTEXT;
+  const previousBridgeResponses = process.env.FRONTCTL_CDP_BRIDGE_MOCK_RESPONSES;
+  const previousFetch = globalThis.fetch;
+  process.env.FRONTCTL_SESSION_PATH = join(paths.supportPath, "frontctl-session.json");
+  process.env.FRONTCTL_CDP_BRIDGE = "1";
+  process.env.FRONTCTL_CDP_BRIDGE_MOCK_CONTEXT = JSON.stringify({
+    origin: "https://app.frontapp.com",
+    cell: "cell-00017",
+    companyId: "32390a17805cd26f7349",
+    teamId: "6088721",
+  });
+  process.env.FRONTCTL_CDP_BRIDGE_MOCK_RESPONSES = JSON.stringify({
+    "/conversations/inbox": {
+      conversations: [{ id: "bridge-should-not-win", subject: "Bridge should not win" }],
+    },
+  });
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH);
+
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.endsWith("/conversations/inbox")) {
+      return new Response(JSON.stringify({
+        conversations: [
+          {
+            id: "session-live-1",
+            subject: "Session live thread",
+            status: "assigned",
+            message_type: "email",
+            contact: { name: "Session Sender" },
+          },
+        ],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return new Response("{}", { status: 404 });
+  }) as typeof fetch;
+
+  try {
+    const result = await listInbox(["--limit", "1", "--json"], paths) as {
+      transport: string;
+      conversations: Array<{ id: string }>;
+    };
+
+    assert.equal(result.transport, "session-cookie");
+    assert.equal(result.conversations[0].id, "session-live-1");
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousSessionPath === undefined) delete process.env.FRONTCTL_SESSION_PATH;
+    else process.env.FRONTCTL_SESSION_PATH = previousSessionPath;
+    if (previousBridge === undefined) delete process.env.FRONTCTL_CDP_BRIDGE;
+    else process.env.FRONTCTL_CDP_BRIDGE = previousBridge;
+    if (previousBridgeContext === undefined) delete process.env.FRONTCTL_CDP_BRIDGE_MOCK_CONTEXT;
+    else process.env.FRONTCTL_CDP_BRIDGE_MOCK_CONTEXT = previousBridgeContext;
+    if (previousBridgeResponses === undefined) delete process.env.FRONTCTL_CDP_BRIDGE_MOCK_RESPONSES;
+    else process.env.FRONTCTL_CDP_BRIDGE_MOCK_RESPONSES = previousBridgeResponses;
+  }
+});
+
 test("inbox list can bootstrap a live session from agentcookie without Keychain", async () => {
   const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-inbox-agentcookie-default"));
   await writeFakeFrontCacheFixture(paths);

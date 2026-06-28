@@ -27,16 +27,6 @@ export async function createFrontPrivateClient(paths: FrontPaths): Promise<Front
     throw new CliError("Could not discover Front private route context. Open Front inbox in a signed-in browser or the Front app once, then rerun.", 69);
   }
 
-  const cdpClient = await createCdpBridgeClient(context);
-  if (cdpClient) {
-    return cdpClient;
-  }
-
-  const bridgeClient = await createBrowserBridgeClient(context);
-  if (bridgeClient) {
-    return bridgeClient;
-  }
-
   if (!session) {
     const rows = await readAgentcookieFrontCookies().catch(() => []);
     if (rows.length >= 2) {
@@ -47,6 +37,30 @@ export async function createFrontPrivateClient(paths: FrontPaths): Promise<Front
     }
   }
 
+  if (session) {
+    return sessionCookieClient(context, session);
+  }
+
+  const cdpClient = await createCdpBridgeClient(context);
+  if (cdpClient) {
+    return cdpClient;
+  }
+
+  const bridgeClient = await createBrowserBridgeClient(context);
+  if (bridgeClient) {
+    return bridgeClient;
+  }
+
+  throw new CliError(
+    "No live Front session is available. Run `frontctl readiness --json` and approve its recommended unlock command; do not use cache for current inbox state.",
+    69,
+  );
+}
+
+function sessionCookieClient(
+  context: FrontRouteContext,
+  session: NonNullable<Awaited<ReturnType<typeof readFrontSession>>>,
+): FrontPrivateClient {
   if (!session) {
     throw new CliError(
       "No live Front session is available. Run `frontctl readiness --json` and approve its recommended unlock command; do not use cache for current inbox state.",

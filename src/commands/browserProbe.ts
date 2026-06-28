@@ -104,13 +104,26 @@ async function runBrowserConversationProbe(webSocketDebuggerUrl: string, path: s
   const send = (method: string, params: Record<string, unknown>) =>
     new Promise<Record<string, unknown>>((resolve, reject) => {
       const id = nextId++;
-      pending.set(id, { resolve, reject });
+      const timeout = setTimeout(() => {
+        pending.delete(id);
+        reject(new CliError(`Chrome DevTools command timed out: ${method}`, 69));
+      }, 15_000);
+      pending.set(id, {
+        resolve: (value) => {
+          clearTimeout(timeout);
+          resolve(value);
+        },
+        reject: (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        },
+      });
       socket.send(JSON.stringify({ id, method, params }));
     });
 
   try {
     const expression = browserProbeExpression(path);
-    const result = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+    const result = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true, timeout: 12_000 });
     const runtimeResult = result.result as Record<string, unknown> | undefined;
     return (runtimeResult?.value && typeof runtimeResult.value === "object"
       ? runtimeResult.value
@@ -135,23 +148,30 @@ function browserProbeExpression(path: string) {
     }
     return typeof value;
   };
-  const response = await fetch(${JSON.stringify(path)}, {
-    method: "GET",
-    credentials: "include",
-    headers: { accept: "application/json", "x-front-precogs": "direct" }
-  });
-  const text = await response.text();
-  let parsed;
-  try { parsed = text ? JSON.parse(text) : undefined; } catch { parsed = undefined; }
-  return {
-    ok: response.ok,
-    httpStatus: response.status,
-    contentType: response.headers.get("content-type"),
-    status: parsed && parsed.status,
-    hasSubject: typeof (parsed && parsed.subject) === "string",
-    hasMessages: Array.isArray(parsed && parsed.messages),
-    bodyShape: shape(parsed)
-  };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(${JSON.stringify(path)}, {
+      method: "GET",
+      credentials: "include",
+      headers: { accept: "application/json", "x-front-precogs": "direct" },
+      signal: controller.signal
+    });
+    const text = await response.text();
+    let parsed;
+    try { parsed = text ? JSON.parse(text) : undefined; } catch { parsed = undefined; }
+    return {
+      ok: response.ok,
+      httpStatus: response.status,
+      contentType: response.headers.get("content-type"),
+      status: parsed && parsed.status,
+      hasSubject: typeof (parsed && parsed.subject) === "string",
+      hasMessages: Array.isArray(parsed && parsed.messages),
+      bodyShape: shape(parsed)
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 })()
 `;
 }
