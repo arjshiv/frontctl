@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   archiveConversation,
   commentConversation,
+  createTestConversation,
   draftCommand,
   snoozeConversation,
   tagConversation,
@@ -216,6 +217,37 @@ test("unarchiveConversation restores a conversation through the observed status 
   assert.equal(request.method, "PATCH");
   assert.match(request.url, /\/conversations$/);
   assert.deepEqual(request.body, { conversations: [{ id: "conversation-1", status: "open" }] });
+});
+
+test("createTestConversation is a non-send preview-only route until captured", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-create-test-conversation");
+
+  const result = await createTestConversation([
+    "--subject",
+    "frontctl test conversation",
+    "--body",
+    "Safe integration test",
+  ], paths) as any;
+
+  assert.equal(result.action, "conversation.create-test");
+  assert.equal(result.mode, "dry-run");
+  assert.equal(result.sendsEmail, false);
+  assert.equal(result.canExecute, false);
+  assert.match(result.request.path, /\/conversations$/);
+  assert.deepEqual(result.request.body, {
+    type: "discussion",
+    subject: "frontctl test conversation",
+    comment: { text: "Safe integration test" },
+    draft: false,
+    send: false,
+    test: true,
+  });
+  assert.match(result.note, /preview-only/);
+  assert.equal(result.verification.verified, false);
+  await assert.rejects(
+    createTestConversation(["--yes"], paths),
+    /Test conversation creation is preview-only/,
+  );
 });
 
 test("state-changing mutations write visible identity comments before the requested write", async () => {
@@ -674,7 +706,7 @@ test("draft reply executes with the live-proven shape and compose remains blocke
       "New draft only",
       "--yes",
     ], paths),
-    /Standalone draft compose is preview-only/,
+    /Standalone draft compose\/create is preview-only/,
   );
 
   assert.match(replyRequest.url, /\/conversations\/conversation-1\/messages\/[a-f0-9]{32}\?include_conversation=true$/);

@@ -11,6 +11,7 @@ import {
   commentPublishBodySchema,
   conversationPatchBodySchema,
   draftReplyBodySchema,
+  testConversationPreviewBodySchema,
   validateMutationPayload,
 } from "../src/lib/schemas.js";
 
@@ -49,6 +50,15 @@ test("mutation schemas accept known safe Front write bodies", () => {
     format: "html",
     handle_time_increment: 0,
   }).format, "html");
+
+  assert.equal(testConversationPreviewBodySchema.parse({
+    type: "discussion",
+    subject: "frontctl test conversation",
+    comment: { text: "Safe integration test" },
+    draft: false,
+    send: false,
+    test: true,
+  }).send, false);
 });
 
 test("mutation schemas reject unsafe or drifted write bodies", () => {
@@ -62,6 +72,14 @@ test("mutation schemas reject unsafe or drifted write bodies", () => {
   }));
   assert.throws(() => validateMutationPayload("draft.reply", {
     text: "missing required Front draft fields",
+  }));
+  assert.throws(() => validateMutationPayload("conversation.create-test", {
+    type: "email",
+    subject: "bad",
+    comment: { text: "would send" },
+    draft: false,
+    send: true,
+    test: true,
   }));
 });
 

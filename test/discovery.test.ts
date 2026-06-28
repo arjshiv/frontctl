@@ -69,11 +69,11 @@ test("discovery verify-writes accepts only empirically proven built-in route cov
 
   assert.equal(result.scope, "deployable-v1-thread-actions");
   assert.equal(result.allVerified, true);
-  assert.equal(result.verifiedCount, 10);
-  assert.equal(result.count, 10);
+  assert.equal(result.verifiedCount, 12);
+  assert.equal(result.count, 12);
   assert.deepEqual(
     result.actions.filter((action: { source?: string }) => action.source === "known-route").map((action: { action: string }) => action.action),
-    ["archive", "unarchive", "unsnooze", "tag.add", "tag.remove", "comment.add", "comment.remove", "snooze", "draft.reply", "draft.discard"],
+    ["archive", "unarchive", "delete", "restore", "unsnooze", "tag.add", "tag.remove", "comment.add", "comment.remove", "snooze", "draft.reply", "draft.discard"],
   );
   assert.deepEqual(result.blockedActions.map((action: { action: string }) => action.action), ["draft.compose"]);
   assert.match(result.blockedActions[0].reason, /preview-only/i);
@@ -101,7 +101,7 @@ test("discovery guide reports action-specific capture steps", async () => {
   const result = await discoveryCommand(["guide", "--remote-debugging-port", "9333"]) as any;
 
   assert.equal(result.count, WRITE_ACTION_SPECS.length);
-  assert.equal(result.verifiedCount, 10);
+  assert.equal(result.verifiedCount, 12);
   assert.equal(result.remoteDebuggingPort, 9333);
   assert.equal(result.nextUnverified, undefined);
   assert.match(result.launchCommand, /9333/);
@@ -122,6 +122,21 @@ test("discovery guide can describe preview-only standalone compose explicitly", 
   assert.equal(result.guides[0].action, "draft.compose");
   assert.equal(result.guides[0].verified, false);
   assert.match(result.guides[0].safeFrontAction, /Create one new draft compose/);
+});
+
+test("discovery guide can describe test conversation route capture explicitly", async () => {
+  process.env.FRONTCTL_DISCOVERY_FIXTURES_PATH = join(await makeTempDir("frontctl-discovery-guide-test-conversation"), "fixtures");
+
+  const result = await discoveryCommand(["guide", "conversation.create-test"]) as any;
+
+  assert.equal(result.scope, "requested-action");
+  assert.equal(result.count, 1);
+  assert.equal(result.verifiedCount, 0);
+  assert.equal(result.nextUnverified, "conversation.create-test");
+  assert.equal(result.guides[0].action, "conversation.create-test");
+  assert.equal(result.guides[0].expectedRouteKind, "conversation.create");
+  assert.match(result.guides[0].safeFrontAction, /internal discussion\/test conversation/);
+  assert.match(result.guides[0].previewCommand, /create-test-conversation/);
 });
 
 test("discovery guide can focus on one write action", async () => {
