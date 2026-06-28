@@ -191,8 +191,9 @@ follower add/remove, Front conversation link add/remove, tag create, and numeric
 executable routes when `canExecute` is true. Custom-field routes are capture-gated unless `canExecute` is true.
 Standalone compose/create drafts, draft updates, and forward drafts are executable when `canExecute` is true.
 For `follower remove`, removing the active user can immediately revoke read access on an
-unassigned/internal task conversation; keep the conversation id and report a later 403 as likely
-evidence that access was removed.
+unassigned/internal task conversation. By default frontctl refuses active-user self-removal before
+writing an identity comment; use `--allow-self-remove` only on a disposable conversation when the
+user explicitly accepts possible access loss.
 When taking an action, pass `--actor Codex` and a concise `--reason "..."`. For every executable
 conversation state change, frontctl itself writes a visible identity comment before the action and
 then applies the requested action last. Do not manually add a separate identity comment. Only run
@@ -228,10 +229,14 @@ perform exactly one safe write-like action in Front, then run
 cookies, tokens, HAR contents, or raw mailbox payloads.
 Use `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` only when the user wants
 proof against a real low-risk conversation. It mutates and verifies archive/unarchive,
-snooze/unsnooze, tag add/remove, comment add/remove, and reply draft/discard, then cleans up
-temporary artifacts and archives the conversation last. The normal mutation layer already leaves
-visible identity comments before state changes; `--leave-proof-comment` adds an extra final proof
-comment only when the user explicitly wants one.
+assign/unassign, move, follower add, guarded active-user follower-remove refusal,
+Front conversation link add/remove, snooze/unsnooze, tag add/remove, comment add/remove, and draft
+save/update/discard, then cleans up temporary link/tag/comment/draft artifacts and archives the test
+conversations last. The normal mutation layer already leaves visible identity comments before state
+changes; `--leave-proof-comment` adds an extra final proof comment only when the user explicitly
+wants one.
+Delete-to-trash and restore are preview-only until a real Front private route is captured and live
+verified. Do not execute them even if they look like ordinary status updates.
 Use `frontctl discovery relaunch-front --remote-debugging-port 9222 --yes --json` only with explicit
 user approval because it quits and reopens Front to enable browser/network capture. It checks the
 local draft cache first and refuses when potential drafts are present unless

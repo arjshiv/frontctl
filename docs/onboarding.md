@@ -327,8 +327,9 @@ commands default to preview and require explicit `--yes` before they can write t
 private routes. Optional endpoint discovery must write sanitized fixtures only; do not share raw HAR
 files.
 `frontctl discovery verify-writes --json` reports the deployable v1 thread-action scope separately
-from preview-only commands. A ready install should show `allVerified: true` and an empty
-`blockedActions` list.
+from preview-only commands. A ready install should show the deployable action set verified. It may
+still report delete/restore in `blockedActions` until a real Front private route is captured and live
+verified.
 `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` mutates one real low-risk
 conversation to prove those actions work live, then cleans up temporary tag/comment/draft artifacts
 and archives the conversation last. Normal state-changing commands already write a visible identity
@@ -345,14 +346,18 @@ can copy the existing reusable `frontctl` session into the selected browser tab 
 cookie values or touching Keychain. After the probe is authenticated, use
 `frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json`
 to prove archive/unarchive, snooze/unsnooze, tag add/remove, comment add/remove, and reply
-draft/discard from the browser runtime itself. Move, follower-add/remove, and Front conversation
-link add/remove use guarded private routes and should be proven on dedicated test conversations.
+draft/discard from the browser runtime itself. `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json`
+proves the broader CLI write set on dedicated test conversations, including
+assign/unassign, move, follower add, guarded active-user follower-remove refusal, and Front
+conversation link add/remove.
 Only with user approval, `frontctl discovery relaunch-front --remote-debugging-port 9222 --yes --json`
 quits and reopens Front with remote debugging enabled for browser/network capture. It checks the
 local draft cache first and requires `--allow-existing-drafts` if potential drafts are present.
 Tag list returns sanitized tag metadata only. Use it before `tag add` or `tag remove` so the
 assistant does not guess. Tag mutations accept an alias, id, or unique name and show
 `details.tag.resolvedAlias` in preview; ambiguous names fail.
+`follower remove` refuses to remove the active Front user unless `--allow-self-remove` is passed,
+because Front can reject or revoke access for self-removal on personal/internal-task conversations.
 Audit list returns recent mutation previews and attempts with only redacted route/body metadata.
 Use it to review what an assistant previewed or attempted without exposing raw comment or draft text.
 

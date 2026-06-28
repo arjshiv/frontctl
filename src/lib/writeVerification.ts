@@ -65,8 +65,6 @@ const ACTION_ROUTE_KIND: Record<string, string> = {
 const BUILT_IN_VERIFIED_ACTIONS = new Set([
   "archive",
   "unarchive",
-  "delete",
-  "restore",
   "unsnooze",
   "snooze",
   "tag.add",
@@ -90,7 +88,10 @@ const BUILT_IN_VERIFIED_ACTIONS = new Set([
   "link.remove",
 ]);
 
-const BLOCKED_PREVIEW_ONLY_ACTIONS = new Set<string>();
+const BLOCKED_PREVIEW_ONLY_ACTIONS = new Set<string>([
+  "delete",
+  "restore",
+]);
 
 const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" | "expectedRouteKind" | "fixturePath" | "captureCommand" | "verifyCommand">> = {
   archive: {
@@ -132,7 +133,7 @@ const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" |
       "Use an internal discussion or task-style conversation, not an outbound email compose.",
       "Do not click send or capture message finalize/deliver routes.",
       "The private app saves the internal task comment first, then publishes that saved comment to the new conversation timeline.",
-      "After capture, use this test conversation for archive, restore, snooze, tag, comment, and draft tests.",
+      "After capture, use this test conversation for archive, snooze, tag, comment, link, move, assign, follower, and draft tests.",
     ],
   },
   assign: {

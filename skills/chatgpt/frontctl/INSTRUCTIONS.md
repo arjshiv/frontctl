@@ -79,21 +79,27 @@ Mutation rule:
 
 Run a dry-run preview first. Use `--yes` only after the user explicitly approves the exact action.
 Drafting is allowed, but `frontctl send` is intentionally blocked.
-Archive/unarchive/delete-to-trash/restore/snooze/unsnooze, tag add/remove, comment add/remove,
+Archive/unarchive/snooze/unsnooze, tag add/remove, comment add/remove,
 assign/unassign, move, follower add/remove, Front conversation link add/remove, tag create/delete, reply draft,
 standalone compose/create draft, draft update, draft discard, and `create-test-conversation` are the executable
 v1 action set when `canExecute` is true. Custom-field routes are capture-gated preview routes unless
-`canExecute` is true. Forward drafts save through the same
+`canExecute` is true. Delete-to-trash and restore are preview-only until a real Front private route
+is captured and live verified; do not execute them even if they look like ordinary status updates.
+Forward drafts save through the same
 non-send draft route as compose/create and return a discard command. For `draft update`, use the
 conversation id and message uid returned by compose/reply/update plus explicit recipients and subject;
 do not guess from stale local draft cache.
 For `follower remove`, removing the active user can immediately revoke read access on an
-unassigned/internal task conversation; keep the conversation id and report a later 403 as likely
-evidence that access was removed.
+unassigned/internal task conversation. By default frontctl refuses active-user self-removal before
+writing an identity comment; use `--allow-self-remove` only on a disposable conversation when the
+user explicitly accepts possible access loss.
 When the user asks for proof on a real low-risk thread, run
-`frontctl discovery verify-live-writes CONVERSATION_ID --yes --json`. The normal mutation layer
-already leaves visible identity comments before state changes; add `--leave-proof-comment` only if
-the user explicitly wants an extra final proof comment.
+`frontctl discovery verify-live-writes CONVERSATION_ID --yes --json`. It verifies archive/unarchive,
+assign/unassign, move, follower add, guarded active-user follower-remove refusal,
+Front conversation link add/remove, snooze/unsnooze, tag add/remove, comment add/remove, and draft
+save/update/discard, then archives test conversations last. The normal mutation layer already leaves
+visible identity comments before state changes; add `--leave-proof-comment` only if the user
+explicitly wants an extra final proof comment.
 
 Browser route discovery:
 

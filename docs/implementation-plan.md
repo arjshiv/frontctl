@@ -121,11 +121,14 @@ Implemented:
 - `frontctl discovery guide [ACTION]` provides action-specific safe Front actions, preview
   commands, capture commands, and verification status.
 - `frontctl discovery verify-writes --json` reports deployable v1 write coverage for thread
-  actions, move/follower-add/remove, non-send drafts, and internal test-conversation creation with an empty
-  `blockedActions` list.
+  actions, move/follower-add/remove, non-send drafts, and internal test-conversation creation.
+  Delete-to-trash and restore remain blocked until a real Front private route is captured and
+  live verified.
 - `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` runs the deployable write
-  set against one real conversation, verifies state after each mutation, cleans up temporary
-  artifacts, and archives the conversation last.
+  set against real low-risk test conversations, verifies state after each mutation, creates a
+  disposable link target when needed, cleans up temporary link/tag/comment/draft artifacts, and
+  archives the test conversations last. Active-user `follower remove` is verified as a guarded
+  refusal before any identity comment because Front can reject or revoke access for self-removal.
 - `frontctl discovery browser-status --json` discovers fixed and dynamic Chrome/Edge DevTools
   ports without printing process command lines or profile paths.
 - `frontctl discovery browser-probe CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --json`
@@ -348,8 +351,9 @@ The M0-M5 plan is complete for the current supported scope:
   `frontctl archive`, `snooze`, `move`, `follower add|remove`, `link add|remove`,
   `tag create|delete|add|remove`, `comment add`, `draft reply|compose|forward|discard`.
 - `follower remove` can intentionally revoke the active user's read access when used on an
-  unassigned/internal task conversation where that user is the only tracker; keep the conversation id
-  and treat a later 403 as likely evidence that access was removed.
+  unassigned/internal task conversation where that user is the only tracker. The CLI now refuses
+  active-user self-removal before writing an identity comment unless `--allow-self-remove` is
+  passed; keep the conversation id and treat a later 403 as likely evidence that access was removed.
 - Mutation safety: dry-run by default, `--yes` required for execution, route verification required,
   audit records are redacted, and `frontctl send` is hard blocked.
 - Local agent installation: `frontctl setup --agent all --yes --json` and

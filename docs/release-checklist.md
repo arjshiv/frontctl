@@ -24,6 +24,11 @@ Use this checklist before giving `frontctl` to an early tester or non-technical 
   is launched with remote debugging.
 - `frontctl discovery browser-probe CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --json`
   reports authenticated after browser sign-in or `browser-seed`.
+- `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` passes on a dedicated test
+  conversation and reports assign/unassign, move, follower add, guarded active-user
+  follower-remove refusal, link add/remove, snooze, tag, comment, and draft verification.
+- `frontctl discovery verify-writes --json` reports delete/restore as blocked until their real
+  Front private route is captured and live verified.
 - `frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json`
   passes on one low-risk real conversation and leaves it archived with no reminder, no draft, and no
   temporary tag/comment marker.
