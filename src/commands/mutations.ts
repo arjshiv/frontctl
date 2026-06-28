@@ -1629,6 +1629,15 @@ async function getRoutes(paths: FrontPaths): Promise<FrontRoutes> {
 }
 
 async function resolveTagArgument(input: string, args: string[], paths: FrontPaths) {
+  const trimmed = input.trim();
+  if (/^\d+$/.test(trimmed)) {
+    return {
+      input,
+      resolvedAlias: trimmed,
+      matchedBy: "id" as const,
+      tag: { id: trimmed },
+    };
+  }
   const tags = await tagCatalog(args, paths);
   try {
     return resolveTagIdentifier(input, tags);

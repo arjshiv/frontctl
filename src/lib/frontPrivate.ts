@@ -85,7 +85,7 @@ function sessionCookieClient(
     if (csrfToken) {
       return;
     }
-    const response = await fetch(routes.boot, {
+    const response = await fetchFront(routes.boot, {
       method: "GET",
       headers: {
         accept: "application/json",
@@ -106,7 +106,7 @@ function sessionCookieClient(
     if (!["GET", "HEAD", "OPTIONS"].includes(options.method.toUpperCase())) {
       await ensureCsrfToken();
     }
-    const response = await fetch(url, {
+    const response = await fetchFront(url, {
       method: options.method,
       headers: {
         accept: "application/json",
@@ -141,7 +141,7 @@ function sessionCookieClient(
     },
     requestJson,
     async requestBytes(url: string) {
-      const response = await fetch(url, {
+      const response = await fetchFront(url, {
         method: "GET",
         headers: {
           accept: "*/*",
@@ -163,6 +163,39 @@ function sessionCookieClient(
       };
     },
   };
+}
+
+async function fetchFront(url: string, init: RequestInit) {
+  const timeoutMs = frontRequestTimeoutMs();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if ((error as { name?: string }).name === "AbortError") {
+      throw new CliError(`Front private request timed out after ${timeoutMs}ms: ${(init.method ?? "GET").toUpperCase()} ${requestPath(url)}`, 69);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function frontRequestTimeoutMs() {
+  const value = Number(process.env.FRONTCTL_HTTP_TIMEOUT_MS);
+  return Number.isFinite(value) && value > 0 ? value : 20_000;
+}
+
+function requestPath(url: string) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.pathname}${parsed.search}`;
+  } catch {
+    return "<unknown>";
+  }
 }
 
 export async function getBoot(paths: FrontPaths) {
