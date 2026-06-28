@@ -556,22 +556,20 @@ test("draft compose preserves recipients and subject in preview without sending"
   assert.equal(draft.action, "draft.compose");
   assert.equal(draft.mode, "dry-run");
   assert.equal(draft.sendsEmail, false);
-  assert.equal(draft.canExecute, false);
-  assert.equal(draft.request.method, undefined);
-  assert.equal(draft.request.path, undefined);
-  assert.match(draft.note ?? "", /preview-only/);
-  assert.deepEqual(draft.request.body, {
-    body: "Draft only",
-    draft: true,
-    kind: "compose",
-    to: ["alice@example.com", "bob@example.com"],
-    cc: ["team@example.com"],
-    bcc: ["audit@example.com"],
-    subject: "Draft subject",
-  });
+  assert.equal(draft.canExecute, true);
+  assert.equal(draft.request.method, "PUT");
+  assert.match(draft.request.path, /\/conversations\/new\/messages\/[a-f0-9]{32}$/);
+  assert.match(draft.note ?? "", /Draft save only/);
+  assert.equal(draft.request.body.text, "Draft only");
+  assert.equal(draft.request.body.subject, "Draft subject");
+  assert.deepEqual(
+    draft.request.body.recipients.map((recipient: { role: string; handle: string }) => [recipient.role, recipient.handle]),
+    [["to", "alice@example.com"], ["to", "bob@example.com"], ["cc", "team@example.com"], ["bcc", "audit@example.com"]],
+  );
+  assert.equal(draft.request.body.shared_draft, false);
 });
 
-test("draft compose stays blocked even when an old guessed fixture shape is present", async () => {
+test("draft compose rejects old guessed fixture shapes in strict discovery mode", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-compose-shape");
   const fixturePath = await writeSanitizedFixture(
     paths.supportPath,
@@ -595,10 +593,10 @@ test("draft compose stays blocked even when an old guessed fixture shape is pres
     ], paths) as any;
 
     assert.equal(draft.canExecute, false);
-    assert.equal(draft.verification, undefined);
-    assert.equal(draft.request.method, undefined);
-    assert.equal(draft.request.path, undefined);
-    assert.match(draft.note ?? "", /preview-only/);
+    assert.equal(draft.verification.verified, false);
+    assert.equal(draft.request.method, "PUT");
+    assert.match(draft.request.path, /\/conversations\/new\/messages\/[a-f0-9]{32}$/);
+    assert.match(draft.verification.reason, /No sanitized fixture matched/);
   } finally {
     delete process.env.FRONTCTL_REQUIRE_DISCOVERY_FIXTURES;
   }
@@ -631,7 +629,7 @@ test("snooze executes only after matching fixture and unlocked session", async (
   });
 });
 
-test("draft reply executes with the live-proven shape and compose remains blocked", async () => {
+test("draft reply and standalone compose execute with live-proven non-send shapes", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-draft-execute");
   await writeFile(
     join(paths.supportPath, "draft-fixtures.json"),
@@ -670,15 +668,30 @@ test("draft reply executes with the live-proven shape and compose remains blocke
           redacted: ["query", "headers", "cookies", "auth", "body-values", "mailbox-text"],
         },
         {
-          method: "POST",
-          path: "/cell-00017/api/1/companies/32390a17805cd26f7349/conversations",
+          method: "PUT",
+          path: "/cell-00017/api/1/companies/32390a17805cd26f7349/conversations/new/messages/message-placeholder",
           routeKind: "message-or-draft",
           requestBodyShape: {
-            body: "string",
-            draft: "boolean",
-            kind: "string",
-            to: ["string"],
+            author_id: "number",
+            from: { channel_id: "number" },
             subject: "string",
+            recipients: [{ role: "string", handle: "string", name: "string", source: "string" }],
+            attachments: [],
+            html: "string",
+            text: "string",
+            shared_draft: "boolean",
+            virtru_encrypt: "boolean",
+            has_quote: "boolean",
+            quote_include: "boolean",
+            quote_modified: "boolean",
+            forward_include: "boolean",
+            forward_modified: "boolean",
+            signature_include: "boolean",
+            signature_modified: "boolean",
+            main_style: "string",
+            default_font_style: "string",
+            format: "string",
+            handle_time_increment: "number",
           },
           redacted: ["query", "headers", "cookies", "auth", "body-values", "mailbox-text"],
         },
@@ -695,19 +708,6 @@ test("draft reply executes with the live-proven shape and compose remains blocke
     assert.equal(reply.sendsEmail, false);
     assert.equal(reply.result.messageUid, "draftuid123");
   }, draftReplyMockResponse);
-  await assert.rejects(
-    draftCommand([
-      "compose",
-      "--to",
-      "alice@example.com",
-      "--subject",
-      "Draft subject",
-      "--body",
-      "New draft only",
-      "--yes",
-    ], paths),
-    /Standalone draft compose\/create is preview-only/,
-  );
 
   assert.match(replyRequest.url, /\/conversations\/conversation-1\/messages\/[a-f0-9]{32}\?include_conversation=true$/);
   assert.equal(replyRequest.method, "PUT");
@@ -717,6 +717,34 @@ test("draft reply executes with the live-proven shape and compose remains blocke
   assert.equal(replyBody.from.channel_id, 7599313);
   assert.equal(replyBody.recipients[0].handle, "support@example.com");
   assert.equal("version" in replyBody, false);
+
+  const composeRequest = await withMockedFrontRequest(async () => {
+    const compose = await draftCommand([
+      "compose",
+      "--to",
+      "alice@example.com",
+      "--subject",
+      "Draft subject",
+      "--body",
+      "New draft only",
+      "--yes",
+    ], paths) as any;
+    assert.equal(compose.mode, "execute");
+    assert.equal(compose.canExecute, true);
+    assert.equal(compose.sendsEmail, false);
+    assert.equal(compose.result.conversationId, "96867835601");
+    assert.equal(compose.result.messageUid, "newdraftuid123");
+    assert.match(compose.result.discardCommand, /frontctl draft discard 96867835601 newdraftuid123 --json/);
+  }, draftReplyMockResponse);
+
+  assert.match(composeRequest.url, /\/conversations\/new\/messages\/[a-f0-9]{32}\?include_conversation=true$/);
+  assert.equal(composeRequest.method, "PUT");
+  const composeBody = composeRequest.body as any;
+  assert.equal(composeBody.text, "New draft only");
+  assert.equal(composeBody.subject, "Draft subject");
+  assert.equal(composeBody.from.channel_id, 7599313);
+  assert.equal(composeBody.recipients[0].handle, "alice@example.com");
+  assert.equal("in_reply_to_id" in composeBody, false);
 });
 
 test("draft reply accepts --body-file without enabling send", async () => {
@@ -846,8 +874,28 @@ function draftReplyMockResponse(input: string | URL | Request) {
     return {
       user: {
         id: 6088721,
+        email: "arjun@example.com",
         preferences: { defaultFontStyle: "" },
       },
+      channels: [
+        {
+          id: 7599313,
+          namespace: "tea:6088721",
+          is_private: true,
+          message_type: "email",
+          type_name: "email",
+          send_as: "arjun@example.com",
+          settings: { canSend: true },
+        },
+      ],
+    };
+  }
+  if (/\/conversations\/new\/messages\/[a-f0-9]{32}/.test(url)) {
+    return {
+      id: 227921854801,
+      uid: "newdraftuid123",
+      conversation_id: 96867835601,
+      subject: "Draft subject",
     };
   }
   if (url.includes("/conversations/conversation-1/timeline")) {

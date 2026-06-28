@@ -565,16 +565,49 @@ export async function draftCommand(args: string[], paths: FrontPaths = defaultFr
       },
     }), paths });
   }
-  const draftBody = composeDraftBody(args, body);
-  return runMutation({ args, spec: {
-    action: operation === "create" ? "draft.create" : "draft.compose",
+  const to = readStringListFlag(args, "--to");
+  if (!to.length) {
+    throw new CliError("Draft compose needs at least one --to recipient.", 64);
+  }
+  const routes = await getRoutes(paths);
+  const draftUid = randomBytes(16).toString("hex");
+  const mode: MutationMode = args.includes("--yes") && !args.includes("--dry-run") ? "execute" : "dry-run";
+  const { draftBody, details } = mode === "execute"
+    ? await buildComposeDraftBody(args, body, paths)
+    : previewComposeDraftBody(args, body);
+  const draftUrl = `${routes.newConversationMessage(draftUid)}?include_conversation=true`;
+  return runMutation({ args, spec: await verifiedSpec({
+    action: "draft.compose",
+    method: "PUT",
+    url: draftUrl,
     body: draftBody,
     details: {
-      note: "Standalone compose/create route is not live-verified in this Front build. Use draft reply for conversation replies; do not execute compose/create until browser discovery captures the real route.",
+      ...details,
+      draftUid,
+      operation,
+      discardCommand: `frontctl draft discard CONVERSATION_ID ${draftUid} --json`,
     },
     canExecute: false,
-    note: "Standalone draft compose/create is preview-only until its private Front route is observed and implemented. Send remains blocked.",
-  }, paths });
+    note: "Draft save only. Send remains blocked.",
+    execute: async (client) => {
+      const result = await client.requestJson<Record<string, unknown>>(draftUrl, {
+        method: "PUT",
+        body: draftBody,
+      });
+      const conversationId = stringOrNumberField(result.conversation_id)
+        ?? stringOrNumberField((result.conversation as Record<string, unknown> | undefined)?.id);
+      const messageUid = String(result.uid ?? draftUid);
+      const summary = summarizeMutationResult(result) as Record<string, unknown>;
+      return {
+        ...summary,
+        conversationId,
+        messageUid,
+        discardCommand: conversationId
+          ? `frontctl draft discard ${conversationId} ${messageUid} --json`
+          : `frontctl draft discard DRAFT_ID_OR_CONVERSATION_ID ${messageUid} --json`,
+      };
+    },
+  }), paths });
 }
 
 async function verifiedSpec(spec: MutationSpec): Promise<MutationSpec> {
@@ -602,7 +635,7 @@ function positional(args: string[]) {
   const values: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (["--body", "--body-file", "--limit", "--actor", "--agent-name", "--client", "--run-id", "--reason", "--url", "--name"].includes(arg)) {
+    if (["--body", "--body-file", "--limit", "--actor", "--agent-name", "--client", "--run-id", "--reason", "--url", "--name", "--from-channel-id"].includes(arg)) {
       index += 1;
       continue;
     }
@@ -639,27 +672,6 @@ async function readBodyArg(args: string[]) {
   }
   const bodyFile = readStringFlag(args, "--body-file");
   return bodyFile ? readFile(bodyFile, "utf8") : undefined;
-}
-
-function composeDraftBody(args: string[], body: string) {
-  const draft: Record<string, unknown> = { body, draft: true, kind: "compose" };
-  const to = readStringListFlag(args, "--to");
-  const cc = readStringListFlag(args, "--cc");
-  const bcc = readStringListFlag(args, "--bcc");
-  const subject = readStringFlag(args, "--subject");
-  if (to.length) {
-    draft.to = to;
-  }
-  if (cc.length) {
-    draft.cc = cc;
-  }
-  if (bcc.length) {
-    draft.bcc = bcc;
-  }
-  if (subject !== undefined) {
-    draft.subject = subject;
-  }
-  return draft;
 }
 
 async function buildReplyDraftBody(conversationId: string, body: string, paths: FrontPaths) {
@@ -736,6 +748,87 @@ async function buildReplyDraftBody(conversationId: string, body: string, paths: 
   };
 }
 
+async function buildComposeDraftBody(args: string[], body: string, paths: FrontPaths) {
+  const boot = await getBoot(paths);
+  const authorId = numberField((boot.user as Record<string, unknown> | undefined)?.id);
+  if (!authorId) {
+    throw new CliError("Could not resolve the current Front user for draft compose.", 69);
+  }
+  const channelId = resolveComposeChannelId(args, boot, authorId);
+  if (!channelId) {
+    throw new CliError("Could not resolve a sending channel for draft compose. Pass --from-channel-id CHANNEL_ID.", 69);
+  }
+  return composeDraftBodyFromFields(args, body, {
+    authorId,
+    channelId,
+    defaultFontStyle: defaultFontStyle(boot),
+    preview: false,
+  });
+}
+
+function previewComposeDraftBody(args: string[], body: string) {
+  return composeDraftBodyFromFields(args, body, {
+    authorId: 456,
+    channelId: 789,
+    defaultFontStyle: "",
+    preview: true,
+  });
+}
+
+function composeDraftBodyFromFields(
+  args: string[],
+  body: string,
+  options: { authorId: number; channelId: number; defaultFontStyle: string; preview: boolean },
+) {
+  const html = bodyToHtml(body);
+  const recipients = [
+    ...composeRecipients(readStringListFlag(args, "--to"), "to"),
+    ...composeRecipients(readStringListFlag(args, "--cc"), "cc"),
+    ...composeRecipients(readStringListFlag(args, "--bcc"), "bcc"),
+  ];
+  return {
+    draftBody: {
+      author_id: options.authorId,
+      from: { channel_id: options.channelId },
+      subject: readStringFlag(args, "--subject") ?? "",
+      recipients,
+      attachments: [],
+      html,
+      text: body,
+      shared_draft: false,
+      virtru_encrypt: false,
+      has_quote: false,
+      quote_include: false,
+      quote_modified: false,
+      forward_include: false,
+      forward_modified: false,
+      signature_include: false,
+      signature_modified: false,
+      main_style: "",
+      default_font_style: options.defaultFontStyle,
+      format: "html",
+      handle_time_increment: 0,
+    },
+    details: {
+      fromChannelId: options.preview ? "preview-placeholder" : options.channelId,
+      recipients: recipients.map((recipient) => ({ role: recipient.role, handle: recipient.handle })),
+      bodyFormat: "html",
+      note: options.preview
+        ? "Preview uses placeholder user/channel ids. Execution resolves the current user and default private sending channel from live Front boot data."
+        : "Standalone draft save uses Front's non-send /conversations/new/messages route.",
+    },
+  };
+}
+
+function composeRecipients(handles: string[], role: "to" | "cc" | "bcc") {
+  return handles.map((handle) => ({
+    role,
+    handle,
+    name: handle,
+    source: "email",
+  }));
+}
+
 function previewReplyDraftBody(body: string) {
   return {
     draftBody: {
@@ -774,6 +867,40 @@ function previewReplyDraftBody(body: string) {
       note: "Preview uses placeholder ids. Execution resolves the source message, channel, and recipient from the live conversation.",
     },
   };
+}
+
+function resolveComposeChannelId(args: string[], boot: Record<string, unknown>, authorId: number) {
+  const explicit = readNumberFlag(args, "--from-channel-id");
+  if (explicit) {
+    return explicit;
+  }
+  const channels = Array.isArray(boot.channels) ? boot.channels as Array<Record<string, unknown>> : [];
+  const user = boot.user as Record<string, unknown> | undefined;
+  const userEmail = stringField(user?.email);
+  const privateNamespace = `tea:${authorId}`;
+  return channels
+    .filter((channel) => isSendableEmailChannel(channel))
+    .map((channel) => stringField(channel.namespace) === privateNamespace && booleanField(channel.is_private) === true ? numberField(channel.id) : undefined)
+    .find((id): id is number => id !== undefined)
+    ?? channels
+      .filter((channel) => isSendableEmailChannel(channel))
+      .map((channel) => userEmail && (stringField(channel.send_as) === userEmail || stringField(channel.address) === userEmail) ? numberField(channel.id) : undefined)
+      .find((id): id is number => id !== undefined)
+    ?? numberField(channels.find(isSendableEmailChannel)?.id);
+}
+
+function isSendableEmailChannel(channel: Record<string, unknown>) {
+  const settings = isObject(channel.settings) ? channel.settings : {};
+  return numberField(channel.id) !== undefined
+    && (channel.message_type === "email" || channel.type_name === "email")
+    && settings.canSend !== false;
+}
+
+function defaultFontStyle(boot: Record<string, unknown>) {
+  return stringField(
+    ((boot.user as Record<string, unknown> | undefined)?.preferences as Record<string, unknown> | undefined)
+      ?.defaultFontStyle,
+  ) ?? "";
 }
 
 function latestConversationMessage(content: Record<string, unknown>, conversation?: Record<string, unknown>) {
@@ -892,6 +1019,14 @@ function stringField(value: unknown) {
 
 function numberField(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function stringOrNumberField(value: unknown) {
+  return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
+}
+
+function booleanField(value: unknown) {
+  return typeof value === "boolean" ? value : undefined;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

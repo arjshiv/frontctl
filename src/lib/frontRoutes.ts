@@ -29,6 +29,7 @@ export interface FrontRoutes {
   message: (id: string) => string;
   messages: (id: string) => string;
   conversationMessage: (conversationId: string, messageUid: string) => string;
+  newConversationMessage: (messageUid: string) => string;
   attachment: (id: string) => string;
   contacts: string;
   accounts: string;
@@ -102,6 +103,8 @@ export function buildFrontRoutes(context: FrontRouteContext): FrontRoutes {
     messages: (id) => `${root}/conversations/${encodeURIComponent(id)}/messages`,
     conversationMessage: (conversationId, messageUid) =>
       `${root}/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageUid)}`,
+    newConversationMessage: (messageUid) =>
+      `${root}/conversations/new/messages/${encodeURIComponent(messageUid)}`,
     attachment: (id) => `${root}/download/${encodeURIComponent(id)}`,
     contacts: `${root}/contacts`,
     accounts: `${root}/accounts`,

@@ -183,6 +183,36 @@ export const draftReplyBodySchema = z.object({
   handle_time_increment: z.number().finite(),
 }).strict();
 
+export const draftComposeBodySchema = z.object({
+  author_id: z.number().finite(),
+  from: z.object({
+    channel_id: z.number().finite(),
+  }).strict(),
+  subject: z.string(),
+  recipients: z.array(z.object({
+    role: nonEmptyString,
+    handle: nonEmptyString,
+    name: z.string(),
+    source: z.literal("email"),
+  }).passthrough()).min(1),
+  attachments: z.array(z.unknown()),
+  html: z.string(),
+  text: z.string(),
+  shared_draft: z.boolean(),
+  virtru_encrypt: z.boolean(),
+  has_quote: z.boolean(),
+  quote_include: z.boolean(),
+  quote_modified: z.boolean(),
+  forward_include: z.boolean(),
+  forward_modified: z.boolean(),
+  signature_include: z.boolean(),
+  signature_modified: z.boolean(),
+  main_style: z.string(),
+  default_font_style: z.string(),
+  format: z.literal("html"),
+  handle_time_increment: z.number().finite(),
+}).strict();
+
 export const composeDraftPreviewBodySchema = z.object({
   body: z.string().min(1),
   draft: z.literal(true),
@@ -275,7 +305,7 @@ export function validateMutationPayload(action: string, body: unknown) {
     case "draft.reply":
       return draftReplyBodySchema.parse(body);
     case "draft.compose":
-      return composeDraftPreviewBodySchema.parse(body);
+      return draftComposeBodySchema.parse(body);
     case "conversation.create-test":
       return testConversationPreviewBodySchema.parse(body);
     default:

@@ -69,10 +69,11 @@ const BUILT_IN_VERIFIED_ACTIONS = new Set([
   "comment.add",
   "comment.remove",
   "draft.reply",
+  "draft.compose",
   "draft.discard",
 ]);
 
-const BLOCKED_PREVIEW_ONLY_ACTIONS = new Set(["draft.compose"]);
+const BLOCKED_PREVIEW_ONLY_ACTIONS = new Set<string>();
 
 const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" | "expectedRouteKind" | "fixturePath" | "captureCommand" | "verifyCommand">> = {
   archive: {
@@ -285,6 +286,33 @@ export const WRITE_ACTION_SPECS = [
     body: {
       in_reply_to_id: 123,
       referenced_message_id: 123,
+      author_id: 456,
+      from: { channel_id: 789 },
+      subject: "frontctl draft test",
+      recipients: [{ role: "to", handle: "test@example.com", name: "Test", source: "email" }],
+      attachments: [],
+      html: "<div>draft-placeholder</div>",
+      text: "draft-placeholder",
+      shared_draft: false,
+      virtru_encrypt: false,
+      has_quote: false,
+      quote_include: false,
+      quote_modified: false,
+      forward_include: false,
+      forward_modified: false,
+      signature_include: false,
+      signature_modified: false,
+      main_style: "",
+      default_font_style: "",
+      format: "html",
+      handle_time_increment: 0,
+    },
+  },
+  {
+    action: "draft.compose",
+    method: "PUT",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/new/messages/message-placeholder",
+    body: {
       author_id: 456,
       from: { channel_id: 789 },
       subject: "frontctl draft test",

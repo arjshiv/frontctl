@@ -994,13 +994,29 @@ test("CLI draft list/read and body-file previews are non-sending", async () => {
   );
   const compose = JSON.parse(composeStdout) as {
     sendsEmail: boolean;
-    request: { body: { to: string[]; subject: string; body: string; kind: string } };
+    canExecute: boolean;
+    request: {
+      method: string;
+      path: string;
+      body: {
+        subject: string;
+        text: string;
+        recipients: Array<{ role: string; handle: string }>;
+        shared_draft: boolean;
+      };
+    };
   };
   assert.equal(compose.sendsEmail, false);
-  assert.deepEqual(compose.request.body.to, ["alice@example.com", "bob@example.com"]);
+  assert.equal(compose.canExecute, true);
+  assert.equal(compose.request.method, "PUT");
+  assert.match(compose.request.path, /\/conversations\/new\/messages\/[a-f0-9]{32}$/);
+  assert.deepEqual(compose.request.body.recipients.map((recipient) => [recipient.role, recipient.handle]), [
+    ["to", "alice@example.com"],
+    ["to", "bob@example.com"],
+  ]);
   assert.equal(compose.request.body.subject, "CLI draft subject");
-  assert.equal(compose.request.body.body, "CLI compose body");
-  assert.equal(compose.request.body.kind, "compose");
+  assert.equal(compose.request.body.text, "CLI compose body");
+  assert.equal(compose.request.body.shared_draft, false);
 });
 
 test("CLI search preserves numeric query terms while honoring --limit", async () => {
