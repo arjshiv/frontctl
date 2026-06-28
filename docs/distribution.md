@@ -242,6 +242,18 @@ npm run release:check:local
 `release:check:local` verifies the manifest hashes and file sizes against the generated package and
 DMG.
 
+On a signed-in Front test machine, also run one installed-binary live proof before handing a build
+to a tester:
+
+```bash
+frontctl create-test-conversation --subject "frontctl live verification" --body "Disposable test thread" --actor Codex --reason "Create test thread" --yes --json
+frontctl discovery verify-live-writes CONVERSATION_ID --actor Codex --yes --json
+frontctl audit list --conversation CONVERSATION_ID --json
+```
+
+This proof must use the installed `frontctl` binary, not `node dist/src/cli.js`, so packaging bugs
+show up before release.
+
 For local development, use the optional pre-push hook rather than a pre-commit package build:
 
 ```bash

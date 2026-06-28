@@ -24,11 +24,14 @@ Use this checklist before giving `frontctl` to an early tester or non-technical 
   is launched with remote debugging.
 - `frontctl discovery browser-probe CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --json`
   reports authenticated after browser sign-in or `browser-seed`.
-- `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` passes on a dedicated test
-  conversation and reports assign/unassign, move, follower add, guarded active-user
-  follower-remove refusal, link add/remove, snooze, tag, comment, and draft verification.
-- `frontctl discovery verify-writes --json` reports delete/restore as blocked until their real
-  Front private route is captured and live verified.
+- `frontctl create-test-conversation --subject "frontctl live verification" --body "Disposable test thread" --actor Codex --reason "Create test thread" --yes --json`
+  creates a non-send internal test conversation using the installed binary.
+- `frontctl discovery verify-live-writes CONVERSATION_ID --actor Codex --yes --json` passes on the
+  dedicated test conversation and reports archive/unarchive, delete/restore, assign/unassign, move,
+  follower add, guarded active-user follower-remove refusal, card-scoped custom-field refusal, link
+  add/remove, snooze/unsnooze, tag add/remove, comment add/remove, draft compose/update/discard,
+  and final archive cleanup.
+- `frontctl discovery verify-writes --json` reports all deployable v1 route contracts verified.
 - `frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json`
   passes on one low-risk real conversation and leaves it archived with no reminder, no draft, and no
   temporary tag/comment marker.

@@ -193,11 +193,26 @@ frontctl setup --agent all --yes --json
 and agent details. Agents and support tools should prefer those fields when explaining what the
 user needs to do next.
 
-### 5c. Optional Write-Route Discovery
+### 5c. Optional Live Write Proof
 
 Mutations stay in preview mode unless the user explicitly approves the exact action with `--yes`.
-Standard non-send write routes use frontctl's built-in route contract. To recapture route shapes for
-a new Front version or strict local verification, launch Front with DevTools discovery enabled:
+Standard non-send write routes use frontctl's built-in route contract. To prove the installed CLI is
+actually working against the user's signed-in Front session, create a disposable internal test
+thread and run the live verifier:
+
+```bash
+frontctl create-test-conversation --subject "frontctl live verification" --body "Disposable test thread" --actor Codex --reason "Create test thread" --yes --json
+frontctl discovery verify-live-writes CONVERSATION_ID --actor Codex --yes --json
+frontctl audit list --conversation CONVERSATION_ID --json
+```
+
+This is not a dry run. It mutates the disposable test thread, verifies state after each operation,
+leaves visible identity comments for state-changing actions, cleans up temporary artifacts, and
+archives the test conversations last. It must report `source: live-private`, `publicApiUsed: false`,
+and `sendsEmail: false`.
+
+To recapture route shapes for a new Front version or strict local verification, launch Front with
+DevTools discovery enabled:
 
 ```bash
 frontctl discovery launch --remote-debugging-port 9222 --json
@@ -238,6 +253,23 @@ frontctl open CONVERSATION_ID --web --print-only --json
 If these commands cannot reach a live session, setup is not ready. Do not answer current inbox
 questions from Front's local HTTP cache. Use `--offline-cache` only for diagnostics, offline
 recovery, or tests where stale data is explicitly acceptable.
+
+### 7. First Approved Action
+
+The assistant should preview first:
+
+```bash
+frontctl archive CONVERSATION_ID --actor Codex --reason "User asked to archive this thread" --json
+```
+
+After the user approves, execute with `--yes`:
+
+```bash
+frontctl archive CONVERSATION_ID --actor Codex --reason "User asked to archive this thread" --yes --json
+```
+
+For executable state changes, the CLI writes the visible `frontctl agent action` comment first and
+applies the state change last. The agent should not add a separate identity comment.
 
 For explicit historical search or preference learning, build a local index after live unlock:
 
@@ -327,14 +359,14 @@ commands default to preview and require explicit `--yes` before they can write t
 private routes. Optional endpoint discovery must write sanitized fixtures only; do not share raw HAR
 files.
 `frontctl discovery verify-writes --json` reports the deployable v1 thread-action scope separately
-from preview-only commands. A ready install should show the deployable action set verified. It may
-still report delete/restore in `blockedActions` until a real Front private route is captured and live
-verified.
-`frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` mutates one real low-risk
-conversation to prove those actions work live, then cleans up temporary tag/comment/draft artifacts
-and archives the conversation last. Normal state-changing commands already write a visible identity
-comment before each action; use `--leave-proof-comment` only when the user wants an extra final
-proof comment inside Front.
+from preview-only commands. A ready install should show all deployable v1 route contracts verified.
+`frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` mutates one real low-risk test
+conversation to prove those actions work live, including archive/unarchive, delete/restore,
+assign/unassign, move, follower add, guarded active-user follower-remove refusal, card-scoped
+custom-field refusal, conversation link add/remove, snooze/unsnooze, tag add/remove, comment
+add/remove, draft compose/update/discard, and final archive cleanup. Normal state-changing commands
+already write a visible identity comment before each action; use `--leave-proof-comment` only when
+the user wants an extra final proof comment inside Front.
 If browser capture is unavailable, `frontctl discovery browser-status --json` reports whether the
 local DevTools endpoint is reachable and whether Front or Edge were launched with remote debugging.
 If it finds a usable browser port, run `frontctl discovery browser-probe CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --json`
@@ -348,8 +380,8 @@ cookie values or touching Keychain. After the probe is authenticated, use
 to prove archive/unarchive, snooze/unsnooze, tag add/remove, comment add/remove, and reply
 draft/discard from the browser runtime itself. `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json`
 proves the broader CLI write set on dedicated test conversations, including
-assign/unassign, move, follower add, guarded active-user follower-remove refusal, and Front
-conversation link add/remove.
+delete/restore, assign/unassign, move, follower add, guarded active-user follower-remove refusal,
+card-scoped custom-field refusal, Front conversation link add/remove, and draft compose/update/discard.
 Only with user approval, `frontctl discovery relaunch-front --remote-debugging-port 9222 --yes --json`
 quits and reopens Front with remote debugging enabled for browser/network capture. It checks the
 local draft cache first and requires `--allow-existing-drafts` if potential drafts are present.

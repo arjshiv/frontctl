@@ -121,14 +121,15 @@ Implemented:
 - `frontctl discovery guide [ACTION]` provides action-specific safe Front actions, preview
   commands, capture commands, and verification status.
 - `frontctl discovery verify-writes --json` reports deployable v1 write coverage for thread
-  actions, move/follower-add/remove, non-send drafts, and internal test-conversation creation.
-  Delete-to-trash and restore remain blocked until a real Front private route is captured and
-  live verified.
+  actions, delete/restore, move/follower-add/remove, conversation links, non-send drafts,
+  workspace tag cleanup, and internal test-conversation creation.
 - `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` runs the deployable write
   set against real low-risk test conversations, verifies state after each mutation, creates a
   disposable link target when needed, cleans up temporary link/tag/comment/draft artifacts, and
   archives the test conversations last. Active-user `follower remove` is verified as a guarded
   refusal before any identity comment because Front can reject or revoke access for self-removal.
+  Card-scoped custom-field writes are verified as an intentional guard when the available custom
+  field is scoped to Front cards and the observed card update route returns HTTP 403.
 - `frontctl discovery browser-status --json` discovers fixed and dynamic Chrome/Edge DevTools
   ports without printing process command lines or profile paths.
 - `frontctl discovery browser-probe CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --json`
@@ -216,6 +217,9 @@ Implemented behind known-route gates:
 - `frontctl audit list [--action ACTION] [--conversation ID] [--mode dry-run|execute]` inspects
   recent redacted mutation previews and attempts.
 - Mutation audit JSONL logs route/body hashes, not raw comment/draft text.
+- Executable conversation state changes write a visible identity comment before the mutation, then
+  apply the requested state change last. A failed post-comment mutation returns the comment UID or
+  activity ID so the visible trail can be inspected.
 - Fixture-backed and known-route tests cover previews, execution gates, mocked private execution,
   and audit redaction.
 
@@ -349,7 +353,8 @@ The M0-M5 plan is complete for the current supported scope:
 - Optional Markdown querying: `frontctl mq check|install|query|example`.
 - Safe non-send mutations:
   `frontctl archive`, `snooze`, `move`, `follower add|remove`, `link add|remove`,
-  `tag create|delete|add|remove`, `comment add`, `draft reply|compose|forward|discard`.
+  `tag create|delete|add|remove`, `comment add|remove`, `delete`, `restore`,
+  `draft reply|compose|update|forward|discard`, and `create-test-conversation`.
 - `follower remove` can intentionally revoke the active user's read access when used on an
   unassigned/internal task conversation where that user is the only tracker. The CLI now refuses
   active-user self-removal before writing an identity comment unless `--allow-self-remove` is
@@ -366,6 +371,8 @@ npm run check
 npm test
 node dist/src/cli.js help --json
 node dist/src/cli.js discovery verify-writes --json
+node dist/src/cli.js create-test-conversation --subject "frontctl live verification" --body "Disposable test thread" --actor Codex --reason "Create test thread" --yes --json
+node dist/src/cli.js discovery verify-live-writes CONVERSATION_ID --actor Codex --yes --json
 node dist/src/cli.js auth check --json
 node dist/src/cli.js inbox list --limit 5 --json
 node dist/src/cli.js triage inbox --limit 5 --json
@@ -401,3 +408,12 @@ Tag creation follow-up:
 - Tag add/remove was then verified against dedicated test conversation `96869189969`.
 - Tag deletion is implemented as `frontctl tag delete TAG_ID --yes`; use clearly disposable tag names
   and numeric ids for cleanup.
+
+Live verification follow-up:
+
+- Installed `frontctl` created a disposable internal test conversation and ran
+  `discovery verify-live-writes` against that real conversation.
+- The verifier reported `source: live-private`, `publicApiUsed: false`, `sendsEmail: false`,
+  `routeVerification.allVerified: true`, and 25 verified route contracts.
+- The final live read of the test thread was non-stale and archived, with visible `frontctl agent
+  action` identity comments in the timeline.

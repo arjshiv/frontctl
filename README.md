@@ -6,6 +6,17 @@ It exists because Front's public API is mainly useful for team inbox automation.
 normal local user the same kind of control over a personal Front inbox that they expect from Gmail,
 Apple Mail, or a browser. `frontctl` fills that gap without using the public Front API.
 
+## Status
+
+The v1 local-session loop is live-tested against a disposable Front conversation. The verified
+write set creates a non-send internal test thread, mutates it through Front's private web routes,
+checks state after each action, cleans up temporary artifacts, and archives the test threads last.
+
+The verified surface includes archive/unarchive, delete/restore, snooze/unsnooze, assign/unassign,
+move, follower add, guarded active-user follower removal, conversation link add/remove, tag
+add/remove, comment add/remove, standalone draft compose/update/discard, and the card-scoped custom
+field guard. `frontctl send` remains blocked.
+
 **What it can do**
 
 - Read, search, summarize, and triage Front conversations.
@@ -130,7 +141,7 @@ Live-proven, executable after preview plus `--yes`:
 - archive, unarchive, snooze, unsnooze
 - delete-to-trash and restore from trash through Front's tracker-status route
 - assign/unassign, move inbox, follower add/remove, Front conversation link add/remove, tag add/remove, comment add/remove
-- reply draft save, standalone draft compose/update, and draft discard
+- standalone draft compose/update and draft discard
 - active-user `follower remove` is guarded by default because Front may reject it or revoke access on personal/internal-task conversations
 
 Live reads:
@@ -144,7 +155,9 @@ Live reads:
 Preview or capture-gated:
 
 - custom field set. Run `frontctl resources list custom-fields --json` first and inspect
-  `resourceType`; card-scoped fields are reported but blocked for conversation writes.
+  `resourceType`; card-scoped fields are reported but blocked for conversation writes. The observed
+  `PMS Admin` field is card-scoped and Front rejected the card write with HTTP 403, so frontctl
+  keeps it blocked until a harmless card-scoped write can execute and read back successfully.
 
 Executable non-send drafts:
 
@@ -155,6 +168,18 @@ Executable non-send test thread:
 - `create-test-conversation` creates a harmless internal task-style Front conversation through the same non-send comment route Front.app uses. Use it for archive, trash/restore, snooze, tag, comment, link, move, assign, follower, and draft tests.
 - `tag create` and `tag delete` create and clean up workspace tags through Front's private app route. Delete requires a numeric tag id so `frontctl` never guesses which tag to remove.
 - `discovery verify-live-writes` exercises the deployable write set on a real test thread, verifies card-scoped custom-field writes stay blocked, creates a disposable linked-conversation target when needed, cleans up temporary link/tag/comment/draft artifacts, and archives the test conversations last.
+
+Run the live proof on a disposable thread:
+
+```bash
+frontctl create-test-conversation --subject "frontctl live verification" --body "Disposable test thread" --actor Codex --reason "Create test thread" --yes --json
+frontctl discovery verify-live-writes CONVERSATION_ID --actor Codex --yes --json
+frontctl audit list --conversation CONVERSATION_ID --json
+```
+
+The verifier is intentionally not a dry run. It should report `source: live-private`,
+`publicApiUsed: false`, `sendsEmail: false`, `routeVerification.allVerified: true`, and a final
+archived state with no reminder, no draft, no temporary link, and no temporary tag marker.
 
 To capture a new safe route, start with:
 
@@ -194,8 +219,11 @@ flowchart TD
   unlock["auth unlock"]
   keychain["Explicit Safe Storage unlock<br/>may prompt once"]
   session["Short-lived local session<br/>~/.frontctl/session.json"]
+  routes["Typed private route registry<br/>known non-send contracts"]
   live["Private Front web routes"]
+  verify["Live write verifier<br/>real disposable thread"]
   cache["Local SQLite cache<br/>~/.frontctl/frontctl.sqlite"]
+  audit["Redacted audit log<br/>identity comment IDs"]
   memory["Local preference memory"]
   read["Read / search / summarize"]
   resources["Resources / full conversation context"]
@@ -217,7 +245,9 @@ flowchart TD
   browser --> bridge
   bridge --> live
   cli --> session
-  session --> live
+  session --> routes
+  routes --> live
+  routes --> verify
   live --> read
   live --> resources
   live --> test
@@ -227,6 +257,9 @@ flowchart TD
   cache --> memory
   memory --> read
   write --> safety
+  write --> audit
+  verify --> safety
+  verify --> audit
   cli -.-> blocked
 ```
 
@@ -281,6 +314,7 @@ commit.
 ## More Docs
 
 - [Implementation plan](docs/implementation-plan.md)
+- [API and CLI contract](docs/api.md)
 - [Onboarding](docs/onboarding.md)
 - [Distribution](docs/distribution.md)
 - [Product and packaging](docs/product-packaging.md)

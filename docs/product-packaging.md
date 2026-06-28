@@ -141,6 +141,10 @@ Before handing a preview DMG to an early tester:
 - `npm run release:check:local` passes.
 - `frontctl readiness --json` reports `userReadiness.ready: true` on a signed-in test machine.
 - `frontctl auth check --json` does not prompt.
+- `frontctl create-test-conversation --subject "frontctl live verification" --body "Disposable test thread" --actor Codex --reason "Create test thread" --yes --json` creates a non-send internal test thread.
+- `frontctl discovery verify-live-writes CONVERSATION_ID --actor Codex --yes --json` passes on that
+  test thread and reports live-private source, no public API use, no sending, all route contracts
+  verified, and final archived cleanup.
 - `frontctl send --json` remains blocked.
 
 Before publishing a polished public direct-download release:
