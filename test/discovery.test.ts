@@ -346,6 +346,8 @@ test("discovery verify-live-writes previews the real mutation sequence unless --
     "comment.add",
     "comment.remove",
     "draft.reply",
+    "draft.compose",
+    "draft.update",
     "draft.discard",
   ]);
   assert.match(result.command, /verify-live-writes conversation-1 --yes/);

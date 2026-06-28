@@ -272,7 +272,7 @@ export const frontConversationSchema = z.object({
   channels: z.array(z.unknown()).optional(),
   channels_full: z.array(z.unknown()).optional(),
   senders: jsonRecord.optional(),
-  contact: jsonRecord.optional(),
+  contact: jsonRecord.nullable().optional(),
   last_message: jsonRecord.optional(),
   last_manual_message: jsonRecord.optional(),
 }).passthrough();

@@ -12,6 +12,7 @@ import {
   conversationBatchLinkBodySchema,
   conversationPatchBodySchema,
   draftReplyBodySchema,
+  frontConversationSchema,
   internalTaskCommentSaveBodySchema,
   validateMutationPayload,
 } from "../src/lib/schemas.js";
@@ -138,6 +139,17 @@ test("browser probe schema is tolerant but rejects invalid scalar types", () => 
     ok: "yes",
     httpStatus: "200",
   }));
+});
+
+test("conversation schema accepts nullable Front contact on internal tasks", () => {
+  const parsed = frontConversationSchema.parse({
+    id: 96868834641,
+    subject: "frontctl live verification",
+    status: "archived",
+    contact: null,
+  });
+
+  assert.equal(parsed.contact, null);
 });
 
 test("sanitized discovery fixture install rejects unredacted shapes", async () => {

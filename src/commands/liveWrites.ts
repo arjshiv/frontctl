@@ -23,6 +23,8 @@ const SUPPORTED_LIVE_ACTIONS = [
   "comment.add",
   "comment.remove",
   "draft.reply",
+  "draft.compose",
+  "draft.update",
   "draft.discard",
 ] as const;
 
@@ -74,13 +76,13 @@ export async function verifyLiveWritesCommand(args: string[], paths: FrontPaths 
   const cleanupState = {
     addedTagId: undefined as string | undefined,
     commentActivityIds: [] as string[],
-    draftMessageUids: [] as string[],
+    draftTargets: [] as Array<{ conversationId: string; messageUid: string }>,
   };
   const steps: Array<{ action: string; ok: boolean; result?: unknown }> = [];
 
   const cleanup = async () => {
-    for (const uid of cleanupState.draftMessageUids) {
-      await draftCommand(["discard", conversationId, uid, "--yes", "--json"], paths).catch(() => undefined);
+    for (const target of cleanupState.draftTargets) {
+      await draftCommand(["discard", target.conversationId, target.messageUid, "--yes", "--json"], paths).catch(() => undefined);
     }
     for (const activityId of cleanupState.commentActivityIds) {
       await commentConversation(["remove", conversationId, activityId, "--yes", "--json"], paths).catch(() => undefined);
@@ -93,34 +95,34 @@ export async function verifyLiveWritesCommand(args: string[], paths: FrontPaths 
   };
 
   try {
-    const before = await conversationState(conversationId, marker, paths);
+    const before = await conversationState(conversationId, marker, paths, { includeContent: false });
     const tag = await pickTemporaryTag(before.tags, paths);
 
     await runStep(steps, "unarchive", () =>
       unarchiveConversation([conversationId, "--actor", actor, "--reason", "Live write verification restore before archive test", "--yes", "--json"], paths));
     await assertEventually("unarchive", async () => {
-      const current = await conversationState(conversationId, marker, paths);
+      const current = await conversationState(conversationId, marker, paths, { includeContent: false });
       return current.status !== "archived" && current.reminders.length === 0;
     });
 
     await runStep(steps, "archive", () =>
       archiveConversation([conversationId, "--actor", actor, "--reason", "Live write verification archive test", "--yes", "--json"], paths));
     await assertEventually("archive", async () => {
-      const current = await conversationState(conversationId, marker, paths);
+      const current = await conversationState(conversationId, marker, paths, { includeContent: false });
       return current.status === "archived";
     });
 
     await runStep(steps, "snooze", () =>
       snoozeConversation([conversationId, "in:2h", "--actor", actor, "--reason", "Live write verification snooze test", "--yes", "--json"], paths));
     await assertEventually("snooze", async () => {
-      const current = await conversationState(conversationId, marker, paths);
+      const current = await conversationState(conversationId, marker, paths, { includeContent: false });
       return current.status === "archived" && current.reminders.length > 0;
     });
 
     await runStep(steps, "unsnooze", () =>
       unsnoozeConversation([conversationId, "--actor", actor, "--reason", "Live write verification unsnooze cleanup", "--yes", "--json"], paths));
     await assertEventually("unsnooze", async () => {
-      const current = await conversationState(conversationId, marker, paths);
+      const current = await conversationState(conversationId, marker, paths, { includeContent: false });
       return current.status === "archived" && current.reminders.length === 0;
     });
 
@@ -128,7 +130,7 @@ export async function verifyLiveWritesCommand(args: string[], paths: FrontPaths 
     await runStep(steps, "tag.add", () =>
       tagConversation(["add", conversationId, tag.id, "--actor", actor, "--reason", "Live write verification tag add test", "--yes", "--json"], paths));
     await assertEventually("tag.add", async () => {
-      const current = await conversationState(conversationId, marker, paths);
+      const current = await conversationState(conversationId, marker, paths, { includeContent: false });
       return current.tags.some((candidate) => candidate.id === tag.id);
     });
 
@@ -136,7 +138,7 @@ export async function verifyLiveWritesCommand(args: string[], paths: FrontPaths 
       tagConversation(["remove", conversationId, tag.id, "--actor", actor, "--reason", "Live write verification tag remove cleanup", "--yes", "--json"], paths));
     cleanupState.addedTagId = undefined;
     await assertEventually("tag.remove", async () => {
-      const current = await conversationState(conversationId, marker, paths);
+      const current = await conversationState(conversationId, marker, paths, { includeContent: false });
       return !current.tags.some((candidate) => candidate.id === tag.id);
     });
 
@@ -160,25 +162,76 @@ export async function verifyLiveWritesCommand(args: string[], paths: FrontPaths 
       return !current.containsMarker;
     });
 
-    const draft = await runStep(steps, "draft.reply", () =>
-      draftCommand(["reply", conversationId, "--body", marker, "--yes", "--json"], paths));
-    const messageUid = resultId(draft, ["messageUid"]);
-    if (!messageUid) {
-      throw new CliError("draft.reply did not return a message uid", 69);
-    }
-    cleanupState.draftMessageUids.push(messageUid);
-    await assertEventually("draft.reply", async () => {
-      const current = await conversationState(conversationId, marker, paths);
-      return current.hasDrafts && current.containsMarker;
-    });
+    try {
+      const draft = await runStep(steps, "draft.reply", () =>
+        draftCommand(["reply", conversationId, "--body", marker, "--yes", "--json"], paths));
+      const messageUid = resultId(draft, ["messageUid"]);
+      if (!messageUid) {
+        throw new CliError("draft.reply did not return a message uid", 69);
+      }
+      cleanupState.draftTargets.push({ conversationId, messageUid });
+      await assertEventually("draft.reply", async () => {
+        const current = await conversationState(conversationId, marker, paths);
+        return current.hasDrafts && current.containsMarker;
+      });
 
-    await runStep(steps, "draft.discard", () =>
-      draftCommand(["discard", conversationId, messageUid, "--yes", "--json"], paths));
-    cleanupState.draftMessageUids = cleanupState.draftMessageUids.filter((uid) => uid !== messageUid);
-    await assertEventually("draft.discard", async () => {
-      const current = await conversationState(conversationId, marker, paths);
-      return !current.hasDrafts && !current.containsMarker;
-    });
+      await runStep(steps, "draft.discard", () =>
+        draftCommand(["discard", conversationId, messageUid, "--yes", "--json"], paths));
+      cleanupState.draftTargets = cleanupState.draftTargets.filter((target) => target.messageUid !== messageUid);
+      await assertDraftGone("draft.discard", conversationId, marker, paths);
+    } catch (error) {
+      if (!isMissingReplySource(error)) {
+        throw error;
+      }
+      const composeMarker = `${marker} compose fallback`;
+      const updatedMarker = `${marker} updated compose fallback`;
+      const draft = await runStep(steps, "draft.compose", () =>
+        draftCommand([
+          "compose",
+          "--to",
+          "test@test.com",
+          "--subject",
+          "frontctl live verification draft",
+          "--body",
+          composeMarker,
+          "--yes",
+          "--json",
+        ], paths));
+      const draftConversationId = resultId(draft, ["conversationId"]);
+      const messageUid = resultId(draft, ["messageUid"]);
+      if (!draftConversationId || !messageUid) {
+        throw new CliError("draft.compose did not return a conversation id and message uid", 69);
+      }
+      cleanupState.draftTargets.push({ conversationId: draftConversationId, messageUid });
+      await assertEventually("draft.compose", async () => {
+        const current = await conversationState(draftConversationId, composeMarker, paths);
+        return current.hasDrafts && current.containsMarker;
+      });
+
+      await runStep(steps, "draft.update", () =>
+        draftCommand([
+          "update",
+          draftConversationId,
+          messageUid,
+          "--to",
+          "test@test.com",
+          "--subject",
+          "frontctl live verification draft updated",
+          "--body",
+          updatedMarker,
+          "--yes",
+          "--json",
+        ], paths));
+      await assertEventually("draft.update", async () => {
+        const current = await conversationState(draftConversationId, updatedMarker, paths);
+        return current.hasDrafts && current.containsMarker;
+      });
+
+      await runStep(steps, "draft.discard", () =>
+        draftCommand(["discard", draftConversationId, messageUid, "--yes", "--json"], paths));
+      cleanupState.draftTargets = cleanupState.draftTargets.filter((target) => target.messageUid !== messageUid);
+      await assertDraftGone("draft.discard", draftConversationId, updatedMarker, paths);
+    }
 
     let proof: { activityId?: string; body?: string } | undefined;
     if (leaveProofComment) {
@@ -278,14 +331,19 @@ async function pickTemporaryTag(existingTags: LiveState["tags"], paths: FrontPat
   };
 }
 
-async function conversationState(conversationId: string, marker: string, paths: FrontPaths): Promise<LiveState> {
+async function conversationState(
+  conversationId: string,
+  marker: string,
+  paths: FrontPaths,
+  options: { includeContent?: boolean } = {},
+): Promise<LiveState> {
   const client = await createFrontPrivateClient(paths);
   const routes = buildFrontRoutes(client.context);
-  const [raw, content] = await Promise.all([
-    client.getJson<Record<string, unknown>>(routes.conversation(conversationId)),
-    client.getJson<Record<string, unknown>>(routes.content(conversationId)),
-  ]);
-  const text = JSON.stringify(content);
+  const raw = await client.getJson<Record<string, unknown>>(routes.conversation(conversationId));
+  const content = options.includeContent === false
+    ? undefined
+    : await client.getJson<Record<string, unknown>>(routes.content(conversationId));
+  const text = content ? JSON.stringify(content) : "";
   const tags = Array.isArray(raw.tags)
     ? raw.tags.map((tag) => {
       const item = tag as Record<string, unknown>;
@@ -296,7 +354,7 @@ async function conversationState(conversationId: string, marker: string, paths: 
       };
     })
     : [];
-  const drafts = Array.isArray(content.draft_messages) ? content.draft_messages : [];
+  const drafts = content && Array.isArray(content.draft_messages) ? content.draft_messages : [];
   return {
     status: raw.status,
     reminders: Array.isArray(raw.reminders) ? raw.reminders : [],
@@ -315,6 +373,20 @@ async function assertEventually(name: string, predicate: () => Promise<boolean>)
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   throw new CliError(`Live state assertion failed after ${name}`, 69);
+}
+
+async function assertDraftGone(name: string, conversationId: string, marker: string, paths: FrontPaths) {
+  await assertEventually(name, async () => {
+    try {
+      const current = await conversationState(conversationId, marker, paths);
+      return !current.hasDrafts && !current.containsMarker;
+    } catch (error) {
+      if (String((error as Error).message ?? error).includes("HTTP 404")) {
+        return true;
+      }
+      throw error;
+    }
+  });
 }
 
 function summarizeState(state: LiveState) {
@@ -338,6 +410,10 @@ function resultId(result: unknown, keys: string[]) {
     }
   }
   return undefined;
+}
+
+function isMissingReplySource(error: unknown) {
+  return String((error as Error).message ?? error).includes("Could not find a source message to reply to");
 }
 
 function positional(args: string[]) {
