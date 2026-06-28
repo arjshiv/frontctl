@@ -84,7 +84,8 @@ assign/unassign, move, follower add/remove, Front conversation link add/remove, 
 standalone compose/create draft, draft update, draft discard, and `create-test-conversation` are the executable
 v1 action set when `canExecute` is true. Custom-field routes are capture-gated preview routes unless
 `canExecute` is true. Delete-to-trash and restore use Front's tracker-status route, not ordinary
-status updates.
+status updates. Before `custom-field set`, run `frontctl resources list custom-fields --json` and
+inspect `resourceType`; do not try conversation writes for card-scoped fields.
 Forward drafts save through the same
 non-send draft route as compose/create and return a discard command. For `draft update`, use the
 conversation id and message uid returned by compose/reply/update plus explicit recipients and subject;

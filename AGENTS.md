@@ -25,6 +25,8 @@ The first working loop exists:
   field is scoped to `card`, not `conversation`; `PATCH /conversations` returns `ok` but does not
   persist it, while the observed card route `PUT /cards/:id` returned HTTP 403 for this session.
   Keep this write blocked until a card-scoped test route can be executed and read back.
+  `frontctl resources list custom-fields --json` must expose `resourceType` so agents can see this
+  boundary before attempting a mutation.
 - browser/CDP discovery with explicit browser auth probing
 - browser session seeding from the short-lived `frontctl` session cache without repeated Keychain prompts
 - live browser-runtime write verification for archive/unarchive, snooze/unsnooze, move,

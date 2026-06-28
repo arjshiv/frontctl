@@ -26,6 +26,7 @@ export function compactResource(value: unknown) {
     email: stringField(raw.email),
     handle: stringField(raw.handle),
     type: stringField(raw.type ?? raw.class ?? raw.message_type),
+    resourceType: stringField(raw.resource_type),
     source: stringField(raw.source),
     namespace: stringField(raw.namespace),
     isPrivate: booleanField(raw.is_private),

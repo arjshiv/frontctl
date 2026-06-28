@@ -143,7 +143,8 @@ Live reads:
 
 Preview or capture-gated:
 
-- custom field set
+- custom field set. Run `frontctl resources list custom-fields --json` first and inspect
+  `resourceType`; card-scoped fields are reported but blocked for conversation writes.
 
 Executable non-send drafts:
 

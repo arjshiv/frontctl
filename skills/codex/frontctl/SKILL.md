@@ -190,7 +190,9 @@ non-send comment save/publish route when `canExecute` is true. Delete-to-trash, 
 assign/unassign, move, follower add/remove, Front conversation link add/remove, tag create,
 and numeric-id tag delete are executable routes when `canExecute` is true. Delete-to-trash and
 restore use Front's tracker-status route, not ordinary status updates. Custom-field routes are
-capture-gated unless `canExecute` is true.
+capture-gated unless `canExecute` is true. Before `custom-field set`, run
+`frontctl resources list custom-fields --json` and inspect `resourceType`; do not try conversation
+writes for card-scoped fields.
 Standalone compose/create drafts, draft updates, and forward drafts are executable when `canExecute` is true.
 For `follower remove`, removing the active user can immediately revoke read access on an
 unassigned/internal task conversation. By default frontctl refuses active-user self-removal before

@@ -5,14 +5,53 @@ import test from "node:test";
 import { resourcesCommand } from "../src/commands/resources.js";
 import { makeFakeFrontInstall, makeTempDir, writeFakeFrontSession } from "./helpers.js";
 
-test("resources search-cards and read-card use private Front card routes", async () => {
-  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-resources-cards"));
-  await writeFile(
-    join(paths.cacheDataPath, "route-cache"),
-    "https://app.frontapp.com/cell-00017/api/1/companies/32390a17805cd26f7349/team/6088721/conversations/inbox",
+test("resources list custom-fields exposes resource scope from live boot metadata", async () => {
+  const paths = await fakeResourceContext("frontctl-resources-custom-fields");
+  const requests: Array<{ url: string; method: string }> = [];
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
+    const url = String(input);
+    requests.push({ url, method: init?.method ?? "GET" });
+    if (url.includes("/boot/app/8")) {
+      return jsonResponse({
+        custom_fields: [
+          {
+            id: 272081,
+            name: "PMS Admin",
+            type: "boolean",
+            resource_type: "card",
+          },
+        ],
+      });
+    }
+    return jsonResponse({}, 404);
+  }) as typeof fetch;
+
+  try {
+    const result = await resourcesCommand(["list", "custom-fields", "--limit", "10"], paths) as any;
+
+    assert.equal(result.source, "live-private");
+    assert.equal(result.publicApiUsed, false);
+    assert.equal(result.kind, "custom-fields");
+    assert.equal(result.count, 1);
+    assert.deepEqual(result.resources[0], {
+      id: "272081",
+      name: "PMS Admin",
+      type: "boolean",
+      resourceType: "card",
+    });
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+
+  assert.deepEqual(
+    requests.map((request) => ({ method: request.method, path: new URL(request.url).pathname })),
+    [{ method: "GET", path: "/cell-00017/api/1/companies/32390a17805cd26f7349/boot/app/8" }],
   );
-  process.env.FRONTCTL_SESSION_PATH = join(paths.supportPath, "frontctl-session.json");
-  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH);
+});
+
+test("resources search-cards and read-card use private Front card routes", async () => {
+  const paths = await fakeResourceContext("frontctl-resources-cards");
 
   const requests: Array<{ url: string; method: string }> = [];
   const previousFetch = globalThis.fetch;
@@ -76,6 +115,17 @@ test("resources search-cards and read-card use private Front card routes", async
     ],
   );
 });
+
+async function fakeResourceContext(name: string) {
+  const paths = await makeFakeFrontInstall(await makeTempDir(name));
+  await writeFile(
+    join(paths.cacheDataPath, "route-cache"),
+    "https://app.frontapp.com/cell-00017/api/1/companies/32390a17805cd26f7349/team/6088721/conversations/inbox",
+  );
+  process.env.FRONTCTL_SESSION_PATH = join(paths.supportPath, "frontctl-session.json");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH);
+  return paths;
+}
 
 function jsonResponse(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
