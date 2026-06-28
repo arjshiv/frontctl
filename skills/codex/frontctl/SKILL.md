@@ -144,7 +144,7 @@ Draft commands:
 frontctl draft list --limit 20 --json
 frontctl draft read DRAFT_ID --json
 frontctl draft reply CONVERSATION_ID --body-file reply.md --json
-frontctl draft update DRAFT_ID --body-file draft.md --json
+frontctl draft update CONVERSATION_ID MESSAGE_UID --to person@example.com --subject "Draft subject" --body-file draft.md --json
 frontctl draft forward CONVERSATION_ID --to person@example.com --body-file note.md --json
 frontctl draft compose --to person@example.com --subject "Draft subject" --body-file draft.md --json
 frontctl draft discard DRAFT_ID --json
@@ -152,9 +152,11 @@ frontctl draft discard CONVERSATION_ID MESSAGE_UID --json
 frontctl tag list --json
 ```
 
-`draft list/read` are read-only local IndexedDB scans. `draft reply`, `draft compose/create`, and
-`draft discard` do not send. Standalone compose/create saves through Front's non-send draft route
-and returns `result.conversationId`, `result.messageUid`, and `result.discardCommand`.
+`draft list/read` are read-only local IndexedDB scans. `draft reply`, `draft compose/create`,
+`draft update`, and `draft discard` do not send. Standalone compose/create saves through Front's
+non-send draft route and returns `result.conversationId`, `result.messageUid`, and
+`result.discardCommand`. `draft update` requires that conversation id and message uid, plus explicit
+recipients/subject, so agents do not guess from stale local draft cache.
 Draft writes require preview plus explicit `--yes` and known non-send route verification.
 Use the returned discard command to delete the saved draft. Never call `frontctl send`.
 
@@ -183,9 +185,8 @@ user explicitly asked for that exact state change and `canExecute` is true.
 `create-test-conversation` creates a harmless internal task-style test conversation through Front's
 non-send comment save/publish route when `canExecute` is true. Assign/unassign, move, follower add,
 and Front conversation link add/remove are executable routes when `canExecute` is true. Follower
-remove, custom-field, tag-create, and standalone update/forward draft routes are capture-gated
-unless `canExecute` is true. Standalone compose/create drafts are executable when `canExecute` is
-true.
+remove, custom-field, tag-create, and draft forward routes are capture-gated unless `canExecute` is
+true. Standalone compose/create drafts and draft updates are executable when `canExecute` is true.
 When taking an action, pass `--actor Codex` and a concise `--reason "..."`. For every executable
 conversation state change, frontctl itself writes a visible identity comment before the action and
 then applies the requested action last. Do not manually add a separate identity comment. Only run

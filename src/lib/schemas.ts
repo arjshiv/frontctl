@@ -341,6 +341,7 @@ export function validateMutationPayload(action: string, body: unknown) {
     case "draft.reply":
       return draftReplyBodySchema.parse(body);
     case "draft.compose":
+    case "draft.update":
       return draftComposeBodySchema.parse(body);
     default:
       return body;

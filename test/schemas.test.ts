@@ -76,6 +76,29 @@ test("mutation schemas accept known safe Front write bodies", () => {
     handle_time_increment: 0,
   }).format, "html");
 
+  assert.equal((validateMutationPayload("draft.update", {
+    author_id: 456,
+    from: { channel_id: 789 },
+    subject: "Subject",
+    recipients: [{ role: "to", handle: "person@example.com", name: "Person", source: "email" }],
+    attachments: [],
+    html: "<div>Draft</div>",
+    text: "Draft",
+    shared_draft: false,
+    virtru_encrypt: false,
+    has_quote: false,
+    quote_include: false,
+    quote_modified: false,
+    forward_include: false,
+    forward_modified: false,
+    signature_include: false,
+    signature_modified: false,
+    main_style: "",
+    default_font_style: "",
+    format: "html",
+    handle_time_increment: 0,
+  }) as { format: string }).format, "html");
+
   assert.equal(internalTaskCommentSaveBodySchema.parse({
     linked_conversation_type: "internal_task",
     text: "Safe integration test",

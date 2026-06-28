@@ -600,20 +600,6 @@ test("state-changing mutations write visible identity comments before the reques
       expectedFinalMethod: "DELETE",
       expectedFinalUrl: /\/conversations\/conversation-1\/timeline\/456$/,
     },
-    {
-      name: "draft.reply",
-      action: "draft.reply",
-      run: () => draftCommand(["reply", "conversation-1", "--body", "Draft only", "--actor", "Codex", "--reason", "Draft for test", "--yes"], paths),
-      expectedFinalMethod: "PUT",
-      expectedFinalUrl: /\/conversations\/conversation-1\/messages\/[a-f0-9]{32}\?include_conversation=true$/,
-    },
-    {
-      name: "draft.discard",
-      action: "draft.discard",
-      run: () => draftCommand(["discard", "conversation-1", "draftuid123", "--actor", "Codex", "--reason", "Discard draft for test", "--yes"], paths),
-      expectedFinalMethod: "DELETE",
-      expectedFinalUrl: /\/conversations\/conversation-1\/messages\/draftuid123$/,
-    },
   ];
 
   for (const item of cases) {
@@ -624,6 +610,49 @@ test("state-changing mutations write visible identity comments before the reques
     }, draftReplyMockResponse);
     const writes = requests.filter((request) => request.method !== "GET");
     assertIdentityCommentBeforeFinalWrite(writes, item.action, item.expectedFinalMethod, item.expectedFinalUrl);
+  }
+});
+
+test("draft mutations do not write visible identity comments", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-draft-no-identity");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const cases: Array<{
+    name: string;
+    run: () => Promise<unknown>;
+    expectedFinalMethod: string;
+    expectedFinalUrl: RegExp;
+  }> = [
+    {
+      name: "draft.reply",
+      run: () => draftCommand(["reply", "conversation-1", "--body", "Draft only", "--actor", "Codex", "--reason", "Draft for test", "--yes"], paths),
+      expectedFinalMethod: "PUT",
+      expectedFinalUrl: /\/conversations\/conversation-1\/messages\/[a-f0-9]{32}\?include_conversation=true$/,
+    },
+    {
+      name: "draft.update",
+      run: () => draftCommand(["update", "conversation-1", "draftuid123", "--to", "test@example.com", "--subject", "Updated subject", "--body", "Updated draft only", "--actor", "Codex", "--reason", "Update draft for test", "--yes"], paths),
+      expectedFinalMethod: "PUT",
+      expectedFinalUrl: /\/conversations\/conversation-1\/messages\/draftuid123\?include_conversation=true$/,
+    },
+    {
+      name: "draft.discard",
+      run: () => draftCommand(["discard", "conversation-1", "draftuid123", "--actor", "Codex", "--reason", "Discard draft for test", "--yes"], paths),
+      expectedFinalMethod: "DELETE",
+      expectedFinalUrl: /\/conversations\/conversation-1\/messages\/draftuid123$/,
+    },
+  ];
+
+  for (const item of cases) {
+    const requests = await withMockedFrontRequests(async () => {
+      const result = await item.run() as any;
+      assert.equal(result.identity.frontVisibleComment, false, item.name);
+      assert.equal(result.identity.timing, "none", item.name);
+    }, draftReplyMockResponse);
+    const writes = requests.filter((request) => request.method !== "GET");
+    assert.equal(writes.some((request) => /\/comments\//.test(request.url) || /\/timeline$/.test(request.url)), false, item.name);
+    assert.equal(writes.at(-1)?.method, item.expectedFinalMethod, item.name);
+    assert.match(writes.at(-1)?.url ?? "", item.expectedFinalUrl, item.name);
   }
 });
 
@@ -864,6 +893,38 @@ test("draft compose preserves recipients and subject in preview without sending"
   assert.equal(draft.request.body.shared_draft, false);
 });
 
+test("draft update uses the saved draft message route without sending", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-draft-update");
+
+  const draft = await draftCommand([
+    "update",
+    "conversation-1",
+    "existingdraftuid123",
+    "--to",
+    "alice@example.com",
+    "--subject",
+    "Updated subject",
+    "--body",
+    "Updated draft only",
+  ], paths) as any;
+
+  assert.equal(draft.action, "draft.update");
+  assert.equal(draft.mode, "dry-run");
+  assert.equal(draft.sendsEmail, false);
+  assert.equal(draft.canExecute, true);
+  assert.equal(draft.request.method, "PUT");
+  assert.match(draft.request.path, /\/conversations\/conversation-1\/messages\/existingdraftuid123$/);
+  assert.equal(draft.conversationId, "conversation-1");
+  assert.equal(draft.request.body.text, "Updated draft only");
+  assert.equal(draft.request.body.subject, "Updated subject");
+  assert.deepEqual(
+    draft.request.body.recipients.map((recipient: { role: string; handle: string }) => [recipient.role, recipient.handle]),
+    [["to", "alice@example.com"]],
+  );
+  assert.match(draft.note ?? "", /Draft save only/);
+  assert.match(draft.details.discardCommand, /frontctl draft discard conversation-1 existingdraftuid123 --json/);
+});
+
 test("draft compose rejects old guessed fixture shapes in strict discovery mode", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-compose-shape");
   const fixturePath = await writeSanitizedFixture(
@@ -924,7 +985,7 @@ test("snooze executes only after matching fixture and unlocked session", async (
   });
 });
 
-test("draft reply and standalone compose execute with live-proven non-send shapes", async () => {
+test("draft reply, standalone compose, and draft update execute with live-proven non-send shapes", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-draft-execute");
   await writeFile(
     join(paths.supportPath, "draft-fixtures.json"),
@@ -965,6 +1026,34 @@ test("draft reply and standalone compose execute with live-proven non-send shape
         {
           method: "PUT",
           path: "/cell-00017/api/1/companies/32390a17805cd26f7349/conversations/new/messages/message-placeholder",
+          routeKind: "message-or-draft",
+          requestBodyShape: {
+            author_id: "number",
+            from: { channel_id: "number" },
+            subject: "string",
+            recipients: [{ role: "string", handle: "string", name: "string", source: "string" }],
+            attachments: [],
+            html: "string",
+            text: "string",
+            shared_draft: "boolean",
+            virtru_encrypt: "boolean",
+            has_quote: "boolean",
+            quote_include: "boolean",
+            quote_modified: "boolean",
+            forward_include: "boolean",
+            forward_modified: "boolean",
+            signature_include: "boolean",
+            signature_modified: "boolean",
+            main_style: "string",
+            default_font_style: "string",
+            format: "string",
+            handle_time_increment: "number",
+          },
+          redacted: ["query", "headers", "cookies", "auth", "body-values", "mailbox-text"],
+        },
+        {
+          method: "PUT",
+          path: "/cell-00017/api/1/companies/32390a17805cd26f7349/conversations/conversation-1/messages/existingdraftuid123",
           routeKind: "message-or-draft",
           requestBodyShape: {
             author_id: "number",
@@ -1040,6 +1129,35 @@ test("draft reply and standalone compose execute with live-proven non-send shape
   assert.equal(composeBody.from.channel_id, 7599313);
   assert.equal(composeBody.recipients[0].handle, "alice@example.com");
   assert.equal("in_reply_to_id" in composeBody, false);
+
+  const updateRequest = await withMockedFrontRequest(async () => {
+    const update = await draftCommand([
+      "update",
+      "conversation-1",
+      "existingdraftuid123",
+      "--to",
+      "alice@example.com",
+      "--subject",
+      "Updated subject",
+      "--body",
+      "Updated draft only",
+      "--yes",
+    ], paths) as any;
+    assert.equal(update.mode, "execute");
+    assert.equal(update.canExecute, true);
+    assert.equal(update.sendsEmail, false);
+    assert.equal(update.result.messageUid, "existingdraftuid123");
+    assert.match(update.result.discardCommand, /frontctl draft discard conversation-1 existingdraftuid123 --json/);
+  }, draftReplyMockResponse);
+
+  assert.match(updateRequest.url, /\/conversations\/conversation-1\/messages\/existingdraftuid123\?include_conversation=true$/);
+  assert.equal(updateRequest.method, "PUT");
+  const updateBody = updateRequest.body as any;
+  assert.equal(updateBody.text, "Updated draft only");
+  assert.equal(updateBody.subject, "Updated subject");
+  assert.equal(updateBody.from.channel_id, 7599313);
+  assert.equal(updateBody.recipients[0].handle, "alice@example.com");
+  assert.equal("in_reply_to_id" in updateBody, false);
 });
 
 test("draft reply accepts --body-file without enabling send", async () => {

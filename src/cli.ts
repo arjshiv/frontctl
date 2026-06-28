@@ -246,7 +246,7 @@ function usage() {
       "frontctl draft discard DRAFT_ID | draft discard CONVERSATION_ID MESSAGE_UID [--yes] [--json]",
       "frontctl draft reply CONVERSATION_ID --body \"...\"|--body-file reply.md [--yes] [--json]",
       "frontctl draft create|compose --to EMAIL [--cc EMAIL] [--bcc EMAIL] [--subject \"...\"] --body \"...\"|--body-file draft.md [--yes] [--json]",
-      "frontctl draft update DRAFT_ID --body \"...\"|--body-file draft.md [--json] (preview-only)",
+      "frontctl draft update CONVERSATION_ID MESSAGE_UID --to EMAIL [--subject \"...\"] --body \"...\"|--body-file draft.md [--yes] [--json]",
       "frontctl draft forward CONVERSATION_ID --to EMAIL --body \"...\"|--body-file note.md [--json] (preview-only)",
       "frontctl send ... (always blocked)",
     ],

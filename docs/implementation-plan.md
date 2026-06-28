@@ -230,6 +230,9 @@ Implemented behind non-send route gates:
   known non-send route verification or a matching sanitized fixture.
 - `frontctl draft compose --to EMAIL --subject "..." --body "..."` dry-run preview; `--yes` saves a
   standalone draft through Front's non-send draft route and returns a discard command.
+- `frontctl draft update CONVERSATION_ID MESSAGE_UID --to EMAIL --subject "..." --body "..."`
+  dry-run preview; `--yes` updates that existing draft through Front's conversation-scoped
+  non-send draft route and returns a discard command.
 - `frontctl create-test-conversation --subject "..." --body "..."` dry-run preview; `--yes` creates a
   harmless internal task-style conversation for live write testing.
 - `frontctl draft list --limit N` local IndexedDB draft scan.
@@ -237,7 +240,7 @@ Implemented behind non-send route gates:
 - `frontctl draft discard DRAFT_ID` resolves cached draft message UIDs and can become executable
   when it can resolve the cached draft message UID and verify the non-send route.
 - `frontctl draft discard CONVERSATION_ID MESSAGE_UID` deletes a known draft message UID returned
-  from `frontctl draft reply --yes`.
+  from `frontctl draft reply --yes`, `frontctl draft compose --yes`, or `frontctl draft update --yes`.
 - `frontctl send` remains hard blocked.
 - Route-level tests prove no send/finalize/deliver endpoint is exposed.
 

@@ -560,25 +560,47 @@ export async function draftCommand(args: string[], paths: FrontPaths = defaultFr
     return runMutation({ args, spec: messageUid ? await verifiedSpec(spec) : spec, paths });
   }
   if (operation === "update") {
-    if (!id) {
-      throw new CliError("Usage: frontctl draft update DRAFT_ID --body \"...\"|--body-file draft.md", 64);
+    if (!id || !messageUidArg) {
+      throw new CliError("Usage: frontctl draft update CONVERSATION_ID MESSAGE_UID --to EMAIL [--subject TEXT] --body \"...\"|--body-file draft.md", 64);
     }
     const body = await readBodyArg(args);
     if (!body) {
       throw new CliError("Missing draft body. Use --body \"...\" or --body-file path", 64);
     }
     const routes = await getRoutes(paths);
+    const mode: MutationMode = args.includes("--yes") && !args.includes("--dry-run") ? "execute" : "dry-run";
+    const { draftBody, details } = mode === "execute"
+      ? await buildComposeDraftBody(args, body, paths)
+      : previewComposeDraftBody(args, body);
+    const updateUrl = `${routes.conversationMessage(id, messageUidArg)}?include_conversation=true`;
     return runMutation({ args, spec: await verifiedSpec({
       action: "draft.update",
+      conversationId: id,
       method: "PUT",
-      url: routes.message(id),
-      body: { text: body, html: bodyToHtml(body), format: "html" },
+      url: updateUrl,
+      body: draftBody,
       details: {
-        draftId: id,
-        note: "Draft update is preview-only until the private update route shape is captured on this account.",
+        ...details,
+        conversationId: id,
+        messageUid: messageUidArg,
+        discardCommand: `frontctl draft discard ${id} ${messageUidArg} --json`,
+        note: "Updates an existing saved compose draft through Front's non-send draft save route. Recipients and subject are explicit so frontctl does not guess from stale draft cache.",
       },
       canExecute: false,
-      note: "Draft update remains blocked until route capture verifies the non-send payload.",
+      note: "Draft save only. Send remains blocked.",
+      execute: async (client) => {
+        const result = await client.requestJson<Record<string, unknown>>(updateUrl, {
+          method: "PUT",
+          body: draftBody,
+        });
+        const summary = summarizeMutationResult(result) as Record<string, unknown>;
+        return {
+          ...summary,
+          conversationId: id,
+          messageUid: String(result.uid ?? messageUidArg),
+          discardCommand: `frontctl draft discard ${id} ${String(result.uid ?? messageUidArg)} --json`,
+        };
+      },
     }), paths });
   }
   if (operation === "forward") {

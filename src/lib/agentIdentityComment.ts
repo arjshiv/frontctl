@@ -4,6 +4,26 @@ import { commentPublishBody, commentSaveBody, findCommentActivityId } from "./fr
 import { buildFrontRoutes } from "./frontRoutes.js";
 import type { AgentIdentityComment, FrontPrivateClient, IdentifiedMutationSpec, MutationMode } from "./mutationTypes.js";
 
+const THREAD_STATE_ACTIONS = new Set([
+  "archive",
+  "unarchive",
+  "delete",
+  "restore",
+  "assign",
+  "unassign",
+  "move",
+  "follower.add",
+  "follower.remove",
+  "link.add",
+  "link.remove",
+  "custom-field.set",
+  "snooze",
+  "unsnooze",
+  "tag.add",
+  "tag.remove",
+  "comment.remove",
+]);
+
 export async function addAgentIdentityComment(
   client: FrontPrivateClient,
   spec: IdentifiedMutationSpec,
@@ -35,7 +55,7 @@ export function shouldWriteAgentIdentityComment(spec: IdentifiedMutationSpec) {
       && spec.canExecute
       && spec.method
       && spec.url
-      && spec.action !== "comment.add",
+      && THREAD_STATE_ACTIONS.has(spec.action),
   );
 }
 
