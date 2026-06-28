@@ -128,6 +128,7 @@ the Front comment UID/activity ID so the user can inspect the visible trail and 
 Live-proven, executable after preview plus `--yes`:
 
 - archive, unarchive, snooze, unsnooze
+- delete-to-trash and restore from trash through Front's tracker-status route
 - assign/unassign, move inbox, follower add/remove, Front conversation link add/remove, tag add/remove, comment add/remove
 - reply draft save, standalone draft compose/update, and draft discard
 - active-user `follower remove` is guarded by default because Front may reject it or revoke access on personal/internal-task conversations
@@ -142,8 +143,6 @@ Live reads:
 
 Preview or capture-gated:
 
-- delete-to-trash and restore. The generic status patch shape failed live against the dedicated
-  internal task test conversation, so execution is blocked until a real Front route is captured.
 - custom field set
 
 Executable non-send drafts:
@@ -152,7 +151,7 @@ Executable non-send drafts:
 
 Executable non-send test thread:
 
-- `create-test-conversation` creates a harmless internal task-style Front conversation through the same non-send comment route Front.app uses. Use it for archive, snooze, tag, comment, link, move, assign, follower, and draft tests.
+- `create-test-conversation` creates a harmless internal task-style Front conversation through the same non-send comment route Front.app uses. Use it for archive, trash/restore, snooze, tag, comment, link, move, assign, follower, and draft tests.
 - `tag create` and `tag delete` create and clean up workspace tags through Front's private app route. Delete requires a numeric tag id so `frontctl` never guesses which tag to remove.
 - `discovery verify-live-writes` exercises the deployable write set on a real test thread, creates a disposable linked-conversation target when needed, cleans up temporary link/tag/comment/draft artifacts, and archives the test conversations last.
 

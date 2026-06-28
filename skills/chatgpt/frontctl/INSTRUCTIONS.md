@@ -79,12 +79,12 @@ Mutation rule:
 
 Run a dry-run preview first. Use `--yes` only after the user explicitly approves the exact action.
 Drafting is allowed, but `frontctl send` is intentionally blocked.
-Archive/unarchive/snooze/unsnooze, tag add/remove, comment add/remove,
+Archive/unarchive/delete-to-trash/restore/snooze/unsnooze, tag add/remove, comment add/remove,
 assign/unassign, move, follower add/remove, Front conversation link add/remove, tag create/delete, reply draft,
 standalone compose/create draft, draft update, draft discard, and `create-test-conversation` are the executable
 v1 action set when `canExecute` is true. Custom-field routes are capture-gated preview routes unless
-`canExecute` is true. Delete-to-trash and restore are preview-only until a real Front private route
-is captured and live verified; do not execute them even if they look like ordinary status updates.
+`canExecute` is true. Delete-to-trash and restore use Front's tracker-status route, not ordinary
+status updates.
 Forward drafts save through the same
 non-send draft route as compose/create and return a discard command. For `draft update`, use the
 conversation id and message uid returned by compose/reply/update plus explicit recipients and subject;
