@@ -10,6 +10,7 @@ import {
   customFieldConversation,
   draftCommand,
   followerConversation,
+  linkConversation,
   moveConversation,
   snoozeConversation,
   tagConversation,
@@ -375,6 +376,71 @@ test("customFieldConversation previews observed custom_attributes patch but rema
     }],
   });
   assert.match(result.details.note, /fixture-gated/);
+});
+
+test("linkConversation add and remove execute through verified linked-conversation routes", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-link");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const addRequests = await withMockedFrontRequests(async () => {
+    const result = await linkConversation([
+      "add",
+      "conversation-1",
+      "conversation-2",
+      "--actor",
+      "Codex",
+      "--reason",
+      "Link test conversations",
+      "--yes",
+    ], paths) as any;
+
+    assert.equal(result.action, "link.add");
+    assert.equal(result.canExecute, true);
+    assert.equal(result.identity.timing, "before-action");
+    assert.deepEqual(result.request.body, {
+      conversation_ids: ["conversation-2"],
+      options: { original_conversation_id: "conversation-1" },
+    });
+    assert.equal(result.result.activityId, "link-activity-1");
+    assert.equal(result.result.removeCommand, "frontctl link remove conversation-1 link-activity-1 --json");
+  }, { activities: [{ id: "link-activity-1" }] });
+
+  assertIdentityCommentBeforeFinalWrite(
+    addRequests.filter((request) => request.method !== "GET"),
+    "link.add",
+    "POST",
+    /\/conversation_batch\/link$/,
+  );
+  assert.deepEqual(addRequests.filter((request) => request.method !== "GET")[2].body, {
+    conversation_ids: ["conversation-2"],
+    options: { original_conversation_id: "conversation-1" },
+  });
+
+  const removeRequests = await withMockedFrontRequests(async () => {
+    const result = await linkConversation([
+      "remove",
+      "conversation-1",
+      "link-activity-1",
+      "--actor",
+      "Codex",
+      "--reason",
+      "Unlink test conversations",
+      "--yes",
+    ], paths) as any;
+
+    assert.equal(result.action, "link.remove");
+    assert.equal(result.canExecute, true);
+    assert.equal(result.identity.timing, "before-action");
+    assert.deepEqual(result.request.body, {});
+  }, { ok: true });
+
+  assertIdentityCommentBeforeFinalWrite(
+    removeRequests.filter((request) => request.method !== "GET"),
+    "link.remove",
+    "PUT",
+    /\/conversations\/conversation-1\/timeline\/link-activity-1\/unlink$/,
+  );
+  assert.deepEqual(removeRequests.filter((request) => request.method !== "GET")[2].body, {});
 });
 
 test("createTestConversation previews the non-send internal task save route", async () => {

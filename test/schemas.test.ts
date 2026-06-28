@@ -9,6 +9,7 @@ import { installSanitizedDiscoveryFixture, verifyWriteFixture } from "../src/lib
 import {
   browserProbeRuntimeSchema,
   commentPublishBodySchema,
+  conversationBatchLinkBodySchema,
   conversationPatchBodySchema,
   draftReplyBodySchema,
   internalTaskCommentSaveBodySchema,
@@ -38,6 +39,11 @@ test("mutation schemas accept known safe Front write bodies", () => {
   assert.equal(conversationPatchBodySchema.parse(validateMutationPayload("custom-field.set", {
     conversations: [{ id: 123, custom_attributes: { add: [{ custom_field_id: 456, value: "true" }] } }],
   })).conversations[0]?.custom_attributes?.add?.[0]?.custom_field_id, 456);
+  assert.equal(conversationBatchLinkBodySchema.parse(validateMutationPayload("link.add", {
+    conversation_ids: [456],
+    options: { original_conversation_id: 123 },
+  })).options.original_conversation_id, 123);
+  assert.deepEqual(validateMutationPayload("link.remove", {}), {});
 
   assert.equal(commentPublishBodySchema.parse({
     type: "comment",

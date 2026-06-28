@@ -168,6 +168,8 @@ export function summarizeMutationResult(result: unknown) {
   copyIfPresent(summary, raw, "commentUid");
   copyIfPresent(summary, raw, "activityId");
   copyIfPresent(summary, raw, "discardCommand");
+  copyIfPresent(summary, raw, "linkedConversationId");
+  copyIfPresent(summary, raw, "removeCommand");
   if (typeof raw.updated_at === "number") {
     summary.updatedAt = new Date(raw.updated_at).toISOString();
   } else {

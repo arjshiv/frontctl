@@ -77,6 +77,8 @@ const BUILT_IN_VERIFIED_ACTIONS = new Set([
   "unassign",
   "move",
   "follower.add",
+  "link.add",
+  "link.remove",
 ]);
 
 const BLOCKED_PREVIEW_ONLY_ACTIONS = new Set<string>();
@@ -175,6 +177,27 @@ const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" |
       "Use only a dedicated test conversation.",
       "Prefer a low-risk boolean test value such as true/false on an existing custom field.",
       "Do not create or delete workspace-level custom fields during this capture.",
+    ],
+  },
+  "link.add": {
+    action: "link.add",
+    safeFrontAction: "Link two harmless dedicated test conversations in Front.",
+    previewCommand: "frontctl link add CONVERSATION_ID LINKED_CONVERSATION_ID --json",
+    captureName: "link.add",
+    notes: [
+      "Use only dedicated internal test conversations.",
+      "This is Front's linked-conversation feature, not an external URL attachment.",
+      "Capture link add separately from unlink/remove.",
+    ],
+  },
+  "link.remove": {
+    action: "link.remove",
+    safeFrontAction: "Unlink one harmless linked-conversation activity created for verification.",
+    previewCommand: "frontctl link remove CONVERSATION_ID LINK_ACTIVITY_ID --json",
+    captureName: "link.remove",
+    notes: [
+      "Use the activity id returned by link add.",
+      "Capture unlink separately from link add.",
     ],
   },
   unsnooze: {
@@ -355,6 +378,18 @@ export const WRITE_ACTION_SPECS = [
     method: "PATCH",
     path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
     body: { conversations: [{ id: 123, trackers: { add: [{ teammate_id: 456, status: "inbox", stage: "follower" }] } }] },
+  },
+  {
+    action: "link.add",
+    method: "POST",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversation_batch/link",
+    body: { conversation_ids: [456], options: { original_conversation_id: 123 } },
+  },
+  {
+    action: "link.remove",
+    method: "PUT",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/conversation-placeholder/timeline/456/unlink",
+    body: {},
   },
   {
     action: "comment.add",

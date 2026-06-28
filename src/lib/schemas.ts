@@ -181,6 +181,13 @@ export const commentPublishBodySchema = z.object({
   }).strict(),
 }).strict();
 
+export const conversationBatchLinkBodySchema = z.object({
+  conversation_ids: z.array(frontId).min(1),
+  options: z.object({
+    original_conversation_id: frontId,
+  }).strict(),
+}).strict();
+
 export const draftReplyBodySchema = z.object({
   in_reply_to_id: frontId,
   referenced_message_id: frontId,
@@ -325,6 +332,10 @@ export function validateMutationPayload(action: string, body: unknown) {
         : (() => { throw new Error("Delete payload must set status deleted"); })();
     case "comment.add":
       return commentPublishBodySchema.parse(body);
+    case "link.add":
+      return conversationBatchLinkBodySchema.parse(body);
+    case "link.remove":
+      return z.object({}).strict().parse(body);
     case "conversation.create-test":
       return internalTaskCommentSaveBodySchema.parse(body);
     case "draft.reply":

@@ -126,6 +126,8 @@ function redactRecord(raw: Record<string, unknown>) {
     "assignee_id",
     "tag_id",
     "custom_field_id",
+    "linked_conversation_id",
+    "original_conversation_id",
     "value",
     "url",
   ]);

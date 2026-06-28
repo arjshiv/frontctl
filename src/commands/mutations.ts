@@ -251,26 +251,47 @@ export async function followerConversation(args: string[], paths: FrontPaths = d
 export async function linkConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
   const [operation, id] = positional(args);
   if (!operation || !["add", "remove"].includes(operation) || !id) {
-    throw new CliError("Usage: frontctl link add CONVERSATION_ID --url URL [--name NAME] | link remove CONVERSATION_ID LINK_ID_OR_URL", 64);
+    throw new CliError("Usage: frontctl link add CONVERSATION_ID LINKED_CONVERSATION_ID | link remove CONVERSATION_ID LINK_ACTIVITY_ID", 64);
   }
   const routes = await getRoutes(paths);
-  const target = operation === "add" ? readStringFlag(args, "--url") : positional(args)[2];
+  const target = positional(args)[2];
   if (!target) {
-    throw new CliError(operation === "add" ? "Missing --url" : "Missing link id or URL", 64);
+    throw new CliError(operation === "add" ? "Missing linked conversation id" : "Missing link activity id", 64);
   }
+  const body = operation === "add"
+    ? {
+        conversation_ids: [frontNumericId(target)],
+        options: { original_conversation_id: frontNumericId(id) },
+      }
+    : {};
   return runMutation({ args, spec: await verifiedSpec({
     action: `link.${operation}`,
     conversationId: id,
-    method: operation === "add" ? "POST" : "DELETE",
-    url: operation === "add" ? routes.links : routes.conversation(id),
-    body: operation === "add"
-      ? { conversation_id: frontNumericId(id), name: readStringFlag(args, "--name") ?? target, url: target }
-      : { conversation_id: frontNumericId(id), link: target },
+    method: operation === "add" ? "POST" : "PUT",
+    url: operation === "add" ? routes.conversationBatchLink : `${routes.timelineActivity(id, target)}/unlink`,
+    body,
     details: {
       target,
-      note: "Private Front link route is previewed until captured on this account.",
+      note: operation === "add"
+        ? "Links two Front conversations through the verified private conversation_batch/link route."
+        : "Unlinks a Front linked-conversation timeline activity through the observed private /unlink route.",
     },
     canExecute: false,
+    execute: operation === "add"
+      ? async (client) => {
+          const result = await client.requestJson<Record<string, unknown>>(routes.conversationBatchLink, {
+            method: "POST",
+            body,
+          });
+          const activityId = firstActivityId(result);
+          return {
+            ...summarizeMutationResult(result) as Record<string, unknown>,
+            linkedConversationId: target,
+            activityId,
+            removeCommand: activityId ? `frontctl link remove ${id} ${activityId} --json` : undefined,
+          };
+        }
+      : undefined,
   }), paths });
 }
 
@@ -1156,6 +1177,13 @@ function findConversationIdInDataGroup(result: unknown) {
   }
   return stringOrNumberField(result.conversation_id)
     ?? stringOrNumberField((result.conversation as Record<string, unknown> | undefined)?.id);
+}
+
+function firstActivityId(result: unknown) {
+  if (!isObject(result) || !Array.isArray(result.activities)) {
+    return undefined;
+  }
+  return stringOrNumberField((result.activities[0] as Record<string, unknown> | undefined)?.id);
 }
 
 function numericOrString(value: string | null | undefined) {

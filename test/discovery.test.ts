@@ -69,11 +69,11 @@ test("discovery verify-writes accepts only empirically proven built-in route cov
 
   assert.equal(result.scope, "deployable-v1-thread-actions");
   assert.equal(result.allVerified, true);
-  assert.equal(result.verifiedCount, 18);
-  assert.equal(result.count, 18);
+  assert.equal(result.verifiedCount, 20);
+  assert.equal(result.count, 20);
   assert.deepEqual(
     result.actions.filter((action: { source?: string }) => action.source === "known-route").map((action: { action: string }) => action.action),
-    ["archive", "unarchive", "delete", "restore", "unsnooze", "tag.add", "tag.remove", "conversation.create-test", "assign", "unassign", "move", "follower.add", "comment.add", "comment.remove", "snooze", "draft.reply", "draft.compose", "draft.discard"],
+    ["archive", "unarchive", "delete", "restore", "unsnooze", "tag.add", "tag.remove", "conversation.create-test", "assign", "unassign", "move", "follower.add", "link.add", "link.remove", "comment.add", "comment.remove", "snooze", "draft.reply", "draft.compose", "draft.discard"],
   );
   assert.deepEqual(result.blockedActions.map((action: { action: string }) => action.action), []);
 });

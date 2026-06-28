@@ -35,6 +35,7 @@ export interface FrontRoutes {
   contacts: string;
   accounts: string;
   links: string;
+  conversationBatchLink: string;
   customFields: string;
   tags: string;
 }
@@ -112,6 +113,7 @@ export function buildFrontRoutes(context: FrontRouteContext): FrontRoutes {
     contacts: `${root}/contacts`,
     accounts: `${root}/accounts`,
     links: `${root}/links`,
+    conversationBatchLink: `${root}/conversation_batch/link`,
     customFields: `${root}/custom_fields`,
     tags: `${root}/tags`,
   };
