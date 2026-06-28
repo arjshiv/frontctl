@@ -227,7 +227,7 @@ function usage() {
       "frontctl unarchive CONVERSATION_ID [--actor NAME] [--reason WHY] [--yes] [--json]",
       "frontctl delete CONVERSATION_ID [--actor NAME] [--reason WHY] [--yes] [--json]",
       "frontctl restore CONVERSATION_ID [--actor NAME] [--reason WHY] [--yes] [--json]",
-      "frontctl create-test-conversation [--subject TEXT] [--body TEXT] [--json] (preview-only)",
+      "frontctl create-test-conversation [--subject TEXT] [--body TEXT] [--inbox-id ID] [--yes] [--json]",
       "frontctl assign CONVERSATION_ID TEAMMATE_ID_OR_EMAIL [--actor NAME] [--reason WHY] [--yes] [--json]",
       "frontctl unassign CONVERSATION_ID [--actor NAME] [--reason WHY] [--yes] [--json]",
       "frontctl move CONVERSATION_ID INBOX_ID [--actor NAME] [--reason WHY] [--yes] [--json]",

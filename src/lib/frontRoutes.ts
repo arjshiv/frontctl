@@ -24,6 +24,7 @@ export interface FrontRoutes {
   conversationFollowers: (id: string) => string;
   comments: (id: string) => string;
   comment: (conversationId: string, commentUid: string) => string;
+  newConversationComment: (commentUid: string) => string;
   commentTimeline: (conversationId: string, commentUid: string) => string;
   timelineActivity: (conversationId: string, activityId: string) => string;
   message: (id: string) => string;
@@ -95,6 +96,8 @@ export function buildFrontRoutes(context: FrontRouteContext): FrontRoutes {
     comments: (id) => `${root}/conversations/${encodeURIComponent(id)}/comments`,
     comment: (conversationId, commentUid) =>
       `${root}/conversations/${encodeURIComponent(conversationId)}/comments/${encodeURIComponent(commentUid)}`,
+    newConversationComment: (commentUid) =>
+      `${root}/conversations/new/comments/${encodeURIComponent(commentUid)}`,
     commentTimeline: (conversationId, commentUid) =>
       `${root}/conversations/${encodeURIComponent(conversationId)}/comments/${encodeURIComponent(commentUid)}/timeline`,
     timelineActivity: (conversationId, activityId) =>

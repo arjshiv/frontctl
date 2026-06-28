@@ -69,11 +69,11 @@ test("discovery verify-writes accepts only empirically proven built-in route cov
 
   assert.equal(result.scope, "deployable-v1-thread-actions");
   assert.equal(result.allVerified, true);
-  assert.equal(result.verifiedCount, 13);
-  assert.equal(result.count, 13);
+  assert.equal(result.verifiedCount, 14);
+  assert.equal(result.count, 14);
   assert.deepEqual(
     result.actions.filter((action: { source?: string }) => action.source === "known-route").map((action: { action: string }) => action.action),
-    ["archive", "unarchive", "delete", "restore", "unsnooze", "tag.add", "tag.remove", "comment.add", "comment.remove", "snooze", "draft.reply", "draft.compose", "draft.discard"],
+    ["archive", "unarchive", "delete", "restore", "unsnooze", "tag.add", "tag.remove", "conversation.create-test", "comment.add", "comment.remove", "snooze", "draft.reply", "draft.compose", "draft.discard"],
   );
   assert.deepEqual(result.blockedActions.map((action: { action: string }) => action.action), []);
 });
@@ -100,7 +100,7 @@ test("discovery guide reports action-specific capture steps", async () => {
   const result = await discoveryCommand(["guide", "--remote-debugging-port", "9333"]) as any;
 
   assert.equal(result.count, WRITE_ACTION_SPECS.length);
-  assert.equal(result.verifiedCount, 13);
+  assert.equal(result.verifiedCount, WRITE_ACTION_SPECS.length);
   assert.equal(result.remoteDebuggingPort, 9333);
   assert.equal(result.nextUnverified, undefined);
   assert.match(result.launchCommand, /9333/);
@@ -130,10 +130,11 @@ test("discovery guide can describe test conversation route capture explicitly", 
 
   assert.equal(result.scope, "requested-action");
   assert.equal(result.count, 1);
-  assert.equal(result.verifiedCount, 0);
-  assert.equal(result.nextUnverified, "conversation.create-test");
+  assert.equal(result.verifiedCount, 1);
+  assert.equal(result.nextUnverified, undefined);
   assert.equal(result.guides[0].action, "conversation.create-test");
-  assert.equal(result.guides[0].expectedRouteKind, "conversation.create");
+  assert.equal(result.guides[0].expectedRouteKind, "comment.save");
+  assert.equal(result.guides[0].verified, true);
   assert.match(result.guides[0].safeFrontAction, /internal discussion\/test conversation/);
   assert.match(result.guides[0].previewCommand, /create-test-conversation/);
 });

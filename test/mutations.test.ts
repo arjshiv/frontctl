@@ -219,7 +219,7 @@ test("unarchiveConversation restores a conversation through the observed status 
   assert.deepEqual(request.body, { conversations: [{ id: "conversation-1", status: "open" }] });
 });
 
-test("createTestConversation is a non-send preview-only route until captured", async () => {
+test("createTestConversation previews the non-send internal task save route", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-create-test-conversation");
 
   const result = await createTestConversation([
@@ -232,22 +232,93 @@ test("createTestConversation is a non-send preview-only route until captured", a
   assert.equal(result.action, "conversation.create-test");
   assert.equal(result.mode, "dry-run");
   assert.equal(result.sendsEmail, false);
-  assert.equal(result.canExecute, false);
-  assert.match(result.request.path, /\/conversations$/);
+  assert.equal(result.canExecute, true);
+  assert.match(result.request.path, /\/conversations\/new\/comments\/[a-f0-9]{32}$/);
   assert.deepEqual(result.request.body, {
-    type: "discussion",
-    subject: "frontctl test conversation",
-    comment: { text: "Safe integration test" },
-    draft: false,
-    send: false,
-    test: true,
+    linked_conversation_type: "internal_task",
+    text: "Safe integration test",
+    attachments: [],
   });
-  assert.match(result.note, /preview-only/);
-  assert.equal(result.verification.verified, false);
-  await assert.rejects(
-    createTestConversation(["--yes"], paths),
-    /Test conversation creation is preview-only/,
-  );
+  assert.equal(result.details.subject, "frontctl test conversation");
+  assert.equal(result.details.publishRequest.method, "POST");
+  assert.deepEqual(result.details.publishRequest.body.meta, {
+    subject: "frontctl test conversation",
+    trackers: [],
+  });
+  assert.match(result.note, /Send remains blocked/);
+  assert.equal(result.verification.verified, true);
+});
+
+test("createTestConversation executes by saving and publishing an internal task comment", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-create-test-conversation-execute");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const requests = await withMockedFrontRequests(async () => {
+    const result = await createTestConversation([
+      "--subject",
+      "frontctl installed integration test",
+      "--body",
+      "Safe integration test",
+      "--inbox-id",
+      "7946577",
+      "--actor",
+      "Codex",
+      "--reason",
+      "Create dedicated Front test conversation",
+      "--yes",
+    ], paths) as any;
+
+    assert.equal(result.mode, "execute");
+    assert.equal(result.action, "conversation.create-test");
+    assert.equal(result.sendsEmail, false);
+    assert.equal(result.identity.frontVisibleComment, false);
+    assert.equal(result.result.conversationId, "96868000001");
+    assert.equal(result.result.activityId, "45958000001");
+    assert.match(result.result.commentUid, /^[a-f0-9]{32}$/);
+  }, (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    const body = typeof init?.body === "string" ? JSON.parse(init.body) as Record<string, unknown> : {};
+    if (/\/conversations\/new\/comments\/[a-f0-9]{32}\?include_conversation=true&include_linked_activities=true$/.test(url)) {
+      const uid = url.match(/comments\/([a-f0-9]{32})/)?.[1];
+      return {
+        uid,
+        conversation_id: 96868000001,
+        text: body.text,
+        conversation: { id: 96868000001 },
+      };
+    }
+    if (url.endsWith("/conversations/96868000001/timeline")) {
+      return {
+        ok: true,
+        id: "45958000001",
+        activities: [
+          {
+            id: "45958000001",
+            comment: { uid: (body.comment as Record<string, unknown>).uid },
+          },
+        ],
+      };
+    }
+    return { ok: true };
+  });
+
+  const writes = requests.filter((request) => request.method !== "GET");
+  assert.equal(writes.length, 2);
+  assert.equal(writes[0].method, "PUT");
+  assert.match(writes[0].url, /\/conversations\/new\/comments\/[a-f0-9]{32}\?include_conversation=true&include_linked_activities=true$/);
+  assert.deepEqual(writes[0].body, {
+    linked_conversation_type: "internal_task",
+    text: "Safe integration test",
+    attachments: [],
+  });
+  assert.equal(writes[1].method, "POST");
+  assert.match(writes[1].url, /\/conversations\/96868000001\/timeline$/);
+  assert.equal((writes[1].body as any).type, "comment");
+  assert.deepEqual((writes[1].body as any).meta, {
+    inbox_id: 7946577,
+    subject: "frontctl installed integration test",
+    trackers: [],
+  });
 });
 
 test("state-changing mutations write visible identity comments before the requested write", async () => {

@@ -2,7 +2,14 @@ import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { CliError } from "../lib/cli.js";
 import { listCachedDrafts, readCachedDraft } from "../lib/draftCache.js";
-import { commentPublishBody, commentSaveBody, findCommentActivityId } from "../lib/frontComments.js";
+import {
+  commentPublishBody,
+  commentSaveBody,
+  findCommentActivityId,
+  findSavedComment,
+  internalTaskCommentPublishBody,
+  internalTaskCommentSaveBody,
+} from "../lib/frontComments.js";
 import { createFrontPrivateClient, getBoot } from "../lib/frontPrivate.js";
 import { buildFrontRoutes, discoverFrontRouteContext, type FrontRoutes } from "../lib/frontRoutes.js";
 import { runMutation, summarizeMutationResult } from "../lib/mutationRunner.js";
@@ -103,24 +110,56 @@ export async function createTestConversation(args: string[], paths: FrontPaths =
   const subject = readStringFlag(args, "--subject") ?? "frontctl test conversation";
   const body = readStringFlag(args, "--body") ?? "frontctl local integration test. Safe to archive, restore, comment, tag, snooze, and delete.";
   const routes = await getRoutes(paths);
+  const commentUid = randomBytes(16).toString("hex");
+  const saveBody = internalTaskCommentSaveBody(body, readStringFlag(args, "--original-conversation-id"));
+  const inboxId = numericOrString(readStringFlag(args, "--inbox-id")) ?? undefined;
+  const assigneeId = numericOrString(readStringFlag(args, "--assignee-id")) ?? undefined;
+  const publishBody = internalTaskCommentPublishBody(commentUid, { subject, inboxId, assigneeId });
+  const saveUrl = `${routes.newConversationComment(commentUid)}?include_conversation=true&include_linked_activities=true`;
   return runMutation({ args, spec: await verifiedSpec({
     action: "conversation.create-test",
-    method: "POST",
-    url: routes.conversations,
-    body: {
-      type: "discussion",
-      subject,
-      comment: { text: body },
-      draft: false,
-      send: false,
-      test: true,
-    },
+    method: "PUT",
+    url: saveUrl,
+    body: saveBody,
     details: {
+      commentUid,
       subject,
-      note: "Preview-only until the private Front discussion/test-conversation creation route is captured. This must never send email.",
+      publishRequest: {
+        method: "POST",
+        path: "/conversations/CREATED_CONVERSATION_ID/timeline",
+        body: publishBody,
+      },
+      note: "Creates a non-send Front internal task/test conversation. This must never send email.",
     },
     canExecute: false,
-    note: "Test conversation creation is preview-only until browser discovery proves the non-send local Front route.",
+    note: "Creates a Front internal task/test conversation only. Send remains blocked.",
+    execute: async (client) => {
+      const saveResult = await client.requestJson<Record<string, unknown>>(saveUrl, {
+        method: "PUT",
+        body: saveBody,
+      });
+      const savedComment = findSavedComment(saveResult, commentUid);
+      if (!savedComment) {
+        throw new CliError("Front did not return the saved internal task comment.", 69);
+      }
+      const conversationId = stringOrNumberField(savedComment.conversationId)
+        ?? stringOrNumberField(savedComment.conversation_id)
+        ?? findConversationIdInDataGroup(saveResult);
+      if (!conversationId) {
+        throw new CliError("Front did not return a conversation id for the internal task comment.", 69);
+      }
+      const result = await client.requestJson<Record<string, unknown>>(routes.timeline(conversationId), {
+        method: "POST",
+        body: publishBody,
+      });
+      const summary = summarizeMutationResult(result) as Record<string, unknown>;
+      return {
+        ...summary,
+        conversationId,
+        commentUid,
+        activityId: findCommentActivityId(result, commentUid) ?? result.id,
+      };
+    },
   }), paths });
 }
 
@@ -635,7 +674,7 @@ function positional(args: string[]) {
   const values: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (["--body", "--body-file", "--limit", "--actor", "--agent-name", "--client", "--run-id", "--reason", "--url", "--name", "--from-channel-id"].includes(arg)) {
+    if (["--body", "--body-file", "--limit", "--actor", "--agent-name", "--client", "--run-id", "--reason", "--url", "--name", "--from-channel-id", "--inbox-id", "--assignee-id", "--original-conversation-id"].includes(arg)) {
       index += 1;
       continue;
     }
@@ -1082,9 +1121,27 @@ function frontNumericId(id: string) {
   return /^\d+$/.test(id) ? Number(id) : id;
 }
 
-function numericOrString(value: string | null) {
+function findConversationIdInDataGroup(result: unknown) {
+  if (!isObject(result)) {
+    return undefined;
+  }
+  const conversations = result.conversations;
+  if (Array.isArray(conversations)) {
+    return stringOrNumberField((conversations[0] as Record<string, unknown> | undefined)?.id);
+  }
+  if (isObject(conversations) && isObject(conversations.byId)) {
+    return stringOrNumberField((Object.values(conversations.byId)[0] as Record<string, unknown> | undefined)?.id);
+  }
+  return stringOrNumberField(result.conversation_id)
+    ?? stringOrNumberField((result.conversation as Record<string, unknown> | undefined)?.id);
+}
+
+function numericOrString(value: string | null | undefined) {
   if (value === null) {
     return null;
+  }
+  if (value === undefined) {
+    return undefined;
   }
   return /^\d+$/.test(value) ? Number(value) : value;
 }

@@ -38,7 +38,7 @@ const ACTION_ROUTE_KIND: Record<string, string> = {
   unarchive: "conversation.update",
   delete: "conversation.update",
   restore: "conversation.update",
-  "conversation.create-test": "conversation.create",
+  "conversation.create-test": "comment.save",
   assign: "conversation.update",
   move: "conversation.update",
   "follower.add": "conversation.followers",
@@ -71,6 +71,7 @@ const BUILT_IN_VERIFIED_ACTIONS = new Set([
   "draft.reply",
   "draft.compose",
   "draft.discard",
+  "conversation.create-test",
 ]);
 
 const BLOCKED_PREVIEW_ONLY_ACTIONS = new Set<string>();
@@ -114,6 +115,7 @@ const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" |
     notes: [
       "Use an internal discussion or task-style conversation, not an outbound email compose.",
       "Do not click send or capture message finalize/deliver routes.",
+      "The private app saves the internal task comment first, then publishes that saved comment to the new conversation timeline.",
       "After capture, use this test conversation for archive, restore, snooze, tag, comment, and draft tests.",
     ],
   },
@@ -263,6 +265,16 @@ export const WRITE_ACTION_SPECS = [
     body: { conversations: [{ id: 123, tags: { remove: [456] } }] },
   },
   {
+    action: "conversation.create-test",
+    method: "PUT",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/new/comments/comment-placeholder",
+    body: {
+      linked_conversation_type: "internal_task",
+      text: "frontctl local integration test",
+      attachments: [],
+    },
+  },
+  {
     action: "comment.add",
     method: "POST",
     path: "/cell-placeholder/api/1/companies/company-placeholder/conversations/conversation-placeholder/timeline",
@@ -353,7 +365,7 @@ export async function verifyAllWriteFixtures(env: NodeJS.ProcessEnv = process.en
     expectedRouteKind: ACTION_ROUTE_KIND[action] ?? action,
     requestBodyShapeMatched: false,
     status: "preview-only",
-    reason: "Standalone draft compose is preview-only and intentionally excluded from v1 write verification until its private Front route is observed and implemented. It rejects --yes.",
+    reason: "This action is preview-only until its private non-send Front route is observed and implemented.",
   }));
   return {
     fixturePath,
@@ -603,6 +615,7 @@ function pathShape(path: string | undefined) {
     .replace(/\/team\/[^/]+/, "/team/:team")
     .replace(/\/conversations\/[^/]+/, "/conversations/:conversation")
     .replace(/\/timeline\/[^/]+/, "/timeline/:activity")
+    .replace(/\/comments\/[^/]+/, "/comments/:comment")
     .replace(/\/messages\/[^/]+/, "/messages/:message")
     .replace(/\/tag\/[^/]+/, "/tag/:tag")
     .replace(/\/untag\/[^/]+/, "/untag/:tag");

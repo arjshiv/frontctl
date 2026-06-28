@@ -141,6 +141,13 @@ export const commentSaveBodySchema = z.object({
   annotation: z.null(),
 }).strict();
 
+export const internalTaskCommentSaveBodySchema = z.object({
+  linked_conversation_type: z.literal("internal_task"),
+  text: z.string().min(1),
+  attachments: z.array(z.unknown()),
+  original_linked_conversation_id: frontId.optional(),
+}).strict();
+
 export const commentPublishBodySchema = z.object({
   type: z.literal("comment"),
   comment: z.object({
@@ -223,17 +230,6 @@ export const composeDraftPreviewBodySchema = z.object({
   subject: z.string().optional(),
 }).strict();
 
-export const testConversationPreviewBodySchema = z.object({
-  type: z.literal("discussion"),
-  subject: z.string().min(1),
-  comment: z.object({
-    text: z.string().min(1),
-  }).strict(),
-  draft: z.literal(false),
-  send: z.literal(false),
-  test: z.literal(true),
-}).strict();
-
 export const frontBootSchema = z.object({
   user: jsonRecord.optional(),
 }).passthrough();
@@ -302,12 +298,12 @@ export function validateMutationPayload(action: string, body: unknown) {
         : (() => { throw new Error("Delete payload must set status deleted"); })();
     case "comment.add":
       return commentPublishBodySchema.parse(body);
+    case "conversation.create-test":
+      return internalTaskCommentSaveBodySchema.parse(body);
     case "draft.reply":
       return draftReplyBodySchema.parse(body);
     case "draft.compose":
       return draftComposeBodySchema.parse(body);
-    case "conversation.create-test":
-      return testConversationPreviewBodySchema.parse(body);
     default:
       return body;
   }

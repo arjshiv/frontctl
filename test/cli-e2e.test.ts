@@ -836,7 +836,7 @@ test("CLI snooze normalizes relative time in mutation preview", async () => {
   assert.equal(result.details.parser, "relative");
 });
 
-test("CLI comment add accepts body-file while remaining preview-only", async () => {
+test("CLI comment add accepts body-file and stays non-sending", async () => {
   const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-comment-body-file"));
   await writeFile(
     join(paths.cacheDataPath, "route-cache"),
