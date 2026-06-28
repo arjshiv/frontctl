@@ -121,7 +121,7 @@ Implemented:
 - `frontctl discovery guide [ACTION]` provides action-specific safe Front actions, preview
   commands, capture commands, and verification status.
 - `frontctl discovery verify-writes --json` reports deployable v1 write coverage for thread
-  actions, move/follower-add, non-send drafts, and internal test-conversation creation with an empty
+  actions, move/follower-add/remove, non-send drafts, and internal test-conversation creation with an empty
   `blockedActions` list.
 - `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` runs the deployable write
   set against one real conversation, verifies state after each mutation, cleans up temporary
@@ -144,7 +144,7 @@ Optional maintenance path:
 
 - The built-in known route contract covers the supported non-send write routes for the observed
   Front 3.73.0 local app. If a future Front version changes route or payload shape, recapture and
-  install sanitized write fixtures for archive, snooze, move, follower add, tag add/remove,
+  install sanitized write fixtures for archive, snooze, move, follower add/remove, tag add/remove,
   comment add, and draft create/update/discard.
 - Use strict fixture mode only when validating a new local Front version against freshly captured
   fixtures.
@@ -345,8 +345,11 @@ The M0-M5 plan is complete for the current supported scope:
   `frontctl triage inbox`, plus `--format markdown|plain` on read/search/list/summary commands.
 - Optional Markdown querying: `frontctl mq check|install|query|example`.
 - Safe non-send mutations:
-  `frontctl archive`, `snooze`, `move`, `follower add`, `link add|remove`,
+  `frontctl archive`, `snooze`, `move`, `follower add|remove`, `link add|remove`,
   `tag add|remove`, `comment add`, `draft reply|compose|discard`.
+- `follower remove` can intentionally revoke the active user's read access when used on an
+  unassigned/internal task conversation where that user is the only tracker; keep the conversation id
+  and treat a later 403 as likely evidence that access was removed.
 - Mutation safety: dry-run by default, `--yes` required for execution, route verification required,
   audit records are redacted, and `frontctl send` is hard blocked.
 - Local agent installation: `frontctl setup --agent all --yes --json` and

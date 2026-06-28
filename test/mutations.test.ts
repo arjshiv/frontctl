@@ -283,7 +283,7 @@ test("assignConversation executes assign and unassign through the verified conve
   });
 });
 
-test("moveConversation and follower add execute through verified conversation patches", async () => {
+test("moveConversation and follower add/remove execute through verified conversation patches", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-move-follower");
   await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
 
@@ -347,6 +347,43 @@ test("moveConversation and follower add execute through verified conversation pa
     conversations: [{
       id: "conversation-1",
       trackers: { add: [{ teammate_id: 6088721, status: "inbox", stage: "follower" }] },
+    }],
+  });
+
+  const followerRemoveRequests = await withMockedFrontRequests(async () => {
+    const result = await followerConversation([
+      "remove",
+      "conversation-1",
+      "6088721",
+      "--actor",
+      "Codex",
+      "--reason",
+      "Follower remove test",
+      "--yes",
+    ], paths) as any;
+
+    assert.equal(result.action, "follower.remove");
+    assert.equal(result.canExecute, true);
+    assert.equal(result.identity.timing, "before-action");
+    assert.match(result.details.note, /revoke read access/);
+    assert.deepEqual(result.request.body, {
+      conversations: [{
+        id: "conversation-1",
+        trackers: { remove: [{ teammate_id: 6088721 }] },
+      }],
+    });
+  }, { ok: true, id: "activity-follower-remove" });
+
+  assertIdentityCommentBeforeFinalWrite(
+    followerRemoveRequests.filter((request) => request.method !== "GET"),
+    "follower.remove",
+    "PATCH",
+    /\/conversations$/,
+  );
+  assert.deepEqual(followerRemoveRequests.filter((request) => request.method !== "GET")[2].body, {
+    conversations: [{
+      id: "conversation-1",
+      trackers: { remove: [{ teammate_id: 6088721 }] },
     }],
   });
 });

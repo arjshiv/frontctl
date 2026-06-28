@@ -76,12 +76,15 @@ Mutation rule:
 Run a dry-run preview first. Use `--yes` only after the user explicitly approves the exact action.
 Drafting is allowed, but `frontctl send` is intentionally blocked.
 Archive/unarchive/delete-to-trash/restore/snooze/unsnooze, tag add/remove, comment add/remove,
-assign/unassign, move, follower add, Front conversation link add/remove, reply draft, standalone
+assign/unassign, move, follower add/remove, Front conversation link add/remove, reply draft, standalone
 compose/create draft, draft update, draft discard, and `create-test-conversation` are the executable
-v1 action set when `canExecute` is true. Follower remove, custom-field, tag-create, and draft forward
+v1 action set when `canExecute` is true. Custom-field, tag-create, and draft forward
 are capture-gated preview routes unless `canExecute` is true. For `draft update`, use the
 conversation id and message uid returned by compose/reply/update plus explicit recipients and subject;
 do not guess from stale local draft cache.
+For `follower remove`, removing the active user can immediately revoke read access on an
+unassigned/internal task conversation; keep the conversation id and report a later 403 as likely
+evidence that access was removed.
 When the user asks for proof on a real low-risk thread, run
 `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json`. The normal mutation layer
 already leaves visible identity comments before state changes; add `--leave-proof-comment` only if

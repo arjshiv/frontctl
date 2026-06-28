@@ -242,7 +242,7 @@ export async function followerConversation(args: string[], paths: FrontPaths = d
       teammateId,
       note: operation === "add"
         ? "Adds a Front tracker/subscriber through the verified private conversation update route."
-        : "Removes a Front tracker/subscriber through the verified private conversation update route.",
+        : "Removes a Front tracker/subscriber through the verified private conversation update route. Removing the active user can immediately revoke read access on unassigned/internal task conversations.",
     },
     canExecute: false,
   }), paths });

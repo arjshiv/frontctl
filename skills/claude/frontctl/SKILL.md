@@ -181,10 +181,13 @@ verification or a matching sanitized discovery fixture. `--dry-run` forces previ
 `--yes` is present. Do not use `--yes` unless the user explicitly asked for that exact state change
 and `canExecute` is true.
 `create-test-conversation` creates a harmless internal task-style test conversation through Front's
-non-send comment save/publish route when `canExecute` is true. Assign/unassign, move, follower add,
-and Front conversation link add/remove are executable routes when `canExecute` is true. Follower
-remove, custom-field, tag-create, and draft forward routes are capture-gated unless `canExecute` is
+non-send comment save/publish route when `canExecute` is true. Assign/unassign, move,
+follower add/remove, and Front conversation link add/remove are executable routes when `canExecute`
+is true. Custom-field, tag-create, and draft forward routes are capture-gated unless `canExecute` is
 true. Standalone compose/create drafts and draft updates are executable when `canExecute` is true.
+For `follower remove`, removing the active user can immediately revoke read access on an
+unassigned/internal task conversation; keep the conversation id and report a later 403 as likely
+evidence that access was removed.
 When taking an action, pass `--actor Claude` and a concise `--reason "..."`. For every executable
 conversation state change, frontctl itself writes a visible identity comment before the action and
 then applies the requested action last. Do not manually add a separate identity comment. Only run

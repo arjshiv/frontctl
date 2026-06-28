@@ -18,15 +18,15 @@ The first working loop exists:
 - cached and live private-session inbox reads
 - search, read, full conversation reads, summarize, triage, attachment metadata/downloads, resources, tags, drafts, and local SQLite/FTS cache
 - guarded archive, unarchive, delete-to-trash, restore, snooze, unsnooze, tag, comment, reply draft, compose/update draft, and discard flows
-- guarded assign/unassign, move, follower-add, Front conversation link add/remove, and internal test-conversation routes
-- preview/capture-gated follower-remove, custom-field, tag-create, and forward draft routes
+- guarded assign/unassign, move, follower-add/remove, Front conversation link add/remove, and internal test-conversation routes
+- preview/capture-gated custom-field, tag-create, and forward draft routes
 - custom-field set builds Front's observed `custom_attributes.add` patch shape, but a live test on
   an internal task returned `ok` without persisting `custom_field_attributes`; do not promote it to
   built-in executable coverage until a UI/runtime capture plus live readback proves persistence
 - browser/CDP discovery with explicit browser auth probing
 - browser session seeding from the short-lived `frontctl` session cache without repeated Keychain prompts
 - live browser-runtime write verification for archive/unarchive, snooze/unsnooze, move,
-  follower-add, Front conversation link add/remove, tag add/remove, comment add/remove, and reply draft/discard
+  follower-add/remove, Front conversation link add/remove, tag add/remove, comment add/remove, and reply draft/discard
 - local memory profiling for first-run preference learning
 - local daily workflows for triage, noise review, follow-up, tag hygiene, and ops/risk alerts
 - hard-blocked sending

@@ -343,7 +343,7 @@ can copy the existing reusable `frontctl` session into the selected browser tab 
 cookie values or touching Keychain. After the probe is authenticated, use
 `frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json`
 to prove archive/unarchive, snooze/unsnooze, tag add/remove, comment add/remove, and reply
-draft/discard from the browser runtime itself. Move, follower-add, and Front conversation
+draft/discard from the browser runtime itself. Move, follower-add/remove, and Front conversation
 link add/remove use guarded private routes and should be proven on dedicated test conversations.
 Only with user approval, `frontctl discovery relaunch-front --remote-debugging-port 9222 --yes --json`
 quits and reopens Front with remote debugging enabled for browser/network capture. It checks the

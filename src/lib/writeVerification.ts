@@ -79,6 +79,7 @@ const BUILT_IN_VERIFIED_ACTIONS = new Set([
   "unassign",
   "move",
   "follower.add",
+  "follower.remove",
   "link.add",
   "link.remove",
 ]);
@@ -167,7 +168,18 @@ const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" |
     notes: [
       "Use only a dedicated test conversation.",
       "Prefer your own teammate id to avoid notifying another person.",
-      "Follower removal is not deployable until it is separately verified on a safe non-owner tracker.",
+      "Capture follower add separately from follower remove.",
+    ],
+  },
+  "follower.remove": {
+    action: "follower.remove",
+    safeFrontAction: "Remove yourself as a tracker/follower from one harmless test conversation.",
+    previewCommand: "frontctl follower remove CONVERSATION_ID TEAMMATE_ID --json",
+    captureName: "follower.remove",
+    notes: [
+      "Use only a dedicated test conversation where your own teammate id is already a follower.",
+      "Capture follower remove separately from follower add.",
+      "Removing yourself may hide a draft/test-only conversation from inbox views, so keep the conversation id for cleanup.",
     ],
   },
   "custom-field.set": {
@@ -391,6 +403,12 @@ export const WRITE_ACTION_SPECS = [
     method: "PATCH",
     path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
     body: { conversations: [{ id: 123, trackers: { add: [{ teammate_id: 456, status: "inbox", stage: "follower" }] } }] },
+  },
+  {
+    action: "follower.remove",
+    method: "PATCH",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
+    body: { conversations: [{ id: 123, trackers: { remove: [{ teammate_id: 456 }] } }] },
   },
   {
     action: "link.add",

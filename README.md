@@ -125,7 +125,7 @@ the Front comment UID/activity ID so the user can inspect the visible trail and 
 Live-proven, executable after preview plus `--yes`:
 
 - archive, unarchive, delete-to-trash, restore, snooze, unsnooze
-- assign/unassign, move inbox, follower add, Front conversation link add/remove, tag add/remove, comment add/remove
+- assign/unassign, move inbox, follower add/remove, Front conversation link add/remove, tag add/remove, comment add/remove
 - reply draft save, standalone draft compose/update, and draft discard
 
 Live reads:
@@ -137,8 +137,7 @@ Live reads:
 
 Preview or capture-gated:
 
-- follower remove, custom field set
-- tag creation, draft forward
+- custom field set, tag creation, draft forward
 
 Executable non-send drafts:
 
