@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import {
+  assignConversation,
   archiveConversation,
   commentConversation,
   createTestConversation,
@@ -217,6 +218,65 @@ test("unarchiveConversation restores a conversation through the observed status 
   assert.equal(request.method, "PATCH");
   assert.match(request.url, /\/conversations$/);
   assert.deepEqual(request.body, { conversations: [{ id: "conversation-1", status: "open" }] });
+});
+
+test("assignConversation executes assign and unassign through the verified conversation patch route", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-assign");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const assignRequests = await withMockedFrontRequests(async () => {
+    const result = await assignConversation([
+      "conversation-1",
+      "6088721",
+      "--actor",
+      "Codex",
+      "--reason",
+      "Assign test conversation",
+      "--yes",
+    ], paths) as any;
+
+    assert.equal(result.action, "assign");
+    assert.equal(result.canExecute, true);
+    assert.equal(result.identity.timing, "before-action");
+    assert.deepEqual(result.request.body, { conversations: [{ id: "conversation-1", assignee_id: 6088721 }] });
+  }, { ok: true, id: "activity-1" });
+
+  assertIdentityCommentBeforeFinalWrite(
+    assignRequests.filter((request) => request.method !== "GET"),
+    "assign",
+    "PATCH",
+    /\/conversations$/,
+  );
+  assert.deepEqual(assignRequests.filter((request) => request.method !== "GET")[2].body, {
+    conversations: [{ id: "conversation-1", assignee_id: 6088721 }],
+  });
+
+  const unassignRequests = await withMockedFrontRequests(async () => {
+    const result = await assignConversation([
+      "unassign",
+      "conversation-1",
+      "--actor",
+      "Codex",
+      "--reason",
+      "Unassign test conversation",
+      "--yes",
+    ], paths) as any;
+
+    assert.equal(result.action, "unassign");
+    assert.equal(result.canExecute, true);
+    assert.equal(result.identity.timing, "before-action");
+    assert.deepEqual(result.request.body, { conversations: [{ id: "conversation-1", assignee_id: null }] });
+  }, { ok: true, id: "activity-2" });
+
+  assertIdentityCommentBeforeFinalWrite(
+    unassignRequests.filter((request) => request.method !== "GET"),
+    "unassign",
+    "PATCH",
+    /\/conversations$/,
+  );
+  assert.deepEqual(unassignRequests.filter((request) => request.method !== "GET")[2].body, {
+    conversations: [{ id: "conversation-1", assignee_id: null }],
+  });
 });
 
 test("createTestConversation previews the non-send internal task save route", async () => {

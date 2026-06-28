@@ -178,15 +178,18 @@ export async function assignConversation(args: string[], paths: FrontPaths = def
     throw new CliError("Missing assignee id/email", 64);
   }
   const routes = await getRoutes(paths);
+  const action = assigneeId === null ? "unassign" : "assign";
   return runMutation({ args, spec: await verifiedSpec({
-    action: "assign",
+    action,
     conversationId: id,
     method: "PATCH",
     url: routes.conversations,
     body: conversationPatchBody(id, { assignee_id: numericOrString(assigneeId) }),
     details: {
       assigneeId,
-      note: "Private Front assign route is previewed until captured on this account.",
+      note: action === "assign"
+        ? "Assigns the conversation through Front's verified private conversation update route."
+        : "Clears the assignee through Front's verified private conversation update route.",
     },
     canExecute: false,
   }), paths });

@@ -40,6 +40,7 @@ const ACTION_ROUTE_KIND: Record<string, string> = {
   restore: "conversation.update",
   "conversation.create-test": "comment.save",
   assign: "conversation.update",
+  unassign: "conversation.update",
   move: "conversation.update",
   "follower.add": "conversation.followers",
   "follower.remove": "conversation.followers",
@@ -72,6 +73,8 @@ const BUILT_IN_VERIFIED_ACTIONS = new Set([
   "draft.compose",
   "draft.discard",
   "conversation.create-test",
+  "assign",
+  "unassign",
 ]);
 
 const BLOCKED_PREVIEW_ONLY_ACTIONS = new Set<string>();
@@ -117,6 +120,27 @@ const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" |
       "Do not click send or capture message finalize/deliver routes.",
       "The private app saves the internal task comment first, then publishes that saved comment to the new conversation timeline.",
       "After capture, use this test conversation for archive, restore, snooze, tag, comment, and draft tests.",
+    ],
+  },
+  assign: {
+    action: "assign",
+    safeFrontAction: "Assign one harmless test conversation to yourself or another explicitly chosen teammate.",
+    previewCommand: "frontctl assign CONVERSATION_ID TEAMMATE_ID --json",
+    captureName: "assign",
+    notes: [
+      "Use only a dedicated test conversation.",
+      "Capture assign separately from unassign.",
+      "Prefer your own teammate id for live verification.",
+    ],
+  },
+  unassign: {
+    action: "unassign",
+    safeFrontAction: "Clear the assignee from one harmless test conversation.",
+    previewCommand: "frontctl unassign CONVERSATION_ID --json",
+    captureName: "unassign",
+    notes: [
+      "Use the same dedicated test conversation after an assign test.",
+      "Capture unassign separately from assign.",
     ],
   },
   unsnooze: {
@@ -273,6 +297,18 @@ export const WRITE_ACTION_SPECS = [
       text: "frontctl local integration test",
       attachments: [],
     },
+  },
+  {
+    action: "assign",
+    method: "PATCH",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
+    body: { conversations: [{ id: 123, assignee_id: 456 }] },
+  },
+  {
+    action: "unassign",
+    method: "PATCH",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
+    body: { conversations: [{ id: 123, assignee_id: null }] },
   },
   {
     action: "comment.add",

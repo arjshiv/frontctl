@@ -20,6 +20,13 @@ test("mutation schemas accept known safe Front write bodies", () => {
     conversations: [{ id: 123, status: "archived", reminder: null }],
   }).conversations[0]?.status, "archived");
 
+  assert.equal(conversationPatchBodySchema.parse(validateMutationPayload("assign", {
+    conversations: [{ id: 123, assignee_id: 456 }],
+  })).conversations[0]?.assignee_id, 456);
+  assert.equal(conversationPatchBodySchema.parse(validateMutationPayload("unassign", {
+    conversations: [{ id: 123, assignee_id: null }],
+  })).conversations[0]?.assignee_id, null);
+
   assert.equal(commentPublishBodySchema.parse({
     type: "comment",
     comment: { uid: "comment-uid" },

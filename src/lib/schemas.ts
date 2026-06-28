@@ -288,6 +288,7 @@ export function validateMutationPayload(action: string, body: unknown) {
     case "tag.add":
     case "tag.remove":
     case "assign":
+    case "unassign":
     case "move":
       return conversationPatchBodySchema.parse(body).conversations.every((conversation) => allowedConversationStatus(action, conversation.status))
         ? conversationPatchBodySchema.parse(body)
