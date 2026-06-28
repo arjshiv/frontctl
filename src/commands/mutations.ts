@@ -59,6 +59,187 @@ export async function unarchiveConversation(args: string[], paths: FrontPaths = 
   }), paths });
 }
 
+export async function deleteConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
+  const [id] = positional(args);
+  if (!id) {
+    throw new CliError("Missing conversation id", 64);
+  }
+  const routes = await getRoutes(paths);
+  return runMutation({ args, spec: await verifiedSpec({
+    action: "delete",
+    conversationId: id,
+    method: "PATCH",
+    url: routes.conversations,
+    body: conversationPatchBody(id, { status: "deleted" }),
+    details: {
+      status: "deleted",
+      note: "Moves the conversation to Front trash; this is not permanent delete.",
+    },
+    canExecute: false,
+  }), paths });
+}
+
+export async function restoreConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
+  const [id] = positional(args);
+  if (!id) {
+    throw new CliError("Missing conversation id", 64);
+  }
+  const routes = await getRoutes(paths);
+  return runMutation({ args, spec: await verifiedSpec({
+    action: "restore",
+    conversationId: id,
+    method: "PATCH",
+    url: routes.conversations,
+    body: conversationPatchBody(id, { status: "open" }),
+    details: {
+      status: "open",
+      note: "Restores a trashed/deleted conversation to open state.",
+    },
+    canExecute: false,
+  }), paths });
+}
+
+export async function createTestConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
+  const subject = readStringFlag(args, "--subject") ?? "frontctl test conversation";
+  const body = readStringFlag(args, "--body") ?? "frontctl local integration test. Safe to archive, restore, comment, tag, snooze, and delete.";
+  const routes = await getRoutes(paths);
+  return runMutation({ args, spec: await verifiedSpec({
+    action: "conversation.create-test",
+    method: "POST",
+    url: routes.conversations,
+    body: {
+      type: "discussion",
+      subject,
+      comment: { text: body },
+      draft: false,
+      send: false,
+      test: true,
+    },
+    details: {
+      subject,
+      note: "Preview-only until the private Front discussion/test-conversation creation route is captured. This must never send email.",
+    },
+    canExecute: false,
+    note: "Test conversation creation is preview-only until browser discovery proves the non-send local Front route.",
+  }), paths });
+}
+
+export async function assignConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
+  const [operationOrId, maybeId, maybeAssignee] = positional(args);
+  const operation = operationOrId === "add" || operationOrId === "set" || operationOrId === "remove" || operationOrId === "clear" || operationOrId === "unassign"
+    ? operationOrId
+    : "set";
+  const id = operation === "set" ? operationOrId : maybeId;
+  const assignee = operation === "set" ? maybeId : maybeAssignee;
+  if (!id) {
+    throw new CliError("Usage: frontctl assign CONVERSATION_ID TEAMMATE_ID_OR_EMAIL | assign unassign CONVERSATION_ID", 64);
+  }
+  const assigneeId = operation === "remove" || operation === "clear" || operation === "unassign" ? null : assignee;
+  if (assigneeId === undefined) {
+    throw new CliError("Missing assignee id/email", 64);
+  }
+  const routes = await getRoutes(paths);
+  return runMutation({ args, spec: await verifiedSpec({
+    action: "assign",
+    conversationId: id,
+    method: "PATCH",
+    url: routes.conversations,
+    body: conversationPatchBody(id, { assignee_id: numericOrString(assigneeId) }),
+    details: {
+      assigneeId,
+      note: "Private Front assign route is previewed until captured on this account.",
+    },
+    canExecute: false,
+  }), paths });
+}
+
+export async function moveConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
+  const [id, inboxId] = positional(args);
+  if (!id || !inboxId) {
+    throw new CliError("Usage: frontctl move CONVERSATION_ID INBOX_ID", 64);
+  }
+  const routes = await getRoutes(paths);
+  return runMutation({ args, spec: await verifiedSpec({
+    action: "move",
+    conversationId: id,
+    method: "PATCH",
+    url: routes.conversations,
+    body: conversationPatchBody(id, { inbox_id: numericOrString(inboxId) }),
+    details: {
+      inboxId,
+      note: "Private Front move route is previewed until captured on this account.",
+    },
+    canExecute: false,
+  }), paths });
+}
+
+export async function followerConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
+  const [operation, id, teammateId] = positional(args);
+  if (!operation || !["add", "remove"].includes(operation) || !id || !teammateId) {
+    throw new CliError("Usage: frontctl follower add|remove CONVERSATION_ID TEAMMATE_ID_OR_EMAIL", 64);
+  }
+  const routes = await getRoutes(paths);
+  return runMutation({ args, spec: await verifiedSpec({
+    action: `follower.${operation}`,
+    conversationId: id,
+    method: operation === "add" ? "POST" : "DELETE",
+    url: routes.conversationFollowers(id),
+    body: { teammate_ids: [numericOrString(teammateId)] },
+    details: {
+      teammateId,
+      note: "Private Front follower route is previewed until captured on this account.",
+    },
+    canExecute: false,
+  }), paths });
+}
+
+export async function linkConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
+  const [operation, id] = positional(args);
+  if (!operation || !["add", "remove"].includes(operation) || !id) {
+    throw new CliError("Usage: frontctl link add CONVERSATION_ID --url URL [--name NAME] | link remove CONVERSATION_ID LINK_ID_OR_URL", 64);
+  }
+  const routes = await getRoutes(paths);
+  const target = operation === "add" ? readStringFlag(args, "--url") : positional(args)[2];
+  if (!target) {
+    throw new CliError(operation === "add" ? "Missing --url" : "Missing link id or URL", 64);
+  }
+  return runMutation({ args, spec: await verifiedSpec({
+    action: `link.${operation}`,
+    conversationId: id,
+    method: operation === "add" ? "POST" : "DELETE",
+    url: operation === "add" ? routes.links : routes.conversation(id),
+    body: operation === "add"
+      ? { conversation_id: frontNumericId(id), name: readStringFlag(args, "--name") ?? target, url: target }
+      : { conversation_id: frontNumericId(id), link: target },
+    details: {
+      target,
+      note: "Private Front link route is previewed until captured on this account.",
+    },
+    canExecute: false,
+  }), paths });
+}
+
+export async function customFieldConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
+  const [operation, id, fieldName, ...valueParts] = positional(args);
+  if (operation !== "set" || !id || !fieldName || !valueParts.length) {
+    throw new CliError("Usage: frontctl custom-field set CONVERSATION_ID FIELD_NAME VALUE", 64);
+  }
+  const value = valueParts.join(" ");
+  const routes = await getRoutes(paths);
+  return runMutation({ args, spec: await verifiedSpec({
+    action: "custom-field.set",
+    conversationId: id,
+    method: "PATCH",
+    url: routes.conversation(id),
+    body: { custom_fields: { [fieldName]: value } },
+    details: {
+      fieldName,
+      note: "Front custom-field updates can erase omitted fields on the public API. This private route is preview-only until captured with its full preservation shape.",
+    },
+    canExecute: false,
+  }), paths });
+}
+
 export async function tagConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
   const [operation, id, tagAlias] = positional(args);
   if (operation === "list") {
@@ -74,8 +255,38 @@ export async function tagConversation(args: string[], paths: FrontPaths = defaul
     }
     return listCachedTags(paths.cacheDataPath, limit);
   }
+  if (operation === "counts") {
+    const limit = readNumberFlag(args, "--limit") ?? 100;
+    const tags = extractTags(await getBoot(paths)).slice(0, limit);
+    return {
+      source: "live-private",
+      stale: false,
+      publicApiUsed: false,
+      count: tags.length,
+      tags: tags.map((tag) => ({ ...tag, conversationCount: undefined })),
+      note: "Front boot exposes tag metadata but not reliable per-tag counts. Use search filters for exact counts when that route is captured.",
+    };
+  }
+  if (operation === "create") {
+    const name = id;
+    if (!name) {
+      throw new CliError("Usage: frontctl tag create NAME", 64);
+    }
+    const routes = await getRoutes(paths);
+    return runMutation({ args, spec: await verifiedSpec({
+      action: "tag.create",
+      method: "POST",
+      url: routes.tags,
+      body: { name },
+      details: {
+        name,
+        note: "Workspace-level tag creation is preview-only until the private route is captured on this account.",
+      },
+      canExecute: false,
+    }), paths });
+  }
   if (!operation || !["add", "remove"].includes(operation)) {
-    throw new CliError("Usage: frontctl tag list [--live] [--limit 100] | tag add|remove CONVERSATION_ID TAG", 64);
+    throw new CliError("Usage: frontctl tag list|counts|create ... | tag add|remove CONVERSATION_ID TAG", 64);
   }
   if (!id || !tagAlias) {
     throw new CliError("Missing conversation id or tag", 64);
@@ -266,8 +477,50 @@ export async function draftCommand(args: string[], paths: FrontPaths = defaultFr
     };
     return runMutation({ args, spec: messageUid ? await verifiedSpec(spec) : spec, paths });
   }
-  if (!["reply", "compose"].includes(operation ?? "")) {
-    throw new CliError("Usage: frontctl draft list|read|discard|reply|compose ...", 64);
+  if (operation === "update") {
+    if (!id) {
+      throw new CliError("Usage: frontctl draft update DRAFT_ID --body \"...\"|--body-file draft.md", 64);
+    }
+    const body = await readBodyArg(args);
+    if (!body) {
+      throw new CliError("Missing draft body. Use --body \"...\" or --body-file path", 64);
+    }
+    const routes = await getRoutes(paths);
+    return runMutation({ args, spec: await verifiedSpec({
+      action: "draft.update",
+      method: "PUT",
+      url: routes.message(id),
+      body: { text: body, html: bodyToHtml(body), format: "html" },
+      details: {
+        draftId: id,
+        note: "Draft update is preview-only until the private update route shape is captured on this account.",
+      },
+      canExecute: false,
+      note: "Draft update remains blocked until route capture verifies the non-send payload.",
+    }), paths });
+  }
+  if (operation === "forward") {
+    if (!id) {
+      throw new CliError("Usage: frontctl draft forward CONVERSATION_ID --to EMAIL --body \"...\"|--body-file note.md", 64);
+    }
+    const body = await readBodyArg(args);
+    const to = readStringListFlag(args, "--to");
+    if (!body || !to.length) {
+      throw new CliError("Draft forward needs --to and --body or --body-file", 64);
+    }
+    return runMutation({ args, spec: {
+      action: "draft.forward",
+      conversationId: id,
+      body: { to, cc: readStringListFlag(args, "--cc"), bcc: readStringListFlag(args, "--bcc"), text: body, html: bodyToHtml(body), forward_include: true },
+      details: {
+        note: "Forward-as-draft is preview-only until the private forward draft route is captured. Send remains blocked.",
+      },
+      canExecute: false,
+      note: "Forward-as-draft remains blocked until route capture verifies the non-send payload.",
+    }, paths });
+  }
+  if (!["reply", "compose", "create"].includes(operation ?? "")) {
+    throw new CliError("Usage: frontctl draft list|read|discard|reply|compose|create|update|forward ...", 64);
   }
   if (operation === "reply" && !id) {
     throw new CliError("Missing conversation id", 64);
@@ -314,13 +567,13 @@ export async function draftCommand(args: string[], paths: FrontPaths = defaultFr
   }
   const draftBody = composeDraftBody(args, body);
   return runMutation({ args, spec: {
-    action: "draft.compose",
+    action: operation === "create" ? "draft.create" : "draft.compose",
     body: draftBody,
     details: {
-      note: "Standalone compose route is not live-verified in this Front build. Use draft reply for conversation replies; do not execute compose until browser discovery captures the real route.",
+      note: "Standalone compose/create route is not live-verified in this Front build. Use draft reply for conversation replies; do not execute compose/create until browser discovery captures the real route.",
     },
     canExecute: false,
-    note: "Standalone draft compose is preview-only until its private Front route is observed and implemented. Send remains blocked.",
+    note: "Standalone draft compose/create is preview-only until its private Front route is observed and implemented. Send remains blocked.",
   }, paths });
 }
 
@@ -349,7 +602,7 @@ function positional(args: string[]) {
   const values: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (["--body", "--body-file", "--limit", "--actor", "--agent-name", "--client", "--run-id", "--reason"].includes(arg)) {
+    if (["--body", "--body-file", "--limit", "--actor", "--agent-name", "--client", "--run-id", "--reason", "--url", "--name"].includes(arg)) {
       index += 1;
       continue;
     }
@@ -692,6 +945,13 @@ async function resolveCommentActivityId(
 
 function frontNumericId(id: string) {
   return /^\d+$/.test(id) ? Number(id) : id;
+}
+
+function numericOrString(value: string | null) {
+  if (value === null) {
+    return null;
+  }
+  return /^\d+$/.test(value) ? Number(value) : value;
 }
 
 function numericTagId(resolution: { tag?: FrontTag; input: string; resolvedAlias: string }) {

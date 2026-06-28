@@ -36,6 +36,16 @@ export interface WriteCaptureGuide {
 const ACTION_ROUTE_KIND: Record<string, string> = {
   archive: "conversation.update",
   unarchive: "conversation.update",
+  delete: "conversation.update",
+  restore: "conversation.update",
+  "conversation.create-test": "conversation.create",
+  assign: "conversation.update",
+  move: "conversation.update",
+  "follower.add": "conversation.followers",
+  "follower.remove": "conversation.followers",
+  "link.add": "conversation.links",
+  "link.remove": "conversation.links",
+  "custom-field.set": "conversation.custom-fields",
   unsnooze: "conversation.update",
   "tag.add": "conversation.update",
   "tag.remove": "conversation.update",
@@ -50,6 +60,8 @@ const ACTION_ROUTE_KIND: Record<string, string> = {
 const BUILT_IN_VERIFIED_ACTIONS = new Set([
   "archive",
   "unarchive",
+  "delete",
+  "restore",
   "unsnooze",
   "snooze",
   "tag.add",
@@ -71,6 +83,37 @@ const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" |
     notes: [
       "Use a test or low-risk conversation because archive changes mailbox state.",
       "Capture only one archive action during the capture window.",
+    ],
+  },
+  delete: {
+    action: "delete",
+    safeFrontAction: "Move exactly one harmless test conversation to Front trash.",
+    previewCommand: "frontctl delete CONVERSATION_ID --json",
+    captureName: "delete",
+    notes: [
+      "Use only a dedicated test conversation.",
+      "Do not permanently delete anything.",
+    ],
+  },
+  restore: {
+    action: "restore",
+    safeFrontAction: "Restore one harmless test conversation from Front trash.",
+    previewCommand: "frontctl restore CONVERSATION_ID --json",
+    captureName: "restore",
+    notes: [
+      "Use the same test conversation that was intentionally moved to trash.",
+      "Capture restore separately from delete.",
+    ],
+  },
+  "conversation.create-test": {
+    action: "conversation.create-test",
+    safeFrontAction: "Create one harmless internal discussion/test conversation in Front without sending email.",
+    previewCommand: "frontctl create-test-conversation --subject \"frontctl test conversation\" --body \"Safe local integration test\" --json",
+    captureName: "conversation.create-test",
+    notes: [
+      "Use an internal discussion or task-style conversation, not an outbound email compose.",
+      "Do not click send or capture message finalize/deliver routes.",
+      "After capture, use this test conversation for archive, restore, snooze, tag, comment, and draft tests.",
     ],
   },
   unsnooze: {
@@ -184,6 +227,18 @@ export const WRITE_ACTION_SPECS = [
   },
   {
     action: "unarchive",
+    method: "PATCH",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
+    body: { conversations: [{ id: 123, status: "open" }] },
+  },
+  {
+    action: "delete",
+    method: "PATCH",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
+    body: { conversations: [{ id: 123, status: "deleted" }] },
+  },
+  {
+    action: "restore",
     method: "PATCH",
     path: "/cell-placeholder/api/1/companies/company-placeholder/conversations",
     body: { conversations: [{ id: 123, status: "open" }] },

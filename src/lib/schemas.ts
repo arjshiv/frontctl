@@ -120,7 +120,9 @@ export type MutationExecutionResult = z.infer<typeof mutationExecutionResultSche
 
 const conversationPatchItemSchema = z.object({
   id: frontId,
-  status: z.enum(["open", "archived"]).optional(),
+  status: z.enum(["open", "archived", "deleted", "spam"]).optional(),
+  assignee_id: z.union([frontId, z.null()]).optional(),
+  inbox_id: frontId.optional(),
   reminder: z.union([z.number().finite(), z.null()]).optional(),
   tags: z.object({
     add: z.array(z.number().finite()).optional(),
@@ -191,6 +193,17 @@ export const composeDraftPreviewBodySchema = z.object({
   subject: z.string().optional(),
 }).strict();
 
+export const testConversationPreviewBodySchema = z.object({
+  type: z.literal("discussion"),
+  subject: z.string().min(1),
+  comment: z.object({
+    text: z.string().min(1),
+  }).strict(),
+  draft: z.literal(false),
+  send: z.literal(false),
+  test: z.literal(true),
+}).strict();
+
 export const frontBootSchema = z.object({
   user: jsonRecord.optional(),
 }).passthrough();
@@ -243,18 +256,42 @@ export function validateMutationPayload(action: string, body: unknown) {
   switch (action) {
     case "archive":
     case "unarchive":
+    case "restore":
     case "unsnooze":
     case "snooze":
     case "tag.add":
     case "tag.remove":
-      return conversationPatchBodySchema.parse(body);
+    case "assign":
+    case "move":
+      return conversationPatchBodySchema.parse(body).conversations.every((conversation) => allowedConversationStatus(action, conversation.status))
+        ? conversationPatchBodySchema.parse(body)
+        : (() => { throw new Error(`Invalid conversation status for ${action}`); })();
+    case "delete":
+      return conversationPatchBodySchema.parse(body).conversations.every((conversation) => conversation.status === "deleted")
+        ? conversationPatchBodySchema.parse(body)
+        : (() => { throw new Error("Delete payload must set status deleted"); })();
     case "comment.add":
       return commentPublishBodySchema.parse(body);
     case "draft.reply":
       return draftReplyBodySchema.parse(body);
     case "draft.compose":
       return composeDraftPreviewBodySchema.parse(body);
+    case "conversation.create-test":
+      return testConversationPreviewBodySchema.parse(body);
     default:
       return body;
   }
+}
+
+function allowedConversationStatus(action: string, status: unknown) {
+  if (status === undefined) {
+    return true;
+  }
+  if (action === "archive" || action === "snooze" || action === "unsnooze") {
+    return status === "archived";
+  }
+  if (action === "unarchive" || action === "restore") {
+    return status === "open";
+  }
+  return status === "open" || status === "archived";
 }
