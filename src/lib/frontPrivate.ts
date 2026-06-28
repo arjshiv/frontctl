@@ -11,6 +11,7 @@ export interface FrontPrivateClient {
   transport: "cdp-bridge" | "browser-bridge" | "session-cookie";
   getJson<T = unknown>(url: string): Promise<T>;
   requestJson<T = unknown>(url: string, options: { method: string; body?: unknown }): Promise<T>;
+  requestBytes?(url: string): Promise<{ bytes: Uint8Array; contentType?: string; filename?: string }>;
 }
 
 export async function createFrontPrivateClient(paths: FrontPaths): Promise<FrontPrivateClient> {
@@ -125,6 +126,28 @@ export async function createFrontPrivateClient(paths: FrontPaths): Promise<Front
       return requestJson<T>(url, { method: "GET" });
     },
     requestJson,
+    async requestBytes(url: string) {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          accept: "*/*",
+          cookie: cookieHeader,
+          origin: new URL(url).origin,
+          referer: `${new URL(url).origin}/`,
+          "user-agent": "Mozilla/5.0 frontctl-local-session",
+        },
+      });
+      rememberSetCookie(response.headers.get("set-cookie"));
+      if (!response.ok) {
+        throw new CliError(`Front private download failed with HTTP ${response.status}`, 69);
+      }
+      const disposition = response.headers.get("content-disposition") ?? undefined;
+      return {
+        bytes: new Uint8Array(await response.arrayBuffer()),
+        contentType: response.headers.get("content-type") ?? undefined,
+        filename: dispositionFilename(disposition),
+      };
+    },
   };
 }
 
@@ -149,4 +172,16 @@ function upsertCookie(cookieHeader: string, name: string, value: string) {
     .filter(Boolean)
     .filter((part) => !part.startsWith(`${name}=`));
   return [...parts, encoded].join("; ");
+}
+
+function dispositionFilename(disposition: string | undefined) {
+  if (!disposition) {
+    return undefined;
+  }
+  const utf8 = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8) {
+    return decodeURIComponent(utf8[1].replace(/^"|"$/g, ""));
+  }
+  const plain = disposition.match(/filename="?([^";]+)"?/i);
+  return plain ? plain[1] : undefined;
 }

@@ -19,6 +19,9 @@ export interface FrontRoutes {
   searchRaw: (query: string) => string;
   searchHints: (query: string) => string;
   conversations: string;
+  conversationEvents: (id: string) => string;
+  conversationInboxes: (id: string) => string;
+  conversationFollowers: (id: string) => string;
   comments: (id: string) => string;
   comment: (conversationId: string, commentUid: string) => string;
   commentTimeline: (conversationId: string, commentUid: string) => string;
@@ -26,6 +29,12 @@ export interface FrontRoutes {
   message: (id: string) => string;
   messages: (id: string) => string;
   conversationMessage: (conversationId: string, messageUid: string) => string;
+  attachment: (id: string) => string;
+  contacts: string;
+  accounts: string;
+  links: string;
+  customFields: string;
+  tags: string;
 }
 
 const ROUTE_PATTERN =
@@ -79,6 +88,9 @@ export function buildFrontRoutes(context: FrontRouteContext): FrontRoutes {
     searchRaw: (query) => `${root}/search_raw/${encodeURIComponent(query)}`,
     searchHints: (query) => `${root}/search_hints/${encodeURIComponent(query)}`,
     conversations: `${root}/conversations`,
+    conversationEvents: (id) => `${root}/conversations/${encodeURIComponent(id)}/events`,
+    conversationInboxes: (id) => `${root}/conversations/${encodeURIComponent(id)}/inboxes`,
+    conversationFollowers: (id) => `${root}/conversations/${encodeURIComponent(id)}/followers`,
     comments: (id) => `${root}/conversations/${encodeURIComponent(id)}/comments`,
     comment: (conversationId, commentUid) =>
       `${root}/conversations/${encodeURIComponent(conversationId)}/comments/${encodeURIComponent(commentUid)}`,
@@ -90,5 +102,11 @@ export function buildFrontRoutes(context: FrontRouteContext): FrontRoutes {
     messages: (id) => `${root}/conversations/${encodeURIComponent(id)}/messages`,
     conversationMessage: (conversationId, messageUid) =>
       `${root}/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageUid)}`,
+    attachment: (id) => `${root}/download/${encodeURIComponent(id)}`,
+    contacts: `${root}/contacts`,
+    accounts: `${root}/accounts`,
+    links: `${root}/links`,
+    customFields: `${root}/custom_fields`,
+    tags: `${root}/tags`,
   };
 }

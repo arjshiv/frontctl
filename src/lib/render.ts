@@ -17,12 +17,14 @@ export interface ConversationListLike {
 
 export interface ConversationReadLike {
   source?: string;
+  transport?: string;
   stale?: boolean;
   publicApiUsed?: boolean;
   id: string;
   freshness?: { fresh?: boolean; warning?: string; lastSyncedAt?: string };
   conversation?: CachedConversation;
   timeline?: CachedTimelineItem[];
+  full?: unknown;
 }
 
 export interface SummaryLike {

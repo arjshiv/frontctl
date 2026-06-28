@@ -29,6 +29,17 @@ export async function searchConversations(args: string[], paths: FrontPaths = de
     .filter((conversation): conversation is NonNullable<typeof conversation> => Boolean(conversation))
     .slice(0, limit);
 
+  if (args.includes("--ids-only") || args[0] === "ids") {
+    return {
+      source: "live-private",
+      stale: false,
+      publicApiUsed: false,
+      query,
+      count: conversations.length,
+      conversationIds: conversations.map((conversation) => conversation.id),
+    };
+  }
+
   return maybeRenderConversationList({
     source: "live-private",
     stale: false,
@@ -52,6 +63,9 @@ function readQueryArgs(args: string[]) {
   const query: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
+    if (index === 0 && arg === "ids") {
+      continue;
+    }
     if (arg === "--limit" || skipValueFlag(args, "--format", index)) {
       index += 1;
       continue;
