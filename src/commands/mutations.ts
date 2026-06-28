@@ -24,6 +24,13 @@ import {
 import { extractTags, listCachedTags, resolveTagIdentifier, type FrontTag } from "../lib/tags.js";
 import { verifyWriteFixture, type WriteVerification } from "../lib/writeVerification.js";
 
+type CustomFieldResolution = {
+  id: number;
+  input: string;
+  name?: string;
+  type?: string;
+};
+
 export async function archiveConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
   const ids = positional(args);
   if (!ids.length) {
@@ -272,17 +279,23 @@ export async function customFieldConversation(args: string[], paths: FrontPaths 
   if (operation !== "set" || !id || !fieldName || !valueParts.length) {
     throw new CliError("Usage: frontctl custom-field set CONVERSATION_ID FIELD_NAME VALUE", 64);
   }
-  const value = valueParts.join(" ");
+  const field = await resolveCustomFieldArgument(fieldName, paths);
+  const value = normalizeCustomFieldValue(field, valueParts.join(" "));
   const routes = await getRoutes(paths);
   return runMutation({ args, spec: await verifiedSpec({
     action: "custom-field.set",
     conversationId: id,
     method: "PATCH",
-    url: routes.conversation(id),
-    body: { custom_fields: { [fieldName]: value } },
+    url: routes.conversations,
+    body: conversationPatchBody(id, {
+      custom_attributes: {
+        add: [{ custom_field_id: field.id, value }],
+      },
+    }),
     details: {
-      fieldName,
-      note: "Front custom-field updates can erase omitted fields on the public API. This private route is preview-only until captured with its full preservation shape.",
+      field,
+      value,
+      note: "Builds Front's observed custom_attributes patch shape. Execution remains fixture-gated until a live Front UI capture proves persistence on this account.",
     },
     canExecute: false,
   }), paths });
@@ -1163,6 +1176,56 @@ function numericTagId(resolution: { tag?: FrontTag; input: string; resolvedAlias
     }
   }
   return undefined;
+}
+
+async function resolveCustomFieldArgument(input: string, paths: FrontPaths): Promise<CustomFieldResolution> {
+  if (/^\d+$/.test(input)) {
+    return { id: Number(input), input };
+  }
+  const boot = await getBoot(paths);
+  const customFields: CustomFieldResolution[] = [];
+  for (const rawField of Array.isArray(boot.custom_fields) ? boot.custom_fields : []) {
+    if (!isObject(rawField)) {
+      continue;
+    }
+    const id = numberField(rawField.id);
+    if (id === undefined) {
+      continue;
+    }
+    customFields.push({
+      id,
+      input,
+      name: stringField(rawField.name),
+      type: stringField(rawField.type),
+    });
+  }
+  const normalizedInput = normalizeLookup(input);
+  const matches = customFields.filter((field) => normalizeLookup(field.name) === normalizedInput);
+  if (matches.length === 1) {
+    return { ...matches[0], input };
+  }
+  if (matches.length > 1) {
+    throw new CliError(`Custom field name is ambiguous: ${input}. Use the numeric field id.`, 64);
+  }
+  throw new CliError(`Could not resolve custom field "${input}". Run frontctl resources list custom-fields --json and use a listed id or exact name.`, 69);
+}
+
+function normalizeCustomFieldValue(field: CustomFieldResolution, rawValue: string) {
+  if (field.type !== "boolean") {
+    return rawValue;
+  }
+  const normalized = rawValue.trim().toLowerCase();
+  if (["true", "yes", "1", "on"].includes(normalized)) {
+    return "true";
+  }
+  if (["false", "no", "0", "off"].includes(normalized)) {
+    return "false";
+  }
+  throw new CliError("Boolean custom fields require true/false, yes/no, 1/0, or on/off.", 64);
+}
+
+function normalizeLookup(value: unknown) {
+  return String(value ?? "").trim().toLowerCase();
 }
 
 function parseSnoozeUntil(input: string) {

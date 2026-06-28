@@ -35,6 +35,9 @@ test("mutation schemas accept known safe Front write bodies", () => {
   assert.equal(conversationPatchBodySchema.parse(validateMutationPayload("follower.remove", {
     conversations: [{ id: 123, trackers: { remove: [{ teammate_id: 456 }] } }],
   })).conversations[0]?.trackers?.remove?.[0]?.teammate_id, 456);
+  assert.equal(conversationPatchBodySchema.parse(validateMutationPayload("custom-field.set", {
+    conversations: [{ id: 123, custom_attributes: { add: [{ custom_field_id: 456, value: "true" }] } }],
+  })).conversations[0]?.custom_attributes?.add?.[0]?.custom_field_id, 456);
 
   assert.equal(commentPublishBodySchema.parse({
     type: "comment",

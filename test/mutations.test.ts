@@ -7,6 +7,7 @@ import {
   archiveConversation,
   commentConversation,
   createTestConversation,
+  customFieldConversation,
   draftCommand,
   followerConversation,
   moveConversation,
@@ -347,6 +348,33 @@ test("moveConversation and follower add execute through verified conversation pa
       trackers: { add: [{ teammate_id: 6088721, status: "inbox", stage: "follower" }] },
     }],
   });
+});
+
+test("customFieldConversation previews observed custom_attributes patch but remains fixture-gated", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-custom-field");
+
+  const result = await customFieldConversation([
+    "set",
+    "conversation-1",
+    "272081",
+    "true",
+    "--actor",
+    "Codex",
+    "--reason",
+    "Custom field test",
+  ], paths) as any;
+
+  assert.equal(result.action, "custom-field.set");
+  assert.equal(result.canExecute, false);
+  assert.equal(result.identity.timing, "none");
+  assert.equal(result.verification.verified, false);
+  assert.deepEqual(result.request.body, {
+    conversations: [{
+      id: "conversation-1",
+      custom_attributes: { add: [{ custom_field_id: 272081, value: "true" }] },
+    }],
+  });
+  assert.match(result.details.note, /fixture-gated/);
 });
 
 test("createTestConversation previews the non-send internal task save route", async () => {

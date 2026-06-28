@@ -144,6 +144,13 @@ const conversationPatchItemSchema = z.object({
     add: z.array(z.number().finite()).optional(),
     remove: z.array(z.number().finite()).optional(),
   }).strict().optional(),
+  custom_attributes: z.object({
+    add: z.array(z.object({
+      custom_field_id: frontId,
+      value: z.string(),
+    }).strict()).optional(),
+    remove: z.array(frontId).optional(),
+  }).strict().optional(),
 }).strict();
 
 export const conversationPatchBodySchema = z.object({
@@ -308,6 +315,7 @@ export function validateMutationPayload(action: string, body: unknown) {
     case "move":
     case "follower.add":
     case "follower.remove":
+    case "custom-field.set":
       return conversationPatchBodySchema.parse(body).conversations.every((conversation) => allowedConversationStatus(action, conversation.status))
         ? conversationPatchBodySchema.parse(body)
         : (() => { throw new Error(`Invalid conversation status for ${action}`); })();

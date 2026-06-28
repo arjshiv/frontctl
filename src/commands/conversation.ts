@@ -52,7 +52,7 @@ export async function readConversation(args: string[], paths: FrontPaths = defau
   }, args);
 }
 
-function redactConversationDetail(value: Record<string, unknown>) {
+export function redactConversationDetail(value: Record<string, unknown>) {
   const base = pick(value, [
     "id",
     "conversation_id",
@@ -76,6 +76,7 @@ function redactConversationDetail(value: Record<string, unknown>) {
     reminders: summarizeArray(value.reminders),
     trackers: summarizeArray(value.trackers),
     links: summarizeArray(value.links),
+    customFieldAttributes: summarizeArray(value.custom_field_attributes),
   };
 }
 
@@ -124,6 +125,8 @@ function redactRecord(raw: Record<string, unknown>) {
     "teammate_id",
     "assignee_id",
     "tag_id",
+    "custom_field_id",
+    "value",
     "url",
   ]);
 }

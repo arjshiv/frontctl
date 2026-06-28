@@ -166,6 +166,17 @@ const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" |
       "Follower removal is not deployable until it is separately verified on a safe non-owner tracker.",
     ],
   },
+  "custom-field.set": {
+    action: "custom-field.set",
+    safeFrontAction: "Set one harmless custom field on a dedicated test conversation, then set it back if needed.",
+    previewCommand: "frontctl custom-field set CONVERSATION_ID FIELD_ID true --json",
+    captureName: "custom-field.set",
+    notes: [
+      "Use only a dedicated test conversation.",
+      "Prefer a low-risk boolean test value such as true/false on an existing custom field.",
+      "Do not create or delete workspace-level custom fields during this capture.",
+    ],
+  },
   unsnooze: {
     action: "unsnooze",
     safeFrontAction: "Clear the reminder from one snoozed low-risk conversation in Front.",
