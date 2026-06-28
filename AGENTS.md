@@ -17,9 +17,9 @@ The first working loop exists:
 - non-prompting `auth check` and `readiness`
 - cached and live private-session inbox reads
 - search, read, full conversation reads, summarize, triage, attachment metadata/downloads, resources, tags, drafts, and local SQLite/FTS cache
-- guarded archive, unarchive, delete-to-trash, restore, snooze, unsnooze, tag, comment, reply draft, compose/update draft, and discard flows
+- guarded archive, unarchive, delete-to-trash, restore, snooze, unsnooze, tag, comment, reply draft, compose/update/forward draft, and discard flows
 - guarded assign/unassign, move, follower-add/remove, Front conversation link add/remove, and internal test-conversation routes
-- preview/capture-gated custom-field, tag-create, and forward draft routes
+- preview/capture-gated custom-field and tag-create routes
 - custom-field set builds Front's observed `custom_attributes.add` patch shape, but a live test on
   an internal task returned `ok` without persisting `custom_field_attributes`; do not promote it to
   built-in executable coverage until a UI/runtime capture plus live readback proves persistence

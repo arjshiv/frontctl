@@ -164,6 +164,7 @@ export function summarizeMutationResult(result: unknown) {
   copyIfPresent(summary, raw, "subject");
   copyIfPresent(summary, raw, "uid");
   copyIfPresent(summary, raw, "conversationId");
+  copyIfPresent(summary, raw, "sourceConversationId");
   copyIfPresent(summary, raw, "messageUid");
   copyIfPresent(summary, raw, "commentUid");
   copyIfPresent(summary, raw, "activityId");

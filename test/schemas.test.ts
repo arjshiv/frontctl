@@ -11,6 +11,7 @@ import {
   commentPublishBodySchema,
   conversationBatchLinkBodySchema,
   conversationPatchBodySchema,
+  draftForwardBodySchema,
   draftReplyBodySchema,
   frontConversationSchema,
   internalTaskCommentSaveBodySchema,
@@ -99,6 +100,30 @@ test("mutation schemas accept known safe Front write bodies", () => {
     format: "html",
     handle_time_increment: 0,
   }) as { format: string }).format, "html");
+
+  assert.equal(draftForwardBodySchema.parse(validateMutationPayload("draft.forward", {
+    author_id: 456,
+    from: { channel_id: 789 },
+    subject: "Fw: Subject",
+    recipients: [{ role: "to", handle: "person@example.com", name: "Person", source: "email" }],
+    attachments: [],
+    html: "<div>Draft</div>",
+    text: "Draft",
+    shared_draft: false,
+    virtru_encrypt: false,
+    has_quote: false,
+    quote_include: false,
+    quote_modified: false,
+    forward_html: "<div>Forwarded message</div>",
+    forward_include: true,
+    forward_modified: false,
+    signature_include: false,
+    signature_modified: false,
+    main_style: "",
+    default_font_style: "",
+    format: "html",
+    handle_time_increment: 0,
+  })).forward_include, true);
 
   assert.equal(internalTaskCommentSaveBodySchema.parse({
     linked_conversation_type: "internal_task",

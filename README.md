@@ -11,7 +11,7 @@ Apple Mail, or a browser. `frontctl` fills that gap without using the public Fro
 - Read, search, summarize, and triage Front conversations.
 - Read full conversation context, attachment metadata, inboxes, followers, and resource hints.
 - Archive, unarchive, delete-to-trash, restore, snooze, unsnooze, tag, and comment on threads.
-- Draft replies, compose/create/update drafts, discard drafts, and preview forward draft shapes without sending.
+- Draft replies, compose/create/update/forward drafts, and discard drafts without sending.
 - Look up Front resources such as inboxes, channels, teammates, teams, tags, signatures, and custom fields.
 - Run sequential batch reads, archives, and tag changes while preserving the comment-first mutation rule.
 - Learn local triage preferences from recent Front usage.
@@ -137,11 +137,11 @@ Live reads:
 
 Preview or capture-gated:
 
-- custom field set, tag creation, draft forward
+- custom field set, tag creation
 
 Executable non-send drafts:
 
-- `draft reply`, `draft compose`, `draft create`, and `draft update` save drafts only and return a discard command. `frontctl send` remains blocked.
+- `draft reply`, `draft compose`, `draft create`, `draft update`, and `draft forward` save drafts only and return a discard command. `frontctl send` remains blocked.
 
 Executable non-send test thread:
 

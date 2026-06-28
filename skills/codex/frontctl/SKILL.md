@@ -153,8 +153,9 @@ frontctl tag list --json
 ```
 
 `draft list/read` are read-only local IndexedDB scans. `draft reply`, `draft compose/create`,
-`draft update`, and `draft discard` do not send. Standalone compose/create saves through Front's
-non-send draft route and returns `result.conversationId`, `result.messageUid`, and
+`draft update`, `draft forward`, and `draft discard` do not send. Standalone compose/create and
+forward drafts save through Front's
+non-send draft route and return `result.conversationId`, `result.messageUid`, and
 `result.discardCommand`. `draft update` requires that conversation id and message uid, plus explicit
 recipients/subject, so agents do not guess from stale local draft cache.
 Draft writes require preview plus explicit `--yes` and known non-send route verification.
@@ -185,8 +186,8 @@ user explicitly asked for that exact state change and `canExecute` is true.
 `create-test-conversation` creates a harmless internal task-style test conversation through Front's
 non-send comment save/publish route when `canExecute` is true. Assign/unassign, move,
 follower add/remove, and Front conversation link add/remove are executable routes when `canExecute`
-is true. Custom-field, tag-create, and draft forward routes are capture-gated unless `canExecute` is
-true. Standalone compose/create drafts and draft updates are executable when `canExecute` is true.
+is true. Custom-field and tag-create routes are capture-gated unless `canExecute` is true.
+Standalone compose/create drafts, draft updates, and forward drafts are executable when `canExecute` is true.
 For `follower remove`, removing the active user can immediately revoke read access on an
 unassigned/internal task conversation; keep the conversation id and report a later 403 as likely
 evidence that access was removed.

@@ -1116,6 +1116,35 @@ test("draft reply, standalone compose, and draft update execute with live-proven
           },
           redacted: ["query", "headers", "cookies", "auth", "body-values", "mailbox-text"],
         },
+        {
+          method: "PUT",
+          path: "/cell-00017/api/1/companies/32390a17805cd26f7349/conversations/new/messages/message-placeholder",
+          routeKind: "message-or-draft",
+          requestBodyShape: {
+            author_id: "number",
+            from: { channel_id: "number" },
+            subject: "string",
+            recipients: [{ role: "string", handle: "string", name: "string", source: "string" }],
+            attachments: [],
+            html: "string",
+            text: "string",
+            shared_draft: "boolean",
+            virtru_encrypt: "boolean",
+            has_quote: "boolean",
+            quote_include: "boolean",
+            quote_modified: "boolean",
+            forward_html: "string",
+            forward_include: "boolean",
+            forward_modified: "boolean",
+            signature_include: "boolean",
+            signature_modified: "boolean",
+            main_style: "string",
+            default_font_style: "string",
+            format: "string",
+            handle_time_increment: "number",
+          },
+          redacted: ["query", "headers", "cookies", "auth", "body-values", "mailbox-text"],
+        },
       ],
     }),
   );
@@ -1195,6 +1224,42 @@ test("draft reply, standalone compose, and draft update execute with live-proven
   assert.equal(updateBody.from.channel_id, 7599313);
   assert.equal(updateBody.recipients[0].handle, "alice@example.com");
   assert.equal("in_reply_to_id" in updateBody, false);
+
+  const forwardRequests = await withMockedFrontRequests(async () => {
+    const forward = await draftCommand([
+      "forward",
+      "conversation-1",
+      "--to",
+      "test@test.com",
+      "--subject",
+      "Forward draft subject",
+      "--body",
+      "Forward draft only",
+      "--yes",
+    ], paths) as any;
+    assert.equal(forward.mode, "execute");
+    assert.equal(forward.canExecute, true);
+    assert.equal(forward.sendsEmail, false);
+    assert.equal(forward.result.sourceConversationId, "conversation-1");
+    assert.equal(forward.result.conversationId, "96867835601");
+    assert.equal(forward.result.messageUid, "newdraftuid123");
+    assert.match(forward.result.discardCommand, /frontctl draft discard 96867835601 newdraftuid123 --json/);
+  }, draftReplyMockResponse);
+
+  const forwardRequest = forwardRequests.find((request) => /\/conversations\/new\/messages\/[a-f0-9]{32}\?include_conversation=true$/.test(request.url));
+  assert.ok(forwardRequest);
+  assert.equal(forwardRequest.method, "PUT");
+  const forwardBody = forwardRequest.body as any;
+  assert.equal(forwardBody.text, "Forward draft only");
+  assert.equal(forwardBody.subject, "Forward draft subject");
+  assert.equal(forwardBody.from.channel_id, 7599313);
+  assert.equal(forwardBody.recipients[0].handle, "test@test.com");
+  assert.equal(forwardBody.forward_include, true);
+  assert.equal(forwardBody.forward_modified, false);
+  assert.match(forwardBody.forward_html, /Forwarded message/);
+  assert.match(forwardBody.forward_html, /Sender/);
+  assert.match(forwardBody.forward_html, /Original body/);
+  assert.equal("in_reply_to_id" in forwardBody, false);
 });
 
 test("draft reply accepts --body-file without enabling send", async () => {
@@ -1378,6 +1443,7 @@ function draftReplyMockResponse(input: string | URL | Request) {
               display_name: "Support",
             },
           ],
+          body: "<div>Original body</div>",
         },
       ],
     };

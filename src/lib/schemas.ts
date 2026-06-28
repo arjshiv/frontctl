@@ -240,6 +240,7 @@ export const draftComposeBodySchema = z.object({
   has_quote: z.boolean(),
   quote_include: z.boolean(),
   quote_modified: z.boolean(),
+  forward_html: z.string().optional(),
   forward_include: z.boolean(),
   forward_modified: z.boolean(),
   signature_include: z.boolean(),
@@ -249,6 +250,12 @@ export const draftComposeBodySchema = z.object({
   format: z.literal("html"),
   handle_time_increment: z.number().finite(),
 }).strict();
+
+export const draftForwardBodySchema = draftComposeBodySchema.extend({
+  forward_html: z.string().min(1),
+  forward_include: z.literal(true),
+  forward_modified: z.literal(false),
+});
 
 export const composeDraftPreviewBodySchema = z.object({
   body: z.string().min(1),
@@ -343,6 +350,8 @@ export function validateMutationPayload(action: string, body: unknown) {
     case "draft.compose":
     case "draft.update":
       return draftComposeBodySchema.parse(body);
+    case "draft.forward":
+      return draftForwardBodySchema.parse(body);
     default:
       return body;
   }

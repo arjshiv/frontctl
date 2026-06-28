@@ -612,16 +612,47 @@ export async function draftCommand(args: string[], paths: FrontPaths = defaultFr
     if (!body || !to.length) {
       throw new CliError("Draft forward needs --to and --body or --body-file", 64);
     }
-    return runMutation({ args, spec: {
+    const routes = await getRoutes(paths);
+    const draftUid = randomBytes(16).toString("hex");
+    const mode: MutationMode = args.includes("--yes") && !args.includes("--dry-run") ? "execute" : "dry-run";
+    const { draftBody, details } = mode === "execute"
+      ? await buildForwardDraftBody(id, args, body, paths)
+      : previewForwardDraftBody(id, args, body);
+    const draftUrl = `${routes.newConversationMessage(draftUid)}?include_conversation=true`;
+    return runMutation({ args, spec: await verifiedSpec({
       action: "draft.forward",
       conversationId: id,
-      body: { to, cc: readStringListFlag(args, "--cc"), bcc: readStringListFlag(args, "--bcc"), text: body, html: bodyToHtml(body), forward_include: true },
+      method: "PUT",
+      url: draftUrl,
+      body: draftBody,
       details: {
-        note: "Forward-as-draft is preview-only until the private forward draft route is captured. Send remains blocked.",
+        ...details,
+        sourceConversationId: id,
+        draftUid,
+        discardCommand: `frontctl draft discard CONVERSATION_ID ${draftUid} --json`,
       },
       canExecute: false,
-      note: "Forward-as-draft remains blocked until route capture verifies the non-send payload.",
-    }, paths });
+      note: "Forward-as-draft save only. Send remains blocked.",
+      execute: async (client) => {
+        const result = await client.requestJson<Record<string, unknown>>(draftUrl, {
+          method: "PUT",
+          body: draftBody,
+        });
+        const conversationId = stringOrNumberField(result.conversation_id)
+          ?? stringOrNumberField((result.conversation as Record<string, unknown> | undefined)?.id);
+        const messageUid = String(result.uid ?? draftUid);
+        const summary = summarizeMutationResult(result) as Record<string, unknown>;
+        return {
+          ...summary,
+          sourceConversationId: id,
+          conversationId,
+          messageUid,
+          discardCommand: conversationId
+            ? `frontctl draft discard ${conversationId} ${messageUid} --json`
+            : `frontctl draft discard DRAFT_ID_OR_CONVERSATION_ID ${messageUid} --json`,
+        };
+      },
+    }), paths });
   }
   if (!["reply", "compose", "create"].includes(operation ?? "")) {
     throw new CliError("Usage: frontctl draft list|read|discard|reply|compose|create|update|forward ...", 64);
@@ -870,6 +901,112 @@ async function buildComposeDraftBody(args: string[], body: string, paths: FrontP
   });
 }
 
+async function buildForwardDraftBody(sourceConversationId: string, args: string[], body: string, paths: FrontPaths) {
+  const client = await createFrontPrivateClient(paths);
+  const routes = buildFrontRoutes(client.context);
+  const [boot, conversation, timelineResponse] = await Promise.all([
+    client.getJson(routes.boot).then((value) => frontBootSchema.parse(value)),
+    client.getJson(routes.conversation(sourceConversationId)).then((value) => frontConversationSchema.parse(value)),
+    client.getJson(routes.timeline(sourceConversationId)).then((value) => frontTimelineResponseSchema.parse(value)),
+  ]);
+  const timeline = Array.isArray(timelineResponse)
+    ? timelineResponse
+    : Array.isArray(timelineResponse.timeline)
+      ? timelineResponse.timeline
+      : [];
+  const sourceMessage = latestConversationMessage({ timeline }, conversation);
+  if (!sourceMessage.id) {
+    throw new CliError("Could not find a source message to forward in this conversation.", 69);
+  }
+  const authorId = numberField((boot.user as Record<string, unknown> | undefined)?.id);
+  if (!authorId) {
+    throw new CliError("Could not resolve the current Front user for draft forward.", 69);
+  }
+  const channelId = resolveComposeChannelId(args, boot, authorId);
+  if (!channelId) {
+    throw new CliError("Could not resolve a sending channel for draft forward. Pass --from-channel-id CHANNEL_ID.", 69);
+  }
+  return forwardDraftBodyFromFields(args, body, sourceMessage, {
+    authorId,
+    channelId,
+    defaultFontStyle: defaultFontStyle(boot),
+    preview: false,
+    sourceConversationId,
+  });
+}
+
+function previewForwardDraftBody(sourceConversationId: string, args: string[], body: string) {
+  return forwardDraftBodyFromFields(args, body, {
+    id: 123,
+    subject: "frontctl draft preview",
+    sentAt: Date.now(),
+    recipients: [
+      { role: "from", handle: "sender@example.com", name: "Sender" },
+      { role: "to", handle: "recipient@example.com", name: "Recipient" },
+    ],
+    body: "<div>Forwarded preview body</div>",
+  }, {
+    authorId: 456,
+    channelId: 789,
+    defaultFontStyle: "",
+    preview: true,
+    sourceConversationId,
+  });
+}
+
+function forwardDraftBodyFromFields(
+  args: string[],
+  body: string,
+  sourceMessage: Record<string, unknown>,
+  options: { authorId: number; channelId: number; defaultFontStyle: string; preview: boolean; sourceConversationId: string },
+) {
+  const html = bodyToHtml(body);
+  const recipients = [
+    ...composeRecipients(readStringListFlag(args, "--to"), "to"),
+    ...composeRecipients(readStringListFlag(args, "--cc"), "cc"),
+    ...composeRecipients(readStringListFlag(args, "--bcc"), "bcc"),
+  ];
+  const subject = readStringFlag(args, "--subject") ?? `Fw: ${cleanSubject(stringField(sourceMessage.subject) ?? "")}`;
+  const forwardHtml = buildForwardHtml(sourceMessage);
+  return {
+    draftBody: {
+      author_id: options.authorId,
+      from: { channel_id: options.channelId },
+      subject,
+      recipients,
+      attachments: [],
+      html,
+      text: body,
+      shared_draft: false,
+      virtru_encrypt: false,
+      has_quote: false,
+      quote_include: false,
+      quote_modified: false,
+      forward_html: forwardHtml,
+      forward_include: true,
+      forward_modified: false,
+      signature_include: false,
+      signature_modified: false,
+      main_style: "",
+      default_font_style: options.defaultFontStyle,
+      format: "html",
+      handle_time_increment: 0,
+    },
+    details: {
+      sourceConversationId: options.sourceConversationId,
+      sourceMessageId: stringOrNumberField(sourceMessage.id) ?? "preview-placeholder",
+      fromChannelId: options.preview ? "preview-placeholder" : options.channelId,
+      recipients: recipients.map((recipient) => ({ role: recipient.role, handle: recipient.handle })),
+      subject,
+      forwardIncluded: true,
+      bodyFormat: "html",
+      note: options.preview
+        ? "Preview uses placeholder user/channel/source ids. Execution resolves the source message and private sending channel from live Front data."
+        : "Forward-as-draft uses Front's non-send /conversations/new/messages route with forwarded-message HTML included.",
+    },
+  };
+}
+
 function previewComposeDraftBody(args: string[], body: string) {
   return composeDraftBodyFromFields(args, body, {
     authorId: 456,
@@ -1095,6 +1232,54 @@ function replyRecipient(message: Record<string, unknown>) {
     name: stringField(from.display_name) ?? stringField(from.name) ?? handle,
     source: "email",
   };
+}
+
+function buildForwardHtml(message: Record<string, unknown>) {
+  const recipients = Array.isArray(message.recipients) ? message.recipients as Array<Record<string, unknown>> : [];
+  const lines = [
+    "----------- Forwarded message -----------",
+    formatForwardRecipients("From", recipients.filter((recipient) => recipient.role === "from" || recipient.role === "reply-to")),
+    `Date: ${formatForwardDate(message)}`,
+    `Subject: ${cleanSubject(stringField(message.subject) ?? "")}`,
+    formatForwardRecipients("To", recipients.filter((recipient) => recipient.role === "to")),
+    formatForwardRecipients("Cc", recipients.filter((recipient) => recipient.role === "cc")),
+  ].filter((line): line is string => Boolean(line));
+  const rawBody = stringField(message.body)
+    ?? stringField(message.lightBody)
+    ?? stringField(message.light_body)
+    ?? stringField(message.html)
+    ?? (stringField(message.text) ? bodyToHtml(stringField(message.text) ?? "") : "");
+  const header = lines.map(escapeHtml).join("<br>");
+  return `${header}<br><br>${rawBody}`;
+}
+
+function formatForwardRecipients(label: string, recipients: Array<Record<string, unknown>>) {
+  if (!recipients.length) {
+    return undefined;
+  }
+  const handles = recipients
+    .map((recipient) => stringField(recipient.display_name)
+      ?? stringField(recipient.name)
+      ?? stringField(recipient.handle)
+      ?? stringField(recipient.email))
+    .filter((value): value is string => Boolean(value));
+  return handles.length ? `${label}: ${handles.join(", ")}` : undefined;
+}
+
+function formatForwardDate(message: Record<string, unknown>) {
+  const value = numberField(message.sentAt)
+    ?? numberField(message.sent_at)
+    ?? numberField(message.date)
+    ?? numberField(message.createdAt)
+    ?? numberField(message.created_at)
+    ?? numberField(message.updatedAt)
+    ?? numberField(message.updated_at);
+  const date = value ? new Date(value) : new Date();
+  return Number.isFinite(date.getTime()) ? date.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "";
+}
+
+function cleanSubject(subject: string) {
+  return subject.replace(/^(?:re:\s*|fwd:\s*|fw:\s*)+/i, "");
 }
 
 function discardDraftUrl(routes: FrontRoutes, conversationId: string | undefined, messageUid: string) {
