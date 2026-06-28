@@ -43,3 +43,41 @@ test("session-cookie private requests time out instead of hanging forever", asyn
     }
   }
 });
+
+test("session-cookie private requests include a redacted error excerpt", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-private-error-redaction"));
+  await writeFile(
+    join(paths.cacheDataPath, "route-cache"),
+    "https://app.frontapp.com/cell-00017/api/1/companies/32390a17805cd26f7349/team/6088721/conversations/inbox",
+  );
+  process.env.FRONTCTL_SESSION_PATH = join(paths.supportPath, "frontctl-session.json");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH);
+
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(
+      'Bad route for arjun@example.com cookie: front.id=secret; X-Front-Xsrf: csrf-secret',
+      {
+        status: 400,
+        headers: { "content-type": "text/plain" },
+      },
+    )) as typeof fetch;
+
+  try {
+    const client = await createFrontPrivateClient(paths);
+    const routes = buildFrontRoutes(client.context);
+    await assert.rejects(
+      () => client.requestJson(routes.conversation("1"), { method: "PATCH", body: { ok: true } }),
+      (error: unknown) => {
+        const message = String((error as Error).message);
+        assert.match(message, /Front private request failed with HTTP 400: Bad route for \[redacted-email\]/);
+        assert.doesNotMatch(message, /arjun@example\.com/);
+        assert.doesNotMatch(message, /front\.id=secret/);
+        assert.doesNotMatch(message, /csrf-secret/);
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});

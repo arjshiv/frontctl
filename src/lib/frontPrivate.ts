@@ -128,7 +128,7 @@ function sessionCookieClient(
     rememberSetCookie(response.headers.get("set-cookie"));
     const text = await response.text();
     if (!response.ok) {
-      throw new CliError(`Front private request failed with HTTP ${response.status}`, 69);
+      throw new CliError(`Front private request failed with HTTP ${response.status}${summarizeErrorBody(text)}`, 69);
     }
     return text ? (JSON.parse(text) as T) : ({} as T);
   };
@@ -196,6 +196,24 @@ function requestPath(url: string) {
   } catch {
     return "<unknown>";
   }
+}
+
+function summarizeErrorBody(text: string) {
+  if (!text.trim()) {
+    return "";
+  }
+  const summary = redactPrivateText(text)
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 240);
+  return summary ? `: ${summary}` : "";
+}
+
+function redactPrivateText(text: string) {
+  return text
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[redacted-email]")
+    .replace(/\b(front\.(?:id|id\.sig|csrf))=[^;\s"]+/gi, "$1=[redacted]")
+    .replace(/\b(cookie|authorization|x-front-xsrf)\b\s*[:=]\s*("[^"]+"|[^\s,}]+)/gi, "$1=[redacted]");
 }
 
 export async function getBoot(paths: FrontPaths) {
