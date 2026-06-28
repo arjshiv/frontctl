@@ -349,6 +349,28 @@ export async function tagConversation(args: string[], paths: FrontPaths = defaul
       note: "Front boot exposes tag metadata but not reliable per-tag counts. Use search filters for exact counts when that route is captured.",
     };
   }
+  if (operation === "delete") {
+    const tagId = id;
+    if (!tagId || !/^\d+$/.test(tagId)) {
+      throw new CliError("Usage: frontctl tag delete TAG_ID", 64);
+    }
+    const routes = await getRoutes(paths);
+    const deleteUrl = `${routes.tags}/${encodeURIComponent(tagId)}`;
+    return runMutation({ args, spec: await verifiedSpec({
+      action: "tag.delete",
+      method: "DELETE",
+      url: deleteUrl,
+      details: {
+        tagId,
+        note: "Deletes a workspace-level Front tag through the verified private tag route. Numeric tag id is required so frontctl never guesses which tag to delete.",
+      },
+      canExecute: false,
+      execute: async (client) => {
+        await client.requestJson(deleteUrl, { method: "DELETE" });
+        return { ok: true, tagId };
+      },
+    }), paths });
+  }
   if (operation === "create") {
     const name = id;
     if (!name) {
@@ -362,13 +384,13 @@ export async function tagConversation(args: string[], paths: FrontPaths = defaul
       body: { name },
       details: {
         name,
-        note: "Creates a workspace-level Front tag through the verified private tag route. Use disposable names for tests because tag deletion is not implemented yet.",
+        note: "Creates a workspace-level Front tag through the verified private tag route. Use disposable names for tests and clean them up with `frontctl tag delete TAG_ID --yes`.",
       },
       canExecute: false,
     }), paths });
   }
   if (!operation || !["add", "remove"].includes(operation)) {
-    throw new CliError("Usage: frontctl tag list|counts|create ... | tag add|remove CONVERSATION_ID TAG", 64);
+    throw new CliError("Usage: frontctl tag list|counts|create|delete ... | tag add|remove CONVERSATION_ID TAG", 64);
   }
   if (!id || !tagAlias) {
     throw new CliError("Missing conversation id or tag", 64);

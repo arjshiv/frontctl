@@ -76,7 +76,7 @@ Mutation rule:
 Run a dry-run preview first. Use `--yes` only after the user explicitly approves the exact action.
 Drafting is allowed, but `frontctl send` is intentionally blocked.
 Archive/unarchive/delete-to-trash/restore/snooze/unsnooze, tag add/remove, comment add/remove,
-assign/unassign, move, follower add/remove, Front conversation link add/remove, tag create, reply draft,
+assign/unassign, move, follower add/remove, Front conversation link add/remove, tag create/delete, reply draft,
 standalone compose/create draft, draft update, draft discard, and `create-test-conversation` are the executable
 v1 action set when `canExecute` is true. Custom-field routes are capture-gated preview routes unless
 `canExecute` is true. Forward drafts save through the same

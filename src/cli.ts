@@ -239,6 +239,7 @@ function usage() {
       "frontctl unsnooze CONVERSATION_ID [--actor NAME] [--reason WHY] [--yes] [--json]",
       "frontctl tag list|counts [--live] [--limit 100] [--json]",
       "frontctl tag create NAME [--yes] [--json]",
+      "frontctl tag delete TAG_ID [--yes] [--json]",
       "frontctl tag add|remove CONVERSATION_ID TAG [--actor NAME] [--reason WHY] [--live] [--yes] [--json]",
       "frontctl comment add CONVERSATION_ID --body \"...\"|--body-file note.md [--actor NAME] [--reason WHY] [--yes] [--json]",
       "frontctl comment remove CONVERSATION_ID ACTIVITY_OR_COMMENT_UID [--actor NAME] [--reason WHY] [--yes] [--json]",

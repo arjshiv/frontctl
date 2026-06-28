@@ -346,7 +346,7 @@ The M0-M5 plan is complete for the current supported scope:
 - Optional Markdown querying: `frontctl mq check|install|query|example`.
 - Safe non-send mutations:
   `frontctl archive`, `snooze`, `move`, `follower add|remove`, `link add|remove`,
-  `tag create|add|remove`, `comment add`, `draft reply|compose|forward|discard`.
+  `tag create|delete|add|remove`, `comment add`, `draft reply|compose|forward|discard`.
 - `follower remove` can intentionally revoke the active user's read access when used on an
   unassigned/internal task conversation where that user is the only tracker; keep the conversation id
   and treat a later 403 as likely evidence that access was removed.

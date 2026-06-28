@@ -51,6 +51,7 @@ const ACTION_ROUTE_KIND: Record<string, string> = {
   "tag.add": "conversation.update",
   "tag.remove": "conversation.update",
   "tag.create": "tag.create",
+  "tag.delete": "tag.delete",
   "comment.add": "comment.add",
   "comment.remove": "comment.remove",
   snooze: "conversation.update",
@@ -71,6 +72,7 @@ const BUILT_IN_VERIFIED_ACTIONS = new Set([
   "tag.add",
   "tag.remove",
   "tag.create",
+  "tag.delete",
   "comment.add",
   "comment.remove",
   "draft.reply",
@@ -266,7 +268,18 @@ const ACTION_CAPTURE_GUIDES: Record<string, Omit<WriteCaptureGuide, "verified" |
     notes: [
       "Do not create customer- or team-facing tags during capture.",
       "Use a clearly disposable name such as frontctl-test-delete-me-YYYY-MM-DD.",
-      "Tag deletion is not implemented yet, so expect the created tag to remain until cleaned up manually in Front.",
+      "Clean up disposable tags with frontctl tag delete TAG_ID --yes after capture.",
+    ],
+  },
+  "tag.delete": {
+    action: "tag.delete",
+    safeFrontAction: "Delete one clearly disposable workspace tag created for Front verification.",
+    previewCommand: "frontctl tag delete TAG_ID --json",
+    captureName: "tag.delete",
+    notes: [
+      "Use only a numeric id for a disposable frontctl-test-delete-me tag.",
+      "Do not delete customer- or team-facing tags.",
+      "Capture tag delete separately from tag create.",
     ],
   },
   "comment.add": {
@@ -401,6 +414,11 @@ export const WRITE_ACTION_SPECS = [
     method: "POST",
     path: "/cell-placeholder/api/1/companies/company-placeholder/tags",
     body: { name: "frontctl-test-delete-me" },
+  },
+  {
+    action: "tag.delete",
+    method: "DELETE",
+    path: "/cell-placeholder/api/1/companies/company-placeholder/tags/tag-placeholder",
   },
   {
     action: "conversation.create-test",
@@ -852,6 +870,7 @@ function pathShape(path: string | undefined) {
     .replace(/\/timeline\/[^/]+/, "/timeline/:activity")
     .replace(/\/comments\/[^/]+/, "/comments/:comment")
     .replace(/\/messages\/[^/]+/, "/messages/:message")
+    .replace(/\/tags\/[^/]+/, "/tags/:tag")
     .replace(/\/tag\/[^/]+/, "/tag/:tag")
     .replace(/\/untag\/[^/]+/, "/untag/:tag");
 }

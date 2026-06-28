@@ -217,6 +217,18 @@ test("write verification validates command body before matching known routes", a
   }));
 });
 
+test("write verification matches numeric workspace tag delete routes", async () => {
+  const result = await verifyWriteFixture({
+    action: "tag.delete",
+    method: "DELETE",
+    path: "/cell-00017/api/1/companies/32390a17805cd26f734/tags/224924625",
+    env: { FRONTCTL_DISCOVERY_FIXTURES_PATH: join(await makeTempDir("frontctl-schema-tag-delete"), "fixtures") } as NodeJS.ProcessEnv,
+  });
+
+  assert.equal(result.verified, true);
+  assert.equal(result.source, "known-route");
+});
+
 test("session file schema rejects malformed unlocked-session cache", async () => {
   const dir = await makeTempDir("frontctl-schema-session");
   const sessionPath = join(dir, "session.json");

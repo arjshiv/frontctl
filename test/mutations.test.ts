@@ -740,6 +740,25 @@ test("tagConversation create executes through the verified private tag route", a
   assert.deepEqual(request.body, { name: "frontctl-test-delete-me" });
 });
 
+test("tagConversation delete executes through the verified private tag route", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-tag-delete");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const request = await withMockedFrontRequest(async () => {
+    const result = await tagConversation(["delete", "224924625", "--yes"], paths) as any;
+    assert.equal(result.mode, "execute");
+    assert.equal(result.action, "tag.delete");
+    assert.equal(result.canExecute, true);
+    assert.equal(result.sendsEmail, false);
+    assert.equal(result.result.tagId, "224924625");
+    assert.equal(result.identity.frontVisibleComment, false);
+  }, {});
+
+  assert.equal(request.method, "DELETE");
+  assert.match(request.url, /\/tags\/224924625$/);
+  assert.equal(request.body, undefined);
+});
+
 test("tagConversation rejects ambiguous tag names instead of guessing", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-tag-ambiguous");
   await writeFile(
