@@ -25,17 +25,26 @@ Preferred non-technical install after release:
 
 1. Download the signed `frontctl` DMG.
 2. Open it and run the installer package.
-3. Open `Frontctl Setup.app`.
-4. Click **Check Setup**, **Install Agent Skills**, then **Unlock Live Session**.
+3. Ask your agent to run `frontctl setup complete --yes --json`, or run that command yourself.
+4. Approve Touch ID or your password once if macOS asks.
+5. Paste the printed agent prompt into Claude, ChatGPT with local command access, or Codex.
+
+Preferred agent install from a repository checkout:
+
+```bash
+git clone https://github.com/arjshiv/frontctl.git "$HOME/.local/src/frontctl"
+cd "$HOME/.local/src/frontctl"
+script/bootstrap_agent_install.sh
+```
 
 Current local install from this repo:
 
 ```bash
 npm install
 npm run build
-npm link
+script/bootstrap_agent_install.sh --skip-live-proof --no-permission-preflight
 frontctl doctor
-frontctl setup --agent all --yes --json
+frontctl setup complete --yes --json
 ```
 
 Recommended npm install after publishing:
@@ -43,10 +52,10 @@ Recommended npm install after publishing:
 ```bash
 npm install -g frontctl
 frontctl doctor
-frontctl setup --agent all --yes --json
+frontctl setup complete --yes --json
 ```
 
-Without `npm link`, a technical user can run the built CLI directly:
+Without installing, a technical user can run the built CLI directly:
 
 ```bash
 node dist/src/cli.js doctor
@@ -103,9 +112,9 @@ Codex and Claude use local skill files. ChatGPT uses pasteable instructions inst
 `frontctl agents prompt --agent chatgpt --json` output into a ChatGPT session only when that session
 has local terminal or Codex-style command execution access on this Mac.
 
-Use `frontctl setup --agent all --yes --json` for the one-command readiness check plus Codex/Claude
-skill install. Without `--yes`, setup and agent install commands are dry runs that print the source
-and destination paths without copying anything.
+Use `frontctl setup complete --yes --json` for the one-command readiness check, permission
+preflight, and Codex/Claude skill install. Without `--yes`, setup and agent install commands are dry
+runs that print the source and destination paths without copying anything.
 
 The skill tells the agent:
 

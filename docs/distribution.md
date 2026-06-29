@@ -176,17 +176,17 @@ before the package build so the app is signed with Developer ID Application cred
 It is a native first-run wrapper around:
 
 - `frontctl readiness --json`
-- `frontctl setup --json`
-- `frontctl setup --agent all --yes --json`
+- `frontctl setup complete --yes --json`
 - `frontctl discovery launch --remote-debugging-port 9222 --json`
 - `frontctl bridge test --json`
 - `frontctl diagnose --output ~/Desktop/frontctl-support.json --json`
 
 The window translates setup JSON into a plain-language checklist for Front installation, Front
-sign-in, live session, and agent skills. If the CLI is missing, it tells the user to run the installer
-package from the DMG. It reads `userReadiness.state` and `userReadiness.nextAction` from setup
-output so the user sees one clear next action. It also includes a copyable agent prompt for Claude,
-ChatGPT, or Codex.
+sign-in, live session, and agent skills. If the CLI is missing, it tells the user to run the user
+installer from the DMG. Its primary button should call `frontctl setup complete --yes --json`; other
+buttons are support actions. It reads `userReadiness.state` and `userReadiness.nextAction` from
+setup output so the user sees one clear next action. It also includes a copyable agent prompt for
+Claude, ChatGPT, or Codex.
 
 For production, set `DEVELOPER_ID_APPLICATION`; the package build signs the setup app before
 bundling it in the DMG.
@@ -198,8 +198,7 @@ Every setup surface should route failures to one of these user actions:
 - Install Front for macOS.
 - Open Front and sign in.
 - Verify frontctl is installed with `frontctl --version`.
-- Launch a managed Edge/Chrome window with `frontctl discovery launch --remote-debugging-port 9222 --json`, sign into Front, then run `frontctl bridge test --json`.
-- Install Codex/Claude skills with `frontctl setup --agent all --yes --json`.
+- Run `frontctl setup complete --yes --json` and approve one Touch ID/password prompt if macOS asks.
 - Generate a redacted support bundle with `frontctl diagnose --output support.json --json`.
 
 The support bundle must not include cookie values, auth headers, mailbox body text, email subjects,

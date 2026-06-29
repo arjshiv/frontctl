@@ -64,13 +64,13 @@ Use this checklist before giving `frontctl` to an early tester or non-technical 
 ## First-Run User Path
 
 1. User opens the DMG.
-2. User runs `frontctl-<version>.pkg`.
-3. User opens `Frontctl Setup.app`.
-4. Setup app tells them one of:
+2. User runs `Install Frontctl for This User.command`.
+3. User asks their agent to run `frontctl setup complete --yes --json`.
+4. Setup tells them one of:
    - Front is missing: install Front for macOS.
    - Front sign-in is missing: open Front and sign in.
-   - Live session is locked: click Unlock Live Session and approve Touch ID/password once.
-   - Agent skills are missing: click Install Agent Skills.
+   - Live session is locked: approve Touch ID/password once.
+   - Agent skills are missing: rerun setup complete.
    - Ready: paste the shown prompt into Claude, ChatGPT with local command access, or Codex.
 
 ## Support Rules

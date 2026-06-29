@@ -28,13 +28,12 @@ The user flow should be:
 
 1. Open the DMG.
 2. Run the package installer.
-3. Open `Frontctl Setup.app`.
-4. Click `Check Setup`.
-5. Follow exactly one next action.
-6. Copy the assistant prompt into Claude, ChatGPT with local command access, or Codex.
+3. Ask an agent to run `frontctl setup complete --yes --json`, or run it manually.
+4. Approve Touch ID/password once if macOS asks.
+5. Copy the assistant prompt into Claude, ChatGPT with local command access, or Codex.
 
-`Frontctl Setup.app` should be the normal entrypoint. Terminal commands are support and power-user
-tools, not the primary consumer experience.
+`Frontctl Setup.app` is an optional support wrapper over the same setup command. It should not be a
+separate product surface unless it clearly reduces macOS permission friction.
 
 ## Setup States
 
@@ -44,7 +43,7 @@ All setup surfaces should use the same readiness states from `frontctl readiness
 - `front-sign-in-missing`: open Front and sign in.
 - `live-mode-locked`: approve one live-session unlock, preferably the default-browser unlock with
   a 720-hour TTL. Do not route normal users into macOS Automation.
-- `agent-skills-missing`: click `Install Agent Skills`.
+- `agent-skills-missing`: run `frontctl setup complete --yes --json`.
 - `ready`: paste the agent prompt and start with read-only triage.
 
 Do not expose stack traces, storage paths, cookie names, or raw command output as the main user
@@ -117,8 +116,7 @@ Every failure should resolve to one user action:
 - Install Front for macOS.
 - Open Front and sign in.
 - Run the package installer from the DMG.
-- Click `Unlock Live Session`.
-- Click `Install Agent Skills`.
+- Run `frontctl setup complete --yes --json`.
 - Click `Support Bundle`.
 
 Support should ask for the generated `frontctl-support.json`, not screenshots of inboxes or copied
@@ -141,6 +139,8 @@ Before handing a preview DMG to an early tester:
 - `npm run release:check:local` passes.
 - `frontctl readiness --json` reports `userReadiness.ready: true` on a signed-in test machine.
 - `frontctl auth check --json` does not prompt.
+- `frontctl setup complete --yes --json` installs agent skills and reports no future prompts for
+  checks or live reads.
 - `frontctl create-test-conversation --subject "frontctl live verification" --body "Disposable test thread" --actor Codex --reason "Create test thread" --yes --json` creates a non-send internal test thread.
 - `frontctl discovery verify-live-writes CONVERSATION_ID --actor Codex --yes --json` passes on that
   test thread and reports live-private source, no public API use, no sending, all route contracts

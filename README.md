@@ -37,12 +37,25 @@ field guard. `frontctl send` remains blocked.
 
 ## Install
 
+For agents installing from this repo on a user's Mac:
+
+```bash
+git clone https://github.com/arjshiv/frontctl.git "$HOME/.local/src/frontctl"
+cd "$HOME/.local/src/frontctl"
+script/bootstrap_agent_install.sh
+```
+
+This installs into `~/.local/share/frontctl` with a shim at `~/.local/bin/frontctl`, installs local
+Codex/Claude skills, preflights the one live-session permission prompt when needed, and verifies the
+installed binary against a disposable Front test thread. Do not use `sudo`; it would install state
+and skills under the wrong home directory.
+
 For non-technical users, ship the macOS DMG:
 
 1. Open `frontctl-<version>.dmg`.
 2. Run `Install Frontctl for This User.command`.
-3. Open `Frontctl Setup.app`.
-4. Click `Check Setup`, `Install Agent Skills`, then `Unlock Live Session`.
+3. Run `frontctl setup complete --yes --json`, or open `Frontctl Setup.app` only if you want a GUI
+   support wrapper.
 
 This default path installs into the user's home directory and does not need an administrator
 password. The `.pkg` is still included for managed or system-wide installs.
@@ -52,16 +65,16 @@ For local development:
 ```bash
 npm install
 npm run build
-npm link
+script/bootstrap_agent_install.sh --skip-live-proof --no-permission-preflight
 frontctl doctor --json
-frontctl readiness --json
+frontctl ready --json
 ```
 
 For npm users after publication:
 
 ```bash
 npm install -g frontctl
-frontctl setup --agent all --yes --json
+frontctl setup complete --yes --json
 ```
 
 ## Daily Use
@@ -70,6 +83,7 @@ Start with live read-only commands after setup:
 
 ```bash
 frontctl inbox list --json
+frontctl inbox --json
 frontctl triage inbox --json
 frontctl search "customer name" --json
 frontctl read CONVERSATION_ID --format markdown
