@@ -315,6 +315,7 @@ commit.
 
 - [Implementation plan](docs/implementation-plan.md)
 - [API and CLI contract](docs/api.md)
+- [Simplification plan](docs/simplification-plan.md)
 - [Onboarding](docs/onboarding.md)
 - [Distribution](docs/distribution.md)
 - [Product and packaging](docs/product-packaging.md)
