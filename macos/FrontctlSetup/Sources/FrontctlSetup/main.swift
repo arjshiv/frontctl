@@ -24,25 +24,21 @@ struct ContentView: View {
             }
 
             HStack(spacing: 10) {
-                Button("Check Setup") {
-                    model.runFrontctl(["readiness", "--json"], title: "Checking setup")
+                Button("Make Frontctl Work") {
+                    model.runFrontctl(["setup", "complete", "--yes", "--json"], title: "Making frontctl work")
                 }
                 .keyboardShortcut(.defaultAction)
 
-                Button("Install Agent Skills") {
-                    model.runFrontctl(["setup", "--agent", "all", "--yes", "--json"], title: "Installing agent skills")
-                }
-
-                Button("Unlock Live Session") {
-                    model.runFrontctl(["auth", "unlock", "--source", "default-browser", "--ttl-hours", "720", "--json"], title: "Unlocking live session")
-                }
-
-                Button("Support Bundle") {
-                    model.generateSupportBundle()
+                Button("Check Setup") {
+                    model.runFrontctl(["readiness", "--json"], title: "Checking setup")
                 }
 
                 Button("Open Front") {
                     model.openFront()
+                }
+
+                Button("Support Bundle") {
+                    model.generateSupportBundle()
                 }
             }
             .disabled(model.isRunning)
@@ -107,7 +103,7 @@ final class SetupModel: ObservableObject {
             statusText = """
             frontctl is not installed yet.
 
-            Run the frontctl installer package from this DMG first, then return here and click Check Setup.
+            Run the frontctl user installer from this DMG first, then return here and click Make Frontctl Work.
             """
             detailText = """
             Expected paths:
@@ -151,9 +147,9 @@ final class SetupModel: ObservableObject {
             let result = runProcess(executable: "/usr/bin/open", arguments: ["-a", "Front"])
             await MainActor.run {
                 if result.exitCode == 0 {
-                    self.statusText = "Front is opening. Sign in there, then return here and click Check Setup."
+                    self.statusText = "Front is opening. Sign in there, then return here and click Make Frontctl Work."
                 } else {
-                    self.statusText = "Front could not be opened. Install Front for macOS, then click Check Setup."
+                    self.statusText = "Front could not be opened. Install Front for macOS, then click Make Frontctl Work."
                 }
                 self.detailText = result.transcript
                 self.isRunning = false
@@ -172,7 +168,7 @@ final class SetupModel: ObservableObject {
             statusText = """
             frontctl is not installed yet.
 
-            Run the frontctl installer package from this DMG first, then return here and click Check Setup.
+            Run the frontctl user installer from this DMG first, then return here and click Make Frontctl Work.
             """
             detailText = """
             Expected paths:
@@ -198,7 +194,7 @@ final class SetupModel: ObservableObject {
                     NSPasteboard.general.setString(prompt, forType: .string)
                     self.statusText = "ChatGPT instructions copied. Paste them into a ChatGPT session that has local terminal or Codex-style command access."
                 } else {
-                    self.statusText = "Could not copy ChatGPT instructions. Review the details, then click Check Setup."
+                    self.statusText = "Could not copy ChatGPT instructions. Review the details, then click Make Frontctl Work."
                 }
                 self.detailText = result.transcript
                 self.isRunning = false
@@ -286,7 +282,7 @@ func readPipe(_ pipe: Pipe) -> String {
 func summarizeFrontctl(arguments: [String], result: ProcessResult) -> (status: String, details: String) {
     guard result.exitCode == 0 else {
         return (
-            "Something needs attention. Review the details, fix the issue, then click Check Setup again.",
+            "Something needs attention. Review the details, fix the issue, then click Make Frontctl Work again.",
             result.transcript
         )
     }
@@ -334,8 +330,8 @@ func summarizeReadiness(_ json: [String: Any], result: ProcessResult) -> (status
     lines.append("")
     lines.append(statusLine("Front app", frontInstalled, ready: "Installed", missing: "Install Front for macOS"))
     lines.append(statusLine("Front sign-in", localProfileVisible, ready: "Detected", missing: "Open Front and sign in"))
-    lines.append(statusLine("Live session", authValid, ready: "Unlocked", missing: "Click Unlock Live Session"))
-    lines.append(statusLine("Agent skills", agentsInstalled, ready: "Installed", missing: "Click Install Agent Skills"))
+    lines.append(statusLine("Live session", authValid, ready: "Unlocked", missing: "Click Make Frontctl Work"))
+    lines.append(statusLine("Agent skills", agentsInstalled, ready: "Installed", missing: "Click Make Frontctl Work"))
     lines.append("")
     lines.append("Current state: \(readinessState)")
 
@@ -360,14 +356,25 @@ func summarizeReadiness(_ json: [String: Any], result: ProcessResult) -> (status
 }
 
 func summarizeSetup(_ json: [String: Any], result: ProcessResult) -> (status: String, details: String) {
-    let frontInstalled = boolAt(json, ["front", "installed"]) ?? false
-    let localProfileVisible = boolAt(json, ["front", "localProfileVisible"]) ?? false
-    let authValid = boolAt(json, ["auth", "valid"]) ?? false
-    let agentsInstalled = boolAt(json, ["agents", "status", "allInstalled"]) ?? false
+    let readinessRoot = (valueAt(json, ["readiness"]) as? [String: Any]) ?? json
+    let frontInstalled = boolAt(readinessRoot, ["front", "installed"]) ?? boolAt(readinessRoot, ["front", "appInstalled"]) ?? false
+    let localProfileVisible = boolAt(readinessRoot, ["front", "localProfileVisible"]) ?? false
+    let authValid = boolAt(readinessRoot, ["auth", "valid"]) ?? boolAt(json, ["permissionPreflight", "authValidAfter"]) ?? false
+    let agentsInstalled = boolAt(readinessRoot, ["agents", "status", "allInstalled"])
+        ?? boolAt(readinessRoot, ["agents", "allInstalled"])
+        ?? boolAt(json, ["agentInstall", "installed"])
+        ?? false
     let failureMode = stringAt(json, ["failureMode"]) ?? "unknown"
-    let readinessState = stringAt(json, ["userReadiness", "state"]) ?? failureMode
+    let readinessState = stringAt(json, ["userReadiness", "state"])
+        ?? stringAt(readinessRoot, ["userReadiness", "state"])
+        ?? failureMode
     let nextAction = stringAt(json, ["userReadiness", "nextAction"])
-    let nextSteps = stringArrayAt(json, ["nextSteps"])
+        ?? stringAt(readinessRoot, ["userReadiness", "nextAction"])
+    let nextSteps = stringArrayAt(readinessRoot, ["nextSteps"])
+    let promptExpected = boolAt(json, ["permissionPreflight", "promptExpected"])
+    let promptsOnCheck = boolAt(json, ["permissionPreflight", "promptsOnCheck"])
+    let promptsOnLiveRead = boolAt(json, ["permissionPreflight", "promptsOnLiveRead"])
+    let nextAgentPrompt = stringAt(json, ["nextAgentPrompt"])
 
     var lines: [String] = []
     if frontInstalled && localProfileVisible && authValid && agentsInstalled {
@@ -378,8 +385,8 @@ func summarizeSetup(_ json: [String: Any], result: ProcessResult) -> (status: St
     lines.append("")
     lines.append(statusLine("Front app", frontInstalled, ready: "Installed", missing: "Install Front for macOS"))
     lines.append(statusLine("Front sign-in", localProfileVisible, ready: "Detected", missing: "Open Front and sign in"))
-    lines.append(statusLine("Live session", authValid, ready: "Unlocked", missing: "Click Unlock Live Session"))
-    lines.append(statusLine("Agent skills", agentsInstalled, ready: "Installed", missing: "Click Install Agent Skills"))
+    lines.append(statusLine("Live session", authValid, ready: "Unlocked", missing: "Click Make Frontctl Work"))
+    lines.append(statusLine("Agent skills", agentsInstalled, ready: "Installed", missing: "Click Make Frontctl Work"))
     lines.append("")
     lines.append("Current state: \(readinessState)")
 
@@ -393,6 +400,19 @@ func summarizeSetup(_ json: [String: Any], result: ProcessResult) -> (status: St
         for step in nextSteps {
             lines.append("- \(step)")
         }
+    }
+    if let promptExpected {
+        lines.append("")
+        lines.append("Permission prompt opened during setup: \(promptExpected ? "possibly" : "no")")
+    }
+    if let promptsOnCheck, let promptsOnLiveRead {
+        lines.append("Future setup checks prompt: \(promptsOnCheck ? "yes" : "no")")
+        lines.append("Future live reads prompt: \(promptsOnLiveRead ? "yes" : "no")")
+    }
+    if let nextAgentPrompt, !nextAgentPrompt.isEmpty {
+        lines.append("")
+        lines.append("Agent prompt:")
+        lines.append(nextAgentPrompt)
     }
 
     let details = """

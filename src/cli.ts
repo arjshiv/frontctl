@@ -122,6 +122,8 @@ const commandTree: Record<string, CommandHandler | Record<string, CommandHandler
   help: async () => usage(),
   onboarding,
   setup: setupCommand,
+  ready: readinessCommand,
+  act: async (args) => actCommand(args),
   readiness: readinessCommand,
   agents: agentsCommand,
   uninstall: uninstallCommand,
@@ -151,7 +153,16 @@ async function main(argv: string[]) {
     return;
   }
 
+  if (first === "inbox" && second !== "list") {
+    printResult(await listInbox(commandArgs([second, ...tail].filter(Boolean), globals)), globals);
+    return;
+  }
+
   if (!second) {
+    if (first === "inbox") {
+      printResult(await listInbox(commandArgs(tail, globals)), globals);
+      return;
+    }
     throw new CliError(`Missing subcommand for: ${first}`, 64);
   }
 
@@ -161,6 +172,28 @@ async function main(argv: string[]) {
   }
 
   printResult(await subcommand(commandArgs(tail, globals)), globals);
+}
+
+async function actCommand(args: string[]) {
+  const [action, ...rest] = args;
+  if (!action) {
+    throw new CliError("Usage: frontctl act archive|unarchive|delete|restore|snooze|unsnooze|tag|comment|assign|unassign|move|follower|link|draft ...", 64);
+  }
+  if (action === "archive") return archiveConversation(rest);
+  if (action === "unarchive") return unarchiveConversation(rest);
+  if (action === "delete") return deleteConversation(rest);
+  if (action === "restore") return restoreConversation(rest);
+  if (action === "snooze") return snoozeConversation(rest);
+  if (action === "unsnooze") return unsnoozeConversation(rest);
+  if (action === "tag") return tagConversation(rest);
+  if (action === "comment") return commentConversation(rest);
+  if (action === "assign") return assignConversation(rest);
+  if (action === "unassign") return assignConversation(["unassign", ...rest]);
+  if (action === "move") return moveConversation(rest);
+  if (action === "follower" || action === "follow") return followerConversation(rest);
+  if (action === "link") return linkConversation(rest);
+  if (action === "draft") return draftCommand(rest);
+  throw new CliError(`Unknown action for frontctl act: ${action}`, 64);
 }
 
 function commandArgs(args: string[], globals: { dryRun: boolean }) {
@@ -180,6 +213,9 @@ function usage() {
       "frontctl onboarding [--json]",
       "frontctl setup [--agent codex|claude|all] [--install-agents] [--learn] [--yes] [--json]",
       "frontctl readiness [--json]",
+      "frontctl ready [--json]",
+      "frontctl inbox [--limit 20] [--all] [--format markdown|plain] [--json]",
+      "frontctl act archive CONVERSATION_ID [--actor NAME] [--reason WHY] [--yes] [--json]",
       "frontctl agents check|paths|install --agent codex|claude|all [--yes] [--json]",
       "frontctl agents prompt --agent codex|claude|chatgpt|all [--json]",
       "frontctl diagnose [--output support.json] [--json]",

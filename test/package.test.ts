@@ -206,9 +206,10 @@ test("DMG readme is non-technical and safety focused", async () => {
 
   assert.match(readme, /Double-click Install Frontctl for This User\.command/);
   assert.match(readme, /does not need an administrator password/);
-  assert.match(readme, /Open Frontctl Setup\.app/);
-  assert.match(readme, /frontctl readiness --json/);
-  assert.match(readme, /Copy ChatGPT Instructions/);
+  assert.match(readme, /frontctl setup complete --yes --json/);
+  assert.match(readme, /Touch ID or your password once/);
+  assert.match(readme, /Frontctl Setup\.app is included as an optional support wrapper/);
+  assert.match(readme, /frontctl ready --json/);
   assert.match(readme, /Uninstall Frontctl\.command/);
   assert.match(readme, /never sends email/i);
   assert.match(readme, /Support Bundle/);
@@ -233,9 +234,8 @@ test("setup app exposes non-technical recovery actions", async () => {
   const source = await readFile("macos/FrontctlSetup/Sources/FrontctlSetup/main.swift", "utf8");
 
   assert.match(source, /frontctl is not installed yet/);
-  assert.match(source, /Install Agent Skills/);
-  assert.match(source, /Unlock Live Session/);
-  assert.match(source, /"--ttl-hours", "720"/);
+  assert.match(source, /Make Frontctl Work/);
+  assert.match(source, /"setup", "complete", "--yes", "--json"/);
   assert.match(source, /Support Bundle/);
   assert.match(source, /frontctl-support\.json/);
   assert.match(source, /Agent Prompts/);

@@ -391,7 +391,7 @@ test("CLI setup reports install steps and agent prompt", async () => {
     agentPrompt: string;
   };
 
-  assert.ok(result.install.development.includes("npm link"));
+  assert.ok(result.install.development.includes("script/bootstrap_agent_install.sh --skip-live-proof --no-permission-preflight"));
   assert.equal(result.agents.status.allInstalled, false);
   assert.equal(result.agents.install, undefined);
   assert.equal(result.userReadiness.ready, false);
@@ -399,9 +399,32 @@ test("CLI setup reports install steps and agent prompt", async () => {
   assert.match(result.userReadiness.nextAction, /live-session unlock|CDP browser bridge/);
   assert.match(result.agents.installCommand, /frontctl setup --agent all --yes --json/);
   assert.equal(result.agents.chatgptPromptCommand, "frontctl agents prompt --agent chatgpt --json");
-  assert.ok(result.nextSteps.some((step) => step === "frontctl workflows daily --actor Codex --json"));
-  assert.match(result.agentPrompt, /frontctl workflows daily --actor Codex --json/);
+  assert.deepEqual(result.nextSteps, ["frontctl auth unlock --source front-app --ttl-hours 720 --json"]);
+  assert.match(result.agentPrompt, /frontctl ready --json/);
+  assert.match(result.agentPrompt, /frontctl inbox --limit 20 --json/);
   assert.match(result.agentPrompt, /Do not send email/);
+});
+
+test("CLI setup complete dry-run exposes one agent bootstrap command", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-setup-complete"));
+  const home = await makeTempDir("frontctl-cli-setup-complete-home");
+
+  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "setup", "complete", "--agent", "codex", "--json"], {
+    env: { ...envForPaths(paths), ...envForHome(home) },
+  });
+  const result = JSON.parse(stdout) as {
+    action: string;
+    mode: string;
+    wouldInstallAgentSkills: string;
+    executeCommand: string;
+    note: string;
+  };
+
+  assert.equal(result.action, "setup.complete");
+  assert.equal(result.mode, "dry-run");
+  assert.equal(result.wouldInstallAgentSkills, "codex");
+  assert.match(result.executeCommand, /frontctl setup complete --agent codex --yes --json/);
+  assert.match(result.note, /Dry run/);
 });
 
 test("CLI setup ready state does not recommend enabling live mode again after CDP proof", async () => {
@@ -514,6 +537,39 @@ test("CLI readiness returns concise non-prompting user gates", async () => {
   assert.equal(result.safety.touchesKeychain, false);
   assert.equal(result.safety.sendsEmail, false);
   assert.equal(result.safety.publicApiUsed, false);
+});
+
+test("CLI ready alias returns the same non-prompting readiness surface", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-ready-alias"));
+  const home = await makeTempDir("frontctl-cli-ready-alias-home");
+
+  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "ready", "--json"], {
+    env: { ...envForPaths(paths), ...envForHome(home) },
+  });
+  const result = JSON.parse(stdout) as {
+    safety: { publicApiUsed: boolean; touchesKeychain: boolean; sendsEmail: boolean };
+    userReadiness: { state: string };
+  };
+
+  assert.equal(result.userReadiness.state, "live-mode-locked");
+  assert.equal(result.safety.publicApiUsed, false);
+  assert.equal(result.safety.touchesKeychain, false);
+  assert.equal(result.safety.sendsEmail, false);
+});
+
+test("CLI inbox alias routes directly to inbox list", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-inbox-alias"));
+  await writeFakeFrontCacheFixture(paths);
+
+  const { stdout } = await execFileAsync(
+    "node",
+    ["dist/src/cli.js", "inbox", "--offline-cache", "--limit", "1", "--json"],
+    { env: envForPaths(paths) },
+  );
+  const result = JSON.parse(stdout) as { count: number; conversations: Array<{ id: string }> };
+
+  assert.equal(result.count, 1);
+  assert.equal(result.conversations[0].id, "93727705553");
 });
 
 test("CLI setup can install selected agent skills with --yes", async () => {

@@ -87,6 +87,7 @@ export async function readinessCommand(_args: string[], paths: FrontPaths = defa
         bridge.availableWithoutKeychain,
         agentcookie.frontCookiesAvailable,
         explicitBrowserCookieFallbackAvailable,
+        frontAppInstalled && localProfileVisible,
       ),
     },
     safety: {
@@ -101,6 +102,7 @@ export async function readinessCommand(_args: string[], paths: FrontPaths = defa
       bridge.availableWithoutKeychain,
       agentcookie.frontCookiesAvailable,
       explicitBrowserCookieFallbackAvailable,
+      frontAppInstalled && localProfileVisible,
     )),
   };
 }
@@ -124,6 +126,7 @@ function recommendedUnlockCommand(
   bridgeAvailableWithoutKeychain: boolean,
   agentcookieAvailable: boolean | undefined,
   browserCookieFallbackAvailable: boolean,
+  frontAppUnlockAvailable: boolean,
 ) {
   if (authValid) return undefined;
   if (bridgeProofValid) return undefined;
@@ -135,6 +138,9 @@ function recommendedUnlockCommand(
   }
   if (browserCookieFallbackAvailable) {
     return `frontctl auth unlock --source default-browser --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`;
+  }
+  if (frontAppUnlockAvailable) {
+    return `frontctl auth unlock --source front-app --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`;
   }
   return "frontctl discovery launch --remote-debugging-port 9222 --json";
 }
