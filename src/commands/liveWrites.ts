@@ -539,6 +539,27 @@ async function conversationState(
   paths: FrontPaths,
   options: { includeContent?: boolean } = {},
 ): Promise<LiveState> {
+  let lastTransientError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await readConversationState(conversationId, marker, paths, options);
+    } catch (error) {
+      if (!isTransientFrontReadError(error) || attempt === 2) {
+        throw error;
+      }
+      lastTransientError = error;
+      await delay(1_000 + attempt * 1_000);
+    }
+  }
+  throw lastTransientError;
+}
+
+async function readConversationState(
+  conversationId: string,
+  marker: string,
+  paths: FrontPaths,
+  options: { includeContent?: boolean },
+): Promise<LiveState> {
   const client = await createFrontPrivateClient(paths);
   const routes = buildFrontRoutes(client.context);
   const raw = await client.getJson<Record<string, unknown>>(routes.conversation(conversationId));
@@ -582,13 +603,24 @@ async function conversationState(
 }
 
 async function assertEventually(name: string, predicate: () => Promise<boolean>) {
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    if (await predicate()) {
-      return;
+  let lastTransientError: unknown;
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    try {
+      if (await predicate()) {
+        return;
+      }
+    } catch (error) {
+      if (!isTransientFrontReadError(error)) {
+        throw error;
+      }
+      lastTransientError = error;
     }
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await delay(Math.min(2_000, 500 + attempt * 250));
   }
-  throw new CliError(`Live state assertion failed after ${name}`, 69);
+  const suffix = lastTransientError
+    ? `; last transient read error: ${String((lastTransientError as Error).message ?? lastTransientError)}`
+    : "";
+  throw new CliError(`Live state assertion failed after ${name}${suffix}`, 69);
 }
 
 async function assertDraftGone(name: string, conversationId: string, marker: string, paths: FrontPaths) {
@@ -618,6 +650,15 @@ function summarizeState(state: LiveState) {
     draftCount: state.draftCount,
     containsMarker: state.containsMarker,
   };
+}
+
+function isTransientFrontReadError(error: unknown) {
+  const message = String((error as Error).message ?? error);
+  return /Front private request timed out|HTTP (408|409|425|429|5\d\d)/.test(message);
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function resultId(result: unknown, keys: string[]) {

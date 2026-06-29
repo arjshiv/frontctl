@@ -61,6 +61,33 @@ console.log(`ready: ${result.userReadiness.state}`);
 NODE
 }
 
+require_live_front_writes() {
+  FRONTCTL_BIN="${FRONTCTL_BIN:-node dist/src/cli.js}"
+  printf '\n==> create disposable Front release verification conversation\n'
+  create_json="$($FRONTCTL_BIN create-test-conversation --subject "frontctl release verification" --body "Disposable frontctl release verification thread." --actor Frontctl --reason "Release live verification" --yes --json)"
+  printf '%s\n' "$create_json"
+  conversation_id="$(printf '%s' "$create_json" | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const j=JSON.parse(s); process.stdout.write(String(j.result?.conversationId ?? ""));})')"
+  if [ -z "$conversation_id" ]; then
+    echo "Could not read created conversation id" >&2
+    exit 1
+  fi
+  printf '\n==> verify live writes on %s\n' "$conversation_id"
+  FRONTCTL_HTTP_TIMEOUT_MS="${FRONTCTL_HTTP_TIMEOUT_MS:-60000}" FRONTCTL_BIN="$FRONTCTL_BIN" node script/verify_live_writes.mjs "$conversation_id"
+  printf '\n==> audit list for %s\n' "$conversation_id"
+  audit_json="$($FRONTCTL_BIN audit list --conversation "$conversation_id" --limit 12 --json)"
+  printf '%s\n' "$audit_json"
+  FRONTCTL_AUDIT_JSON="$audit_json" node <<'NODE'
+const audit = JSON.parse(process.env.FRONTCTL_AUDIT_JSON);
+const entries = Array.isArray(audit.entries) ? audit.entries : [];
+if (!entries.some((entry) => entry.phase === "identity-commented")) {
+  throw new Error("Audit does not include an identity-commented phase");
+}
+if (!entries.some((entry) => entry.phase === "completed")) {
+  throw new Error("Audit does not include a completed mutation phase");
+}
+NODE
+}
+
 require_send_blocked() {
   printf '\n==> node dist/src/cli.js send --json\n'
   set +e
@@ -97,6 +124,7 @@ require_send_blocked
 
 if [ "$WITH_LIVE_FRONT" = "1" ]; then
   require_ready_front
+  require_live_front_writes
 fi
 
 printf '\nfrontctl %s release verification passed\n' "$MODE"
