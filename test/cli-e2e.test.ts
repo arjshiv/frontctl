@@ -88,6 +88,44 @@ test("CLI onboarding returns non-technical setup steps", async () => {
   assert.ok(result.steps.length >= 5);
 });
 
+test("CLI --help explains the safe agent loop", async () => {
+  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "--help", "--json"]);
+  const result = JSON.parse(stdout) as {
+    agentQuickStart: string[];
+    agentRules: string[];
+    setupLoop: { oneCommandSetup: string; liveInbox: string };
+    commandGroups: { writesRequireApproval: string[]; blocked: string[] };
+    globalFlags: string[];
+  };
+
+  assert.ok(result.agentQuickStart.some((line) => /frontctl ready --json/.test(line)));
+  assert.ok(result.agentRules.some((line) => /Do not use Front's public API/.test(line)));
+  assert.ok(result.agentRules.some((line) => /Do not send email/.test(line)));
+  assert.equal(result.setupLoop.oneCommandSetup, "frontctl setup complete --yes --json");
+  assert.equal(result.setupLoop.liveInbox, "frontctl inbox --limit 20 --json");
+  assert.ok(result.commandGroups.writesRequireApproval.some((line) => /--actor NAME --reason WHY --yes/.test(line)));
+  assert.ok(result.commandGroups.blocked.some((line) => /send .*always blocked/.test(line)));
+  assert.ok(result.globalFlags.includes("--help"));
+});
+
+test("CLI command --help returns guidance without running the command", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-command-help"));
+  paths.cookiesPath = `${paths.cookiesPath}.missing`;
+
+  const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "inbox", "--help", "--json"], {
+    env: envForPaths(paths),
+  });
+  const result = JSON.parse(stdout) as {
+    topic: string;
+    agentRules: string[];
+    setupLoop: { liveInbox: string };
+  };
+
+  assert.equal(result.topic, "inbox");
+  assert.equal(result.setupLoop.liveInbox, "frontctl inbox --limit 20 --json");
+  assert.ok(result.agentRules.some((line) => /Do not use cache for current inbox state/.test(line)));
+});
+
 test("CLI auth check is non-prompting and reports missing unlock session", async () => {
   const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-auth"));
   const { stdout } = await execFileAsync("node", ["dist/src/cli.js", "auth", "check", "--json"], {
