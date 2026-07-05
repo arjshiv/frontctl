@@ -93,7 +93,7 @@ export function argsWithoutValueFlag(args: string[], flag: string) {
 export function firstPositionalArg(args: string[]) {
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (arg === "--limit" || arg === "--format" || arg === "--body" || arg === "--body-file") {
+    if (arg === "--limit" || arg === "--format" || arg === "--body" || arg === "--body-file" || arg === "--body-html" || arg === "--body-html-file") {
       index += 1;
       continue;
     }

@@ -90,6 +90,9 @@ Forward drafts save through the same
 non-send draft route as compose/create and return a discard command. For `draft update`, use the
 conversation id and message uid returned by compose/reply/update plus explicit recipients and subject;
 do not guess from stale local draft cache.
+For formatted drafts, write conservative HTML directly and pass `--body-html-file` or `--body-html`;
+use ordinary content tags such as `p`, `ul`, `ol`, `li`, `blockquote`, `strong`, `em`, `code`, and
+`a`. Do not include scripts, styles, event handlers, or tracking pixels. Comments are plain text.
 For `follower remove`, removing the active user can immediately revoke read access on an
 unassigned/internal task conversation. By default frontctl refuses active-user self-removal before
 writing an identity comment; use `--allow-self-remove` only on a disposable conversation when the

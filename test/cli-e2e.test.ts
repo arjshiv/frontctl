@@ -96,6 +96,7 @@ test("CLI --help explains the safe agent loop", async () => {
     setupLoop: { oneCommandSetup: string; liveInbox: string };
     commandGroups: { writesRequireApproval: string[]; blocked: string[] };
     globalFlags: string[];
+    notes: string[];
   };
 
   assert.ok(result.agentQuickStart.some((line) => /frontctl ready --json/.test(line)));
@@ -106,6 +107,7 @@ test("CLI --help explains the safe agent loop", async () => {
   assert.ok(result.commandGroups.writesRequireApproval.some((line) => /--actor NAME --reason WHY --yes/.test(line)));
   assert.ok(result.commandGroups.blocked.some((line) => /send .*always blocked/.test(line)));
   assert.ok(result.globalFlags.includes("--help"));
+  assert.ok(result.notes.some((line) => /--body-html-file/.test(line) && /Comments are plain text/.test(line)));
 });
 
 test("CLI command --help returns guidance without running the command", async () => {
@@ -1028,7 +1030,7 @@ test("CLI mq query delegates to mq on PATH", async () => {
   assert.equal(stdout.trim(), `mq query:.h file:${input}`);
 });
 
-test("CLI draft list/read and body-file previews are non-sending", async () => {
+test("CLI draft list/read and body previews are non-sending", async () => {
   const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-cli-drafts"));
   await writeFile(
     join(paths.indexedDbLevelDbPath, "000001.ldb"),
@@ -1040,6 +1042,8 @@ test("CLI draft list/read and body-file previews are non-sending", async () => {
   );
   const bodyPath = join(paths.supportPath, "reply.md");
   await writeFile(bodyPath, "CLI draft body file");
+  const htmlPath = join(paths.supportPath, "reply.html");
+  await writeFile(htmlPath, "<p>CLI compose body</p><ul><li>First</li></ul>");
   const env = envForPaths(paths);
 
   const { stdout: listStdout } = await execFileAsync("node", ["dist/src/cli.js", "draft", "list", "--json"], { env });
@@ -1111,6 +1115,30 @@ test("CLI draft list/read and body-file previews are non-sending", async () => {
   assert.equal(compose.request.body.subject, "CLI draft subject");
   assert.equal(compose.request.body.text, "CLI compose body");
   assert.equal(compose.request.body.shared_draft, false);
+
+  const { stdout: htmlComposeStdout } = await execFileAsync(
+    "node",
+    [
+      "dist/src/cli.js",
+      "draft",
+      "compose",
+      "--to",
+      "alice@example.com",
+      "--subject",
+      "CLI formatted draft",
+      "--body-html-file",
+      htmlPath,
+      "--json",
+    ],
+    { env },
+  );
+  const htmlCompose = JSON.parse(htmlComposeStdout) as {
+    request: { body: { html: string; text: string } };
+    details: { bodyInputFormat: string };
+  };
+  assert.equal(htmlCompose.request.body.html, "<p>CLI compose body</p><ul><li>First</li></ul>");
+  assert.equal(htmlCompose.request.body.text, "CLI compose body\n- First");
+  assert.equal(htmlCompose.details.bodyInputFormat, "html");
 });
 
 test("CLI search preserves numeric query terms while honoring --limit", async () => {

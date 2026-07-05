@@ -85,12 +85,15 @@ Live-proven executable actions:
 Draft commands save or discard drafts only. They do not send:
 
 ```bash
-frontctl draft reply CONVERSATION_ID --body-file reply.md --json
-frontctl draft compose --to person@example.com --subject "Draft subject" --body-file draft.md --json
-frontctl draft update CONVERSATION_ID MESSAGE_UID --to person@example.com --subject "Draft subject" --body-file draft.md --json
-frontctl draft forward CONVERSATION_ID --to person@example.com --body-file note.md --json
+frontctl draft reply CONVERSATION_ID --body-html-file reply.html --json
+frontctl draft compose --to person@example.com --subject "Draft subject" --body-html-file draft.html --json
+frontctl draft update CONVERSATION_ID MESSAGE_UID --to person@example.com --subject "Draft subject" --body-html-file draft.html --json
+frontctl draft forward CONVERSATION_ID --to person@example.com --body-html-file note.html --json
 frontctl draft discard CONVERSATION_ID MESSAGE_UID --json
 ```
+
+Plain draft body flags are escaped into HTML. For formatted drafts, pass conservative HTML directly
+with `--body-html` or `--body-html-file`; comments remain plain text.
 
 ## Private Route Families
 

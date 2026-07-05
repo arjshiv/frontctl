@@ -145,10 +145,10 @@ Draft commands:
 ```bash
 frontctl draft list --limit 20 --json
 frontctl draft read DRAFT_ID --json
-frontctl draft reply CONVERSATION_ID --body-file reply.md --json
-frontctl draft update CONVERSATION_ID MESSAGE_UID --to person@example.com --subject "Draft subject" --body-file draft.md --json
-frontctl draft forward CONVERSATION_ID --to person@example.com --body-file note.md --json
-frontctl draft compose --to person@example.com --subject "Draft subject" --body-file draft.md --json
+frontctl draft reply CONVERSATION_ID --body-html-file reply.html --json
+frontctl draft update CONVERSATION_ID MESSAGE_UID --to person@example.com --subject "Draft subject" --body-html-file draft.html --json
+frontctl draft forward CONVERSATION_ID --to person@example.com --body-html-file note.html --json
+frontctl draft compose --to person@example.com --subject "Draft subject" --body-html-file draft.html --json
 frontctl draft discard DRAFT_ID --json
 frontctl draft discard CONVERSATION_ID MESSAGE_UID --json
 frontctl tag list --json
@@ -160,6 +160,9 @@ forward drafts save through Front's
 non-send draft route and return `result.conversationId`, `result.messageUid`, and
 `result.discardCommand`. `draft update` requires that conversation id and message uid, plus explicit
 recipients/subject, so agents do not guess from stale local draft cache.
+For formatted drafts, write conservative HTML directly and pass `--body-html-file` or `--body-html`;
+use only ordinary content tags such as `p`, `ul`, `ol`, `li`, `blockquote`, `strong`, `em`, `code`,
+and `a`. Do not include scripts, styles, event handlers, or tracking pixels. Comments are plain text.
 Draft writes require preview plus explicit `--yes` and known non-send route verification.
 Use the returned discard command to delete the saved draft. Never call `frontctl send`.
 

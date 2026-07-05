@@ -102,7 +102,7 @@ function triageItem(id: string, conversation: CachedConversation | undefined, su
     commands: {
       read: `frontctl read ${shellToken(id)} --json`,
       summarize: `frontctl summarize ${shellToken(id)} --json`,
-      draftReply: `frontctl draft reply ${shellToken(id)} --body-file reply.md --json`,
+      draftReply: `frontctl draft reply ${shellToken(id)} --body-html-file reply.html --json`,
       archivePreview: `frontctl archive ${shellToken(id)} --json`,
       snoozePreview: `frontctl snooze ${shellToken(id)} tomorrow-9am --json`,
     },

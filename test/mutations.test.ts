@@ -1085,6 +1085,57 @@ test("draft compose preserves recipients and subject in preview without sending"
   assert.equal(draft.request.body.shared_draft, false);
 });
 
+test("draft compose accepts explicit safe HTML body", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-draft-html");
+  const html = "<p>Hi</p><ul><li>One</li><li>Two</li></ul><blockquote>quoted</blockquote>";
+
+  const draft = await draftCommand([
+    "compose",
+    "--to",
+    "alice@example.com",
+    "--subject",
+    "Formatted draft",
+    "--body-html",
+    html,
+  ], paths) as any;
+
+  assert.equal(draft.sendsEmail, false);
+  assert.equal(draft.request.body.html, html);
+  assert.equal(draft.request.body.text, "Hi\n- One\n- Two\nquoted");
+  assert.equal(draft.request.body.format, "html");
+  assert.equal(draft.details.bodyInputFormat, "html");
+});
+
+test("draft html body rejects unsafe tags and handlers", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-draft-html-unsafe");
+
+  await assert.rejects(
+    draftCommand([
+      "compose",
+      "--to",
+      "alice@example.com",
+      "--subject",
+      "Unsafe draft",
+      "--body-html",
+      "<p onclick=\"alert(1)\">No</p>",
+    ], paths),
+    /event handler attributes/,
+  );
+
+  await assert.rejects(
+    draftCommand([
+      "compose",
+      "--to",
+      "alice@example.com",
+      "--subject",
+      "Unsafe draft",
+      "--body-html",
+      "<script>alert(1)</script>",
+    ], paths),
+    /cannot include script/,
+  );
+});
+
 test("draft update uses the saved draft message route without sending", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-draft-update");
 

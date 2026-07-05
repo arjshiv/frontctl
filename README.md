@@ -130,7 +130,7 @@ frontctl restore CONVERSATION_ID --reason "Restore harmless test thread" --json
 frontctl snooze CONVERSATION_ID tomorrow-9am --json
 frontctl tag add CONVERSATION_ID TAG_ID_OR_NAME --json
 frontctl comment add CONVERSATION_ID --body "Internal note" --json
-frontctl draft reply CONVERSATION_ID --body-file reply.md --json
+frontctl draft reply CONVERSATION_ID --body-html-file reply.html --json
 frontctl batch archive --ids-file ids.txt --reason "User approved these archive candidates" --json
 ```
 
@@ -176,6 +176,8 @@ Preview or capture-gated:
 Executable non-send drafts:
 
 - `draft reply`, `draft compose`, `draft create`, `draft update`, and `draft forward` save drafts only and return a discard command. `frontctl send` remains blocked.
+- For formatted drafts, pass conservative HTML directly with `--body-html` or `--body-html-file`;
+  comments remain plain text.
 
 Executable non-send test thread:
 

@@ -32,6 +32,12 @@ type CustomFieldResolution = {
   resourceType?: string;
 };
 
+type DraftBodyInput = {
+  html: string;
+  text: string;
+  inputFormat: "plain" | "html";
+};
+
 export async function archiveConversation(args: string[], paths: FrontPaths = defaultFrontPaths()) {
   const ids = positional(args);
   if (!ids.length) {
@@ -596,11 +602,11 @@ export async function draftCommand(args: string[], paths: FrontPaths = defaultFr
   }
   if (operation === "update") {
     if (!id || !messageUidArg) {
-      throw new CliError("Usage: frontctl draft update CONVERSATION_ID MESSAGE_UID --to EMAIL [--subject TEXT] --body \"...\"|--body-file draft.md", 64);
+      throw new CliError("Usage: frontctl draft update CONVERSATION_ID MESSAGE_UID --to EMAIL [--subject TEXT] --body \"...\"|--body-file draft.md|--body-html-file draft.html", 64);
     }
-    const body = await readBodyArg(args);
+    const body = await readDraftBodyArg(args);
     if (!body) {
-      throw new CliError("Missing draft body. Use --body \"...\" or --body-file path", 64);
+      throw new CliError("Missing draft body. Use --body, --body-file, --body-html, or --body-html-file.", 64);
     }
     const routes = await getRoutes(paths);
     const mode: MutationMode = args.includes("--yes") && !args.includes("--dry-run") ? "execute" : "dry-run";
@@ -640,12 +646,12 @@ export async function draftCommand(args: string[], paths: FrontPaths = defaultFr
   }
   if (operation === "forward") {
     if (!id) {
-      throw new CliError("Usage: frontctl draft forward CONVERSATION_ID --to EMAIL --body \"...\"|--body-file note.md", 64);
+      throw new CliError("Usage: frontctl draft forward CONVERSATION_ID --to EMAIL --body \"...\"|--body-file note.md|--body-html-file note.html", 64);
     }
-    const body = await readBodyArg(args);
+    const body = await readDraftBodyArg(args);
     const to = readStringListFlag(args, "--to");
     if (!body || !to.length) {
-      throw new CliError("Draft forward needs --to and --body or --body-file", 64);
+      throw new CliError("Draft forward needs --to and --body, --body-file, --body-html, or --body-html-file.", 64);
     }
     const routes = await getRoutes(paths);
     const draftUid = randomBytes(16).toString("hex");
@@ -695,9 +701,9 @@ export async function draftCommand(args: string[], paths: FrontPaths = defaultFr
   if (operation === "reply" && !id) {
     throw new CliError("Missing conversation id", 64);
   }
-  const body = await readBodyArg(args);
+  const body = await readDraftBodyArg(args);
   if (!body) {
-    throw new CliError("Missing draft body. Use --body \"...\" or --body-file path", 64);
+    throw new CliError("Missing draft body. Use --body, --body-file, --body-html, or --body-html-file.", 64);
   }
   if (operation === "reply") {
     const routes = await getRoutes(paths);
@@ -805,7 +811,7 @@ function positional(args: string[]) {
   const values: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (["--body", "--body-file", "--limit", "--actor", "--agent-name", "--client", "--run-id", "--reason", "--url", "--name", "--from-channel-id", "--inbox-id", "--assignee-id", "--original-conversation-id", "--teammate-id"].includes(arg)) {
+    if (["--body", "--body-file", "--body-html", "--body-html-file", "--limit", "--actor", "--agent-name", "--client", "--run-id", "--reason", "--url", "--name", "--from-channel-id", "--inbox-id", "--assignee-id", "--original-conversation-id", "--teammate-id"].includes(arg)) {
       index += 1;
       continue;
     }
@@ -844,7 +850,36 @@ async function readBodyArg(args: string[]) {
   return bodyFile ? readFile(bodyFile, "utf8") : undefined;
 }
 
-async function buildReplyDraftBody(conversationId: string, body: string, paths: FrontPaths) {
+async function readDraftBodyArg(args: string[]): Promise<DraftBodyInput | undefined> {
+  const plainBody = await readBodyArg(args);
+  const htmlBody = readStringFlag(args, "--body-html");
+  const htmlFile = readStringFlag(args, "--body-html-file");
+  if (htmlBody !== undefined && htmlFile !== undefined) {
+    throw new CliError("Use only one of --body-html or --body-html-file.", 64);
+  }
+  if (plainBody !== undefined && (htmlBody !== undefined || htmlFile !== undefined)) {
+    throw new CliError("Use either plain body flags or HTML body flags, not both.", 64);
+  }
+  const html = htmlBody ?? (htmlFile ? await readFile(htmlFile, "utf8") : undefined);
+  if (html !== undefined) {
+    validateDraftHtml(html);
+    return {
+      html,
+      text: htmlToText(html),
+      inputFormat: "html",
+    };
+  }
+  if (plainBody !== undefined) {
+    return {
+      html: bodyToHtml(plainBody),
+      text: plainBody,
+      inputFormat: "plain",
+    };
+  }
+  return undefined;
+}
+
+async function buildReplyDraftBody(conversationId: string, body: DraftBodyInput, paths: FrontPaths) {
   const client = await createFrontPrivateClient(paths);
   const routes = buildFrontRoutes(client.context);
   const [boot, conversation, timelineResponse] = await Promise.all([
@@ -879,7 +914,6 @@ async function buildReplyDraftBody(conversationId: string, body: string, paths: 
     ((boot.user as Record<string, unknown> | undefined)?.preferences as Record<string, unknown> | undefined)
       ?.defaultFontStyle,
   ) ?? "";
-  const html = bodyToHtml(body);
   return {
     draftBody: {
       in_reply_to_id: sourceMessage.id,
@@ -889,8 +923,8 @@ async function buildReplyDraftBody(conversationId: string, body: string, paths: 
       subject,
       recipients: [recipient],
       attachments: [],
-      html,
-      text: body,
+      html: body.html,
+      text: body.text,
       shared_draft: false,
       virtru_encrypt: false,
       has_quote: false,
@@ -913,12 +947,13 @@ async function buildReplyDraftBody(conversationId: string, body: string, paths: 
         handle: recipient.handle,
       },
       bodyFormat: "html",
+      bodyInputFormat: body.inputFormat,
       version: "omitted-for-new-draft",
     },
   };
 }
 
-async function buildComposeDraftBody(args: string[], body: string, paths: FrontPaths) {
+async function buildComposeDraftBody(args: string[], body: DraftBodyInput, paths: FrontPaths) {
   const boot = await getBoot(paths);
   const authorId = numberField((boot.user as Record<string, unknown> | undefined)?.id);
   if (!authorId) {
@@ -936,7 +971,7 @@ async function buildComposeDraftBody(args: string[], body: string, paths: FrontP
   });
 }
 
-async function buildForwardDraftBody(sourceConversationId: string, args: string[], body: string, paths: FrontPaths) {
+async function buildForwardDraftBody(sourceConversationId: string, args: string[], body: DraftBodyInput, paths: FrontPaths) {
   const client = await createFrontPrivateClient(paths);
   const routes = buildFrontRoutes(client.context);
   const [boot, conversation, timelineResponse] = await Promise.all([
@@ -970,7 +1005,7 @@ async function buildForwardDraftBody(sourceConversationId: string, args: string[
   });
 }
 
-function previewForwardDraftBody(sourceConversationId: string, args: string[], body: string) {
+function previewForwardDraftBody(sourceConversationId: string, args: string[], body: DraftBodyInput) {
   return forwardDraftBodyFromFields(args, body, {
     id: 123,
     subject: "frontctl draft preview",
@@ -991,11 +1026,10 @@ function previewForwardDraftBody(sourceConversationId: string, args: string[], b
 
 function forwardDraftBodyFromFields(
   args: string[],
-  body: string,
+  body: DraftBodyInput,
   sourceMessage: Record<string, unknown>,
   options: { authorId: number; channelId: number; defaultFontStyle: string; preview: boolean; sourceConversationId: string },
 ) {
-  const html = bodyToHtml(body);
   const recipients = [
     ...composeRecipients(readStringListFlag(args, "--to"), "to"),
     ...composeRecipients(readStringListFlag(args, "--cc"), "cc"),
@@ -1010,8 +1044,8 @@ function forwardDraftBodyFromFields(
       subject,
       recipients,
       attachments: [],
-      html,
-      text: body,
+      html: body.html,
+      text: body.text,
       shared_draft: false,
       virtru_encrypt: false,
       has_quote: false,
@@ -1035,6 +1069,7 @@ function forwardDraftBodyFromFields(
       subject,
       forwardIncluded: true,
       bodyFormat: "html",
+      bodyInputFormat: body.inputFormat,
       note: options.preview
         ? "Preview uses placeholder user/channel/source ids. Execution resolves the source message and private sending channel from live Front data."
         : "Forward-as-draft uses Front's non-send /conversations/new/messages route with forwarded-message HTML included.",
@@ -1042,7 +1077,7 @@ function forwardDraftBodyFromFields(
   };
 }
 
-function previewComposeDraftBody(args: string[], body: string) {
+function previewComposeDraftBody(args: string[], body: DraftBodyInput) {
   return composeDraftBodyFromFields(args, body, {
     authorId: 456,
     channelId: 789,
@@ -1053,10 +1088,9 @@ function previewComposeDraftBody(args: string[], body: string) {
 
 function composeDraftBodyFromFields(
   args: string[],
-  body: string,
+  body: DraftBodyInput,
   options: { authorId: number; channelId: number; defaultFontStyle: string; preview: boolean },
 ) {
-  const html = bodyToHtml(body);
   const recipients = [
     ...composeRecipients(readStringListFlag(args, "--to"), "to"),
     ...composeRecipients(readStringListFlag(args, "--cc"), "cc"),
@@ -1069,8 +1103,8 @@ function composeDraftBodyFromFields(
       subject: readStringFlag(args, "--subject") ?? "",
       recipients,
       attachments: [],
-      html,
-      text: body,
+      html: body.html,
+      text: body.text,
       shared_draft: false,
       virtru_encrypt: false,
       has_quote: false,
@@ -1089,6 +1123,7 @@ function composeDraftBodyFromFields(
       fromChannelId: options.preview ? "preview-placeholder" : options.channelId,
       recipients: recipients.map((recipient) => ({ role: recipient.role, handle: recipient.handle })),
       bodyFormat: "html",
+      bodyInputFormat: body.inputFormat,
       note: options.preview
         ? "Preview uses placeholder user/channel ids. Execution resolves the current user and default private sending channel from live Front boot data."
         : "Standalone draft save uses Front's non-send /conversations/new/messages route.",
@@ -1105,7 +1140,7 @@ function composeRecipients(handles: string[], role: "to" | "cc" | "bcc") {
   }));
 }
 
-function previewReplyDraftBody(body: string) {
+function previewReplyDraftBody(body: DraftBodyInput) {
   return {
     draftBody: {
       in_reply_to_id: 123,
@@ -1115,8 +1150,8 @@ function previewReplyDraftBody(body: string) {
       subject: "frontctl draft preview",
       recipients: [{ role: "to", handle: "recipient@example.com", name: "Recipient", source: "email" }],
       attachments: [],
-      html: bodyToHtml(body),
-      text: body,
+      html: body.html,
+      text: body.text,
       shared_draft: false,
       virtru_encrypt: false,
       has_quote: false,
@@ -1139,6 +1174,7 @@ function previewReplyDraftBody(body: string) {
         handle: "preview-placeholder",
       },
       bodyFormat: "html",
+      bodyInputFormat: body.inputFormat,
       version: "omitted-for-new-draft",
       note: "Preview uses placeholder ids. Execution resolves the source message, channel, and recipient from the live conversation.",
     },
@@ -1326,6 +1362,37 @@ function bodyToHtml(body: string) {
     .split(/\n{2,}/)
     .map((paragraph) => `<div>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</div>`)
     .join("");
+}
+
+function validateDraftHtml(html: string) {
+  if (!html.trim()) {
+    throw new CliError("Draft HTML body cannot be empty.", 64);
+  }
+  if (/<\s*(?:script|style|iframe|object|embed|link|meta)\b/i.test(html)) {
+    throw new CliError("Draft HTML cannot include script, style, iframe, object, embed, link, or meta tags.", 64);
+  }
+  if (/\son[a-z]+\s*=/i.test(html)) {
+    throw new CliError("Draft HTML cannot include event handler attributes.", 64);
+  }
+  if (/\b(?:href|src)\s*=\s*(['"]?)\s*javascript:/i.test(html)) {
+    throw new CliError("Draft HTML cannot include javascript: URLs.", 64);
+  }
+}
+
+function htmlToText(html: string) {
+  return html
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\s*\/\s*(?:p|div|li|blockquote|h[1-6])\s*>/gi, "\n")
+    .replace(/<\s*li\b[^>]*>/gi, "- ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function escapeHtml(value: string) {

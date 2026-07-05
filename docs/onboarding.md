@@ -344,8 +344,8 @@ Draft and discovery helpers:
 ```bash
 frontctl draft list --limit 20 --json
 frontctl draft read DRAFT_ID --json
-frontctl draft reply CONVERSATION_ID --body-file reply.md --json
-frontctl draft compose --to person@example.com --subject "Draft subject" --body-file draft.md --json
+frontctl draft reply CONVERSATION_ID --body-html-file reply.html --json
+frontctl draft compose --to person@example.com --subject "Draft subject" --body-html-file draft.html --json
 frontctl draft discard CONVERSATION_ID MESSAGE_UID --json
 frontctl tag list --json
 frontctl audit list --json
@@ -367,6 +367,8 @@ Draft list/read are local read-only IndexedDB scans. Draft reply returns `result
 commands default to preview and require explicit `--yes` before they can write through Front's
 private routes. Optional endpoint discovery must write sanitized fixtures only; do not share raw HAR
 files.
+For formatted drafts, write conservative HTML directly and pass `--body-html-file` or `--body-html`.
+Comments are plain text.
 `frontctl discovery verify-writes --json` reports the deployable v1 thread-action scope separately
 from preview-only commands. A ready install should show all deployable v1 route contracts verified.
 `frontctl discovery verify-live-writes CONVERSATION_ID --yes --json` mutates one real low-risk test

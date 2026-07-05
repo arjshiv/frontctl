@@ -244,7 +244,7 @@ frontctl inbox --limit 20 --json
 frontctl read CONVERSATION_ID --json
 frontctl act archive CONVERSATION_ID --actor Codex --reason "..." --json
 frontctl act archive CONVERSATION_ID --actor Codex --reason "..." --yes --json
-frontctl draft reply CONVERSATION_ID --body-file reply.md --json
+frontctl draft reply CONVERSATION_ID --body-html-file reply.html --json
 ```
 
 Implementation can route these aliases to existing commands. The purpose is to stop teaching agents

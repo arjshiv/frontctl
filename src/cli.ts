@@ -250,7 +250,7 @@ function usage(topic?: string) {
         "frontctl comment add CONVERSATION_ID --body-file note.md --yes --json",
       ],
       draftOnly: [
-        "frontctl draft reply CONVERSATION_ID --body-file reply.md --yes --json",
+        "frontctl draft reply CONVERSATION_ID --body-html-file reply.html --yes --json",
         "frontctl draft discard CONVERSATION_ID MESSAGE_UID --yes --json",
       ],
       verification: [
@@ -290,9 +290,9 @@ function usage(topic?: string) {
       ],
       draftsNoSend: [
         "frontctl draft list|read ... [--json]",
-        "frontctl draft reply CONVERSATION_ID --body-file reply.md --yes [--json]",
-        "frontctl draft create|compose --to EMAIL --subject TEXT --body-file draft.md --yes [--json]",
-        "frontctl draft update CONVERSATION_ID MESSAGE_UID --to EMAIL --body-file draft.md --yes [--json]",
+        "frontctl draft reply CONVERSATION_ID --body-file reply.txt|--body-html-file reply.html --yes [--json]",
+        "frontctl draft create|compose --to EMAIL --subject TEXT --body-file draft.txt|--body-html-file draft.html --yes [--json]",
+        "frontctl draft update CONVERSATION_ID MESSAGE_UID --to EMAIL --body-file draft.txt|--body-html-file draft.html --yes [--json]",
         "frontctl draft discard DRAFT_ID | frontctl draft discard CONVERSATION_ID MESSAGE_UID --yes [--json]",
       ],
       diagnosticsAndAdvanced: [
@@ -312,6 +312,7 @@ function usage(topic?: string) {
       "Use `--json` for agent/tool calls.",
       "Use `--dry-run` to preview mutations; execution still requires command-specific `--yes`.",
       "Use `--offline-cache` only for explicit cache/analytics workflows, not realtime email triage.",
+      "Use draft `--body-html` or `--body-html-file` for formatted drafts with conservative HTML: p, ul/ol/li, blockquote, strong, em, code, and links. Comments are plain text.",
     ],
   };
 }

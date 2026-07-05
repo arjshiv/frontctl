@@ -233,7 +233,7 @@ Implemented behind non-send route gates:
 
 - `frontctl draft reply CONVERSATION_ID --body "..."` dry-run preview; `--yes` requires known
   non-send route verification or a matching sanitized fixture.
-- `frontctl draft reply CONVERSATION_ID --body-file reply.md` dry-run preview; `--yes` requires
+- `frontctl draft reply CONVERSATION_ID --body-html-file reply.html` dry-run preview; `--yes` requires
   known non-send route verification or a matching sanitized fixture.
 - `frontctl draft compose --to EMAIL --subject "..." --body "..."` dry-run preview; `--yes` saves a
   standalone draft through Front's non-send draft route and returns a discard command.
@@ -304,8 +304,8 @@ frontctl snooze cnv_123 tomorrow-9am --yes
 frontctl tag list --json
 frontctl tag add cnv_123 "Needs Reply" --yes
 frontctl comment add cnv_123 --body-file note.md --yes
-frontctl draft reply cnv_123 --body-file reply.md --yes
-frontctl draft compose --to alice@example.com --subject "Draft subject" --body-file draft.md
+frontctl draft reply cnv_123 --body-html-file reply.html --yes
+frontctl draft compose --to alice@example.com --subject "Draft subject" --body-html-file draft.html
 frontctl draft discard draft_123 --yes
 frontctl open cnv_123
 ```
