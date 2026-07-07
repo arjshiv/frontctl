@@ -24,6 +24,11 @@ means reads and approved writes can use the reusable local session cache.
 fallback. It may ask macOS for Touch ID or the account password once, then writes
 `~/.frontctl/session.json` for normal non-prompting use.
 
+If a live private request returns HTTP 401 `authentication_required`, the server has rejected the
+cached session even if `auth check` was locally valid. The private client clears the session cache
+and reports a recovery command with `--force`; agents should run that exact command only after user
+approval, then retry the approved operation once.
+
 The CDP bridge is the browser-runtime path. `browser-status` proves a DevTools endpoint exists,
 `browser-probe` proves the selected tab is signed into Front, and `browser-seed` can copy the valid
 frontctl session into the selected browser tab without printing cookie values or touching Keychain.

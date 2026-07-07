@@ -106,6 +106,10 @@ That explicit command may ask macOS Keychain once because Chromium and Electron 
 secrets behind Safe Storage. After that, normal reads reuse `~/.frontctl/session.json` and do not
 touch Keychain. Repeated Keychain prompts during normal reads are a bug.
 
+If Front returns HTTP 401 `authentication_required`, treat the live server response as newer than
+the local cache. `frontctl` clears the rejected session and prints a one-time recovery command with
+`--force`; approve that command, then retry the approved read or write once.
+
 The CDP browser bridge is an optional developer/debug path when a browser is launched with remote
 debugging:
 

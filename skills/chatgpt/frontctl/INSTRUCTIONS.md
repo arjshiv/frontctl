@@ -16,7 +16,10 @@ Requirements:
   cache fallback unless the user explicitly asks for that setup/debug action. The normal recovery
   path is a single user-approved unlock such as
   `frontctl auth unlock --source default-browser --ttl-hours 720 --json`; normal reads reuse that
-  local session and do not touch Keychain.
+  local session and do not touch Keychain. Exception: if a live private read or write returns HTTP
+  401 `authentication_required`, trust Front over the local cache. The CLI clears the rejected
+  session and prints a recovery command with `--force`; run that exact command only after user
+  approval, then retry the approved operation once.
 - Never rerun unlock just to be safe when `auth check` is valid. Unlock reuses the valid session
   cache and should not repeatedly prompt for Keychain access.
 - Never use the public Front API.
