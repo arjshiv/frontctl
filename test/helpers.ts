@@ -191,7 +191,7 @@ export async function writeFakeFrontCacheFixture(paths: FrontPaths) {
 
 export async function writeFakeFrontSession(
   sessionPath: string,
-  options: { expiresAt?: string; cookieHeader?: string } = {},
+  options: { expiresAt?: string; cookieHeader?: string; source?: string } = {},
 ) {
   await mkdir(join(sessionPath, ".."), { recursive: true });
   const nonce = randomBytes(12);
@@ -206,6 +206,7 @@ export async function writeFakeFrontSession(
       {
         version: 1,
         host: "app.frontapp.com",
+        source: options.source,
         cookieNames: ["front.id", "front.id.sig"],
         createdAt: new Date(Date.now() - 60_000).toISOString(),
         expiresAt: options.expiresAt ?? new Date(Date.now() + 60 * 60 * 1000).toISOString(),

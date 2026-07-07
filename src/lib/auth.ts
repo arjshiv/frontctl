@@ -279,6 +279,21 @@ export async function clearFrontSession(sessionPath = defaultSessionPath()) {
   };
 }
 
+export function forceUnlockCommandForSession(session?: Pick<FrontSession, "source">) {
+  const source = session?.source;
+  if (source?.startsWith("agentcookie")) {
+    return `frontctl auth unlock --source agentcookie --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --force --json`;
+  }
+  if (source === "front-app" || source === "front") {
+    return `frontctl auth unlock --source front-app --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --force --json`;
+  }
+  const browserProfile = source?.match(/^(chrome|edge|safari):(.+)$/);
+  if (browserProfile) {
+    return `frontctl auth unlock --source ${browserProfile[1]} --profile ${shellQuote(browserProfile[2])} --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --force --json`;
+  }
+  return `frontctl auth unlock --source default-browser --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --force --json`;
+}
+
 export async function readFrontSession(sessionPath = defaultSessionPath()): Promise<FrontSession | undefined> {
   let raw: SessionFile;
   try {
@@ -396,6 +411,13 @@ function readKeychainPassword(service: string) {
     throw new Error(`Could not read ${service} from Keychain. Authorize Keychain access and rerun auth unlock.`);
   }
   return result.stdout.trimEnd();
+}
+
+function shellQuote(value: string) {
+  if (/^[A-Za-z0-9_./:-]+$/.test(value)) {
+    return value;
+  }
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 async function writeFrontSession(sessionPath: string, session: FrontSession) {

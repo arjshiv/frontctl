@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
+import { readFrontSession } from "../src/lib/auth.js";
 import { createFrontPrivateClient } from "../src/lib/frontPrivate.js";
 import { buildFrontRoutes } from "../src/lib/frontRoutes.js";
 import { makeFakeFrontInstall, makeTempDir, writeFakeFrontSession } from "./helpers.js";
@@ -77,6 +78,40 @@ test("session-cookie private requests include a redacted error excerpt", async (
         return true;
       },
     );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("session-cookie authentication_required clears stale cache and suggests forced unlock", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-private-auth-required"));
+  await writeFile(
+    join(paths.cacheDataPath, "route-cache"),
+    "https://app.frontapp.com/cell-00017/api/1/companies/32390a17805cd26f7349/team/6088721/conversations/inbox",
+  );
+  process.env.FRONTCTL_SESSION_PATH = join(paths.supportPath, "frontctl-session.json");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH, { source: "front-app" });
+
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ error: "authentication_required" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    })) as typeof fetch;
+
+  try {
+    const client = await createFrontPrivateClient(paths);
+    const routes = buildFrontRoutes(client.context);
+    await assert.rejects(
+      () => client.requestJson(routes.timeline("cnv_1"), { method: "POST", body: { type: "comment" } }),
+      (error: unknown) => {
+        const message = String((error as Error).message);
+        assert.match(message, /cached frontctl session was rejected by Front and has been cleared/);
+        assert.match(message, /auth unlock --source front-app --ttl-hours 720 --force --json/);
+        return true;
+      },
+    );
+    assert.equal(await readFrontSession(process.env.FRONTCTL_SESSION_PATH), undefined);
   } finally {
     globalThis.fetch = previousFetch;
   }

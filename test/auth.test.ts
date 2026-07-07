@@ -5,6 +5,7 @@ import {
   DEFAULT_SESSION_TTL_HOURS,
   decryptChromiumCookieValue,
   encryptChromiumCookieValueForTest,
+  forceUnlockCommandForSession,
   readFrontSession,
   sessionSecurityStatus,
   unlockFrontSessionFromPlainCookies,
@@ -156,6 +157,21 @@ test("auth unlock --source agentcookie uses plaintext cookie sidecar without Key
     if (previousSessionPath === undefined) delete process.env.FRONTCTL_SESSION_PATH;
     else process.env.FRONTCTL_SESSION_PATH = previousSessionPath;
   }
+});
+
+test("forceUnlockCommandForSession preserves the original auth source", () => {
+  assert.equal(
+    forceUnlockCommandForSession({ source: "front-app" }),
+    "frontctl auth unlock --source front-app --ttl-hours 720 --force --json",
+  );
+  assert.equal(
+    forceUnlockCommandForSession({ source: "agentcookie:auto" }),
+    "frontctl auth unlock --source agentcookie --ttl-hours 720 --force --json",
+  );
+  assert.equal(
+    forceUnlockCommandForSession({ source: "edge:Profile 1" }),
+    "frontctl auth unlock --source edge --profile 'Profile 1' --ttl-hours 720 --force --json",
+  );
 });
 
 test("auth unlock defaults to non-prompting agentcookie when available", async () => {

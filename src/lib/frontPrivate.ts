@@ -1,5 +1,5 @@
 import { readAgentcookieFrontCookies } from "./agentcookie.js";
-import { readFrontSession, unlockFrontSessionFromPlainCookies } from "./auth.js";
+import { clearFrontSession, forceUnlockCommandForSession, readFrontSession, unlockFrontSessionFromPlainCookies } from "./auth.js";
 import { createBrowserBridgeClient, discoverFrontRouteContextFromBrowserBridge } from "./browserBridge.js";
 import { createCdpBridgeClient, discoverFrontRouteContextFromCdpBridge } from "./cdpBridge.js";
 import { CliError } from "./cli.js";
@@ -128,6 +128,17 @@ function sessionCookieClient(
     rememberSetCookie(response.headers.get("set-cookie"));
     const text = await response.text();
     if (!response.ok) {
+      if (isAuthenticationRequired(response.status, text)) {
+        await clearFrontSession();
+        throw new CliError(
+          [
+            `Front private request failed with HTTP ${response.status}${summarizeErrorBody(text)}.`,
+            "The cached frontctl session was rejected by Front and has been cleared.",
+            `Refresh once with \`${forceUnlockCommandForSession(session)}\`, then retry the approved operation.`,
+          ].join(" "),
+          69,
+        );
+      }
       throw new CliError(`Front private request failed with HTTP ${response.status}${summarizeErrorBody(text)}`, 69);
     }
     return text ? (JSON.parse(text) as T) : ({} as T);
@@ -163,6 +174,10 @@ function sessionCookieClient(
       };
     },
   };
+}
+
+function isAuthenticationRequired(status: number, text: string) {
+  return status === 401 && /authentication_required|not signed in|sign in/i.test(text);
 }
 
 async function fetchFront(url: string, init: RequestInit) {
