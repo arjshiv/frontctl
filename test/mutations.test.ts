@@ -994,6 +994,40 @@ test("commentConversation add executes without a separate identity comment", asy
   assert.equal((writes[1].body as any).type, "comment");
 });
 
+test("commentConversation resolves public conversation ids before executable private writes", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-comment-cnv-id");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const requests = await withMockedFrontRequests(async () => {
+    const result = await commentConversation([
+      "add",
+      "cnv_18gk889d",
+      "--body",
+      "Resolved id note",
+      "--actor",
+      "Codex",
+      "--reason",
+      "Add requested note",
+      "--yes",
+    ], paths) as any;
+    assert.equal(result.conversationId, "96779857873");
+    assert.equal(result.details.originalConversationId, "cnv_18gk889d");
+    assert.equal(result.result.activityId, "activity-1");
+  }, (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/search_raw/cnv_18gk889d")) {
+      return { conversations: [{ id: "96779857873" }] };
+    }
+    return { ok: true, id: "activity-1" };
+  });
+
+  assert.ok(requests.some((request) => request.method === "GET" && /\/search_raw\/cnv_18gk889d$/.test(request.url)));
+  const writes = requests.filter((request) => request.method !== "GET");
+  assert.equal(writes.length, 2);
+  assert.match(writes[0].url, /\/conversations\/96779857873\/comments\/[a-f0-9]{32}\?include_conversation=true$/);
+  assert.match(writes[1].url, /\/conversations\/96779857873\/timeline$/);
+});
+
 test("commentConversation remove targets the verified timeline activity delete route", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-comment-remove");
 

@@ -450,6 +450,9 @@ export async function commentConversation(args: string[], paths: FrontPaths = de
   if (!id) {
     throw new CliError("Missing conversation id", 64);
   }
+  const routeConversationId = shouldResolveConversationIdForExecute(args, id)
+    ? await resolveNumericConversationId(id, paths)
+    : id;
   if (operation === "remove") {
     if (!commentRef) {
       throw new CliError("Missing comment activity id or comment uid", 64);
@@ -457,19 +460,20 @@ export async function commentConversation(args: string[], paths: FrontPaths = de
     const routes = await getRoutes(paths);
     const spec = await verifiedSpec({
       action: "comment.remove",
-      conversationId: id,
+      conversationId: routeConversationId,
       method: "DELETE",
-      url: routes.timelineActivity(id, commentRef),
+      url: routes.timelineActivity(routeConversationId, commentRef),
       details: {
         input: commentRef,
+        originalConversationId: routeConversationId === id ? undefined : id,
         note: "If a comment uid is provided, frontctl resolves it to the timeline activity id at execution time.",
       },
       canExecute: false,
       execute: async (client) => {
         const activityId = /^\d+$/.test(commentRef)
           ? commentRef
-          : await resolveCommentActivityId(client, routes, id, commentRef);
-        return client.requestJson(routes.timelineActivity(id, activityId), { method: "DELETE", body: {} });
+          : await resolveCommentActivityId(client, routes, routeConversationId, commentRef);
+        return client.requestJson(routes.timelineActivity(routeConversationId, activityId), { method: "DELETE", body: {} });
       },
     });
     return runMutation({ args, spec, paths });
@@ -485,25 +489,26 @@ export async function commentConversation(args: string[], paths: FrontPaths = de
   const publishBody = commentPublishBody(commentUid);
   return runMutation({ args, spec: await verifiedSpec({
     action: "comment.add",
-    conversationId: id,
+    conversationId: routeConversationId,
     method: "POST",
-    url: routes.timeline(id),
+    url: routes.timeline(routeConversationId),
     body: publishBody,
     details: {
       commentUid,
+      originalConversationId: routeConversationId === id ? undefined : id,
       saveRequest: {
         method: "PUT",
-        path: new URL(`${routes.comment(id, commentUid)}?include_conversation=true`).pathname,
+        path: new URL(`${routes.comment(routeConversationId, commentUid)}?include_conversation=true`).pathname,
         body: saveBody,
       },
     },
     canExecute: false,
     execute: async (client) => {
-      await client.requestJson(`${routes.comment(id, commentUid)}?include_conversation=true`, {
+      await client.requestJson(`${routes.comment(routeConversationId, commentUid)}?include_conversation=true`, {
         method: "PUT",
         body: saveBody,
       });
-      const result = await client.requestJson<Record<string, unknown>>(routes.timeline(id), {
+      const result = await client.requestJson<Record<string, unknown>>(routes.timeline(routeConversationId), {
         method: "POST",
         body: publishBody,
       });
@@ -839,6 +844,47 @@ function readStringFlag(args: string[], flag: string) {
 function readNumberFlag(args: string[], flag: string): number | undefined {
   const value = Number(readStringFlag(args, flag));
   return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function shouldResolveConversationIdForExecute(args: string[], id: string) {
+  return args.includes("--yes") && !args.includes("--dry-run") && /^cnv_[A-Za-z0-9]+$/.test(id);
+}
+
+async function resolveNumericConversationId(id: string, paths: FrontPaths) {
+  const client = await createFrontPrivateClient(paths);
+  const routes = buildFrontRoutes(client.context);
+  const data = await client.getJson<Record<string, unknown>>(routes.searchRaw(id));
+  const raw = Array.isArray(data.conversations)
+    ? data.conversations
+    : Array.isArray(data.conversation_search_results)
+      ? data.conversation_search_results
+      : [];
+  const ids = [...new Set(raw
+    .map(extractNumericConversationId)
+    .filter((candidate): candidate is string => Boolean(candidate)))];
+  if (ids.length === 1) {
+    return ids[0];
+  }
+  if (ids.length > 1) {
+    throw new CliError(`Conversation id ${id} resolved to multiple private ids; use one numeric id explicitly.`, 69);
+  }
+  throw new CliError(`Could not resolve conversation id ${id} to a private numeric id.`, 69);
+}
+
+function extractNumericConversationId(value: unknown): string | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  const nested = record.conversation && typeof record.conversation === "object"
+    ? record.conversation as Record<string, unknown>
+    : undefined;
+  const candidate = record.id ?? record.conversation_id ?? nested?.id ?? nested?.conversation_id;
+  if (typeof candidate !== "number" && typeof candidate !== "string") {
+    return undefined;
+  }
+  const id = String(candidate);
+  return /^\d+$/.test(id) ? id : undefined;
 }
 
 async function readBodyArg(args: string[]) {
