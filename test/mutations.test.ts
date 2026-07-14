@@ -1053,6 +1053,11 @@ test("snooze and draft dry-runs remain non-sending but require discovery before 
   assert.equal(draft.request.method, "PUT");
   assert.match(draft.request.path ?? "", /\/conversations\/conversation-1\/messages\/[a-f0-9]{32}$/);
   assert.equal(draft.request.body.text, "Draft only");
+  assert.equal(draft.request.body.shared_draft, true);
+  assert.deepEqual(draft.request.body.recipients.map((recipient: { role: string; handle: string }) => [recipient.role, recipient.handle]), [
+    ["to", "sender@example.com"],
+    ["cc", "teammate@example.com"],
+  ]);
   assert.equal("version" in draft.request.body, false);
   assert.match(draft.note ?? "", /Draft save only/);
 });
@@ -1405,7 +1410,11 @@ test("draft reply, standalone compose, and draft update execute with live-proven
   assert.equal(replyBody.text, "Draft only");
   assert.equal(replyBody.in_reply_to_id, 226523505105);
   assert.equal(replyBody.from.channel_id, 7599313);
-  assert.equal(replyBody.recipients[0].handle, "support@example.com");
+  assert.equal(replyBody.shared_draft, true);
+  assert.deepEqual(replyBody.recipients.map((recipient: { role: string; handle: string }) => [recipient.role, recipient.handle]), [
+    ["to", "support@example.com"],
+    ["cc", "teammate@example.com"],
+  ]);
   assert.equal("version" in replyBody, false);
 
   const composeRequest = await withMockedFrontRequest(async () => {
@@ -1681,6 +1690,11 @@ function draftReplyMockResponse(input: string | URL | Request) {
               role: "reply-to",
               handle: "support@example.com",
               display_name: "Support",
+            },
+            {
+              role: "cc",
+              handle: "teammate@example.com",
+              display_name: "Teammate",
             },
           ],
           body: "<div>Original body</div>",
