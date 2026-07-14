@@ -90,7 +90,7 @@ test("mutation schemas accept known safe Front write bodies", () => {
     attachments: [],
     html: "<div>Draft</div>",
     text: "Draft",
-    shared_draft: false,
+    shared_draft: true,
     virtru_encrypt: false,
     has_quote: false,
     quote_include: false,
