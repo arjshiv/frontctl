@@ -180,6 +180,7 @@ Preview or capture-gated:
 Executable non-send drafts:
 
 - `draft reply`, `draft compose`, `draft create`, `draft update`, and `draft forward` save drafts only and return a discard command. `frontctl send` remains blocked.
+- `draft reply` defaults to reply-all and saves a shared Front draft in the conversation, so teammates with access can see and edit it. It excludes the active user's own channel from recipients.
 - For formatted drafts, pass conservative HTML directly with `--body-html` or `--body-html-file`;
   comments remain plain text.
 
