@@ -160,6 +160,9 @@ forward drafts save through Front's
 non-send draft route and return `result.conversationId`, `result.messageUid`, and
 `result.discardCommand`. `draft update` requires that conversation id and message uid, plus explicit
 recipients/subject, so agents do not guess from stale local draft cache.
+`draft reply` defaults to reply-all and saves a shared Front draft in the conversation, so anyone
+with conversation access can see and edit it. It excludes the active user's own Front channel from
+recipients.
 For formatted drafts, write conservative HTML directly and pass `--body-html-file` or `--body-html`;
 use only ordinary content tags such as `p`, `ul`, `ol`, `li`, `blockquote`, `strong`, `em`, `code`,
 and `a`. Do not include scripts, styles, event handlers, or tracking pixels. Comments are plain text.
