@@ -290,7 +290,7 @@ function usage(topic?: string) {
       ],
       draftsNoSend: [
         "frontctl draft list|read ... [--json]",
-        "frontctl draft reply CONVERSATION_ID --body-file reply.txt|--body-html-file reply.html --yes [--json]",
+        "frontctl draft reply CONVERSATION_ID --body-file reply.txt|--body-html-file reply.html --yes [--json]  # reply-all, shared draft",
         "frontctl draft create|compose --to EMAIL --subject TEXT --body-file draft.txt|--body-html-file draft.html --yes [--json]",
         "frontctl draft update CONVERSATION_ID MESSAGE_UID --to EMAIL --body-file draft.txt|--body-html-file draft.html --yes [--json]",
         "frontctl draft discard DRAFT_ID | frontctl draft discard CONVERSATION_ID MESSAGE_UID --yes [--json]",
