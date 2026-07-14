@@ -941,8 +941,8 @@ async function buildReplyDraftBody(conversationId: string, body: DraftBodyInput,
   const content = { timeline };
   const sourceMessage = latestConversationMessage(content, conversation);
   const authorId = numberField((boot.user as Record<string, unknown> | undefined)?.id);
+  const authorEmail = stringField((boot.user as Record<string, unknown> | undefined)?.email);
   const channelId = replyChannelId(sourceMessage);
-  const recipient = replyRecipient(sourceMessage);
   if (!sourceMessage.id) {
     throw new CliError("Could not find a source message to reply to in this conversation.", 69);
   }
@@ -952,8 +952,9 @@ async function buildReplyDraftBody(conversationId: string, body: DraftBodyInput,
   if (!channelId) {
     throw new CliError("Could not resolve a sending channel for draft reply.", 69);
   }
-  if (!recipient?.handle) {
-    throw new CliError("Could not resolve reply recipient for draft reply.", 69);
+  const recipients = replyAllRecipients(sourceMessage, { channelId, authorEmail });
+  if (!recipients.length) {
+    throw new CliError("Could not resolve reply-all recipients for draft reply.", 69);
   }
   const subject = stringField(sourceMessage.subject) ?? "";
   const defaultFontStyle = stringField(
@@ -967,11 +968,11 @@ async function buildReplyDraftBody(conversationId: string, body: DraftBodyInput,
       author_id: authorId,
       from: { channel_id: channelId },
       subject,
-      recipients: [recipient],
+      recipients,
       attachments: [],
       html: body.html,
       text: body.text,
-      shared_draft: false,
+      shared_draft: true,
       virtru_encrypt: false,
       has_quote: false,
       quote_include: false,
@@ -988,10 +989,9 @@ async function buildReplyDraftBody(conversationId: string, body: DraftBodyInput,
     details: {
       sourceMessageId: sourceMessage.id,
       fromChannelId: channelId,
-      recipient: {
-        role: recipient.role,
-        handle: recipient.handle,
-      },
+      recipients: recipients.map((recipient) => ({ role: recipient.role, handle: recipient.handle })),
+      replyMode: "reply-all",
+      sharedDraft: true,
       bodyFormat: "html",
       bodyInputFormat: body.inputFormat,
       version: "omitted-for-new-draft",
@@ -1194,11 +1194,14 @@ function previewReplyDraftBody(body: DraftBodyInput) {
       author_id: 456,
       from: { channel_id: 789 },
       subject: "frontctl draft preview",
-      recipients: [{ role: "to", handle: "recipient@example.com", name: "Recipient", source: "email" }],
+      recipients: [
+        { role: "to", handle: "sender@example.com", name: "Sender", source: "email" },
+        { role: "cc", handle: "teammate@example.com", name: "Teammate", source: "email" },
+      ],
       attachments: [],
       html: body.html,
       text: body.text,
-      shared_draft: false,
+      shared_draft: true,
       virtru_encrypt: false,
       has_quote: false,
       quote_include: false,
@@ -1215,14 +1218,16 @@ function previewReplyDraftBody(body: DraftBodyInput) {
     details: {
       sourceMessageId: "preview-placeholder",
       fromChannelId: "preview-placeholder",
-      recipient: {
-        role: "to",
-        handle: "preview-placeholder",
-      },
+      recipients: [
+        { role: "to", handle: "sender@example.com" },
+        { role: "cc", handle: "teammate@example.com" },
+      ],
+      replyMode: "reply-all",
+      sharedDraft: true,
       bodyFormat: "html",
       bodyInputFormat: body.inputFormat,
       version: "omitted-for-new-draft",
-      note: "Preview uses placeholder ids. Execution resolves the source message, channel, and recipient from the live conversation.",
+      note: "Preview uses placeholder ids. Execution resolves the source message, channel, and reply-all recipients from the live conversation.",
     },
   };
 }
@@ -1331,24 +1336,64 @@ function replyChannelId(message: Record<string, unknown>) {
   return undefined;
 }
 
-function replyRecipient(message: Record<string, unknown>) {
+function replyAllRecipients(message: Record<string, unknown>, self: { channelId?: number; authorEmail?: string }) {
   const recipients = Array.isArray(message.recipients) ? message.recipients as Array<Record<string, unknown>> : [];
-  const from = recipients.find((candidate) => candidate.role === "reply-to")
-    ?? (isObject(message.from) ? message.from : undefined)
-    ?? recipients.find((candidate) => candidate.role === "from");
-  if (!from) {
+  const seen = new Set<string>();
+  const replyTo = recipients.find((candidate) => candidate.role === "reply-to");
+  const from = isObject(message.from) ? message.from : recipients.find((candidate) => candidate.role === "from");
+  const toRecipients = [
+    formatReplyRecipient(replyTo ?? from, "to", self, seen),
+  ].filter((recipient): recipient is NonNullable<ReturnType<typeof formatReplyRecipient>> => Boolean(recipient));
+  const ccRecipients = recipients
+    .filter((candidate) => candidate.role === "to" || candidate.role === "cc")
+    .map((candidate) => formatReplyRecipient(candidate, "cc", self, seen))
+    .filter((recipient): recipient is NonNullable<ReturnType<typeof formatReplyRecipient>> => Boolean(recipient));
+  const all = [...toRecipients, ...ccRecipients];
+  if (all.length || !from || replyTo) {
+    return all;
+  }
+
+  const fallback = recipients
+    .filter((candidate) => candidate.role === "to" || candidate.role === "cc")
+    .map((candidate, index) => formatReplyRecipient(candidate, index === 0 ? "to" : "cc", self, seen))
+    .filter((recipient): recipient is NonNullable<ReturnType<typeof formatReplyRecipient>> => Boolean(recipient));
+  return fallback;
+}
+
+function formatReplyRecipient(
+  recipient: Record<string, unknown> | undefined,
+  role: "to" | "cc",
+  self: { channelId?: number; authorEmail?: string },
+  seen: Set<string>,
+) {
+  if (!recipient || isSelfRecipient(recipient, self)) {
     return undefined;
   }
-  const handle = stringField(from.handle) ?? stringField(from.email) ?? stringField(from.display_name);
+  const handle = stringField(recipient.handle) ?? stringField(recipient.email) ?? stringField(recipient.display_name);
   if (!handle) {
     return undefined;
   }
+  const key = handle.toLowerCase();
+  if (seen.has(key)) {
+    return undefined;
+  }
+  seen.add(key);
   return {
-    role: "to",
+    role,
     handle,
-    name: stringField(from.display_name) ?? stringField(from.name) ?? handle,
+    name: stringField(recipient.display_name) ?? stringField(recipient.name) ?? handle,
     source: "email",
   };
+}
+
+function isSelfRecipient(recipient: Record<string, unknown>, self: { channelId?: number; authorEmail?: string }) {
+  const directChannel = numberField(recipient.channel_id);
+  const nestedChannel = numberField((recipient.channel_full as Record<string, unknown> | undefined)?.id);
+  if (self.channelId && (directChannel === self.channelId || nestedChannel === self.channelId)) {
+    return true;
+  }
+  const handle = stringField(recipient.handle) ?? stringField(recipient.email);
+  return Boolean(self.authorEmail && handle && handle.toLowerCase() === self.authorEmail.toLowerCase());
 }
 
 function buildForwardHtml(message: Record<string, unknown>) {
