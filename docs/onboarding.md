@@ -365,10 +365,11 @@ frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port
 Draft list/read are local read-only IndexedDB scans. Draft reply returns `result.messageUid` and
 `result.discardCommand` for deleting the saved draft. Standalone draft compose accepts optional
 `--to`, `--cc`, `--bcc`, and `--subject` fields and saves through Front's non-send draft route when
-`--yes` is explicitly approved. Reply draft, standalone compose, discard, and test-conversation
-commands default to preview and require explicit `--yes` before they can write through Front's
-private routes. Optional endpoint discovery must write sanitized fixtures only; do not share raw HAR
-files.
+`--yes` is explicitly approved. Draft reply defaults to reply-all and saves a shared Front draft in
+the conversation, excluding the active user's own Front channel from recipients. Reply draft,
+standalone compose, discard, and test-conversation commands default to preview and require explicit
+`--yes` before they can write through Front's private routes. Optional endpoint discovery must write
+sanitized fixtures only; do not share raw HAR files.
 For formatted drafts, write conservative HTML directly and pass `--body-html-file` or `--body-html`.
 Comments are plain text.
 `frontctl discovery verify-writes --json` reports the deployable v1 thread-action scope separately
