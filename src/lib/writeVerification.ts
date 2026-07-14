@@ -527,7 +527,7 @@ export const WRITE_ACTION_SPECS = [
       attachments: [],
       html: "<div>draft-placeholder</div>",
       text: "draft-placeholder",
-      shared_draft: false,
+      shared_draft: true,
       virtru_encrypt: false,
       has_quote: false,
       quote_include: false,
