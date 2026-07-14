@@ -276,8 +276,8 @@ async function resolveDraftSeed(conversationId: string, paths: FrontPaths) {
   const timeline = Array.isArray(timelineResponse.timeline) ? timelineResponse.timeline : timelineResponse;
   const sourceMessage = latestConversationMessage({ timeline }, conversation);
   const authorId = numberField((boot.user as Record<string, unknown> | undefined)?.id);
+  const authorEmail = stringField((boot.user as Record<string, unknown> | undefined)?.email);
   const channelId = replyChannelId(sourceMessage);
-  const recipient = replyRecipient(sourceMessage);
   if (!sourceMessage.id) {
     throw new CliError("Could not find a source message to reply to in this conversation.", 69);
   }
@@ -287,15 +287,16 @@ async function resolveDraftSeed(conversationId: string, paths: FrontPaths) {
   if (!channelId) {
     throw new CliError("Could not resolve a sending channel for browser draft reply.", 69);
   }
-  if (!recipient?.handle) {
-    throw new CliError("Could not resolve reply recipient for browser draft reply.", 69);
+  const recipients = replyAllRecipients(sourceMessage, { channelId, authorEmail });
+  if (!recipients.length) {
+    throw new CliError("Could not resolve reply-all recipients for browser draft reply.", 69);
   }
   return {
     sourceMessageId: sourceMessage.id,
     authorId,
     channelId,
     subject: stringField(sourceMessage.subject) ?? "",
-    recipient,
+    recipients,
   };
 }
 
@@ -369,21 +370,63 @@ function replyChannelId(message: Record<string, unknown>) {
   return undefined;
 }
 
-function replyRecipient(message: Record<string, unknown>) {
+function replyAllRecipients(message: Record<string, unknown>, self: { channelId?: number; authorEmail?: string }) {
   const recipients = Array.isArray(message.recipients) ? message.recipients as Array<Record<string, unknown>> : [];
-  const from = recipients.find((candidate) => candidate.role === "reply-to")
-    ?? (isObject(message.from) ? message.from : undefined)
-    ?? recipients.find((candidate) => candidate.role === "from");
-  const handle = stringField(from?.handle) ?? stringField(from?.email) ?? stringField(from?.display_name);
+  const seen = new Set<string>();
+  const replyTo = recipients.find((candidate) => candidate.role === "reply-to");
+  const from = isObject(message.from) ? message.from : recipients.find((candidate) => candidate.role === "from");
+  const toRecipients = [
+    formatReplyRecipient(replyTo ?? from, "to", self, seen),
+  ].filter((recipient): recipient is NonNullable<ReturnType<typeof formatReplyRecipient>> => Boolean(recipient));
+  const ccRecipients = recipients
+    .filter((candidate) => candidate.role === "to" || candidate.role === "cc")
+    .map((candidate) => formatReplyRecipient(candidate, "cc", self, seen))
+    .filter((recipient): recipient is NonNullable<ReturnType<typeof formatReplyRecipient>> => Boolean(recipient));
+  const all = [...toRecipients, ...ccRecipients];
+  if (all.length || !from || replyTo) {
+    return all;
+  }
+
+  return recipients
+    .filter((candidate) => candidate.role === "to" || candidate.role === "cc")
+    .map((candidate, index) => formatReplyRecipient(candidate, index === 0 ? "to" : "cc", self, seen))
+    .filter((recipient): recipient is NonNullable<ReturnType<typeof formatReplyRecipient>> => Boolean(recipient));
+}
+
+function formatReplyRecipient(
+  recipient: Record<string, unknown> | undefined,
+  role: "to" | "cc",
+  self: { channelId?: number; authorEmail?: string },
+  seen: Set<string>,
+) {
+  if (!recipient || isSelfRecipient(recipient, self)) {
+    return undefined;
+  }
+  const handle = stringField(recipient.handle) ?? stringField(recipient.email) ?? stringField(recipient.display_name);
   if (!handle) {
     return undefined;
   }
+  const key = handle.toLowerCase();
+  if (seen.has(key)) {
+    return undefined;
+  }
+  seen.add(key);
   return {
-    role: "to",
+    role,
     handle,
-    name: stringField(from?.display_name) ?? stringField(from?.name) ?? handle,
+    name: stringField(recipient.display_name) ?? stringField(recipient.name) ?? handle,
     source: "email",
   };
+}
+
+function isSelfRecipient(recipient: Record<string, unknown>, self: { channelId?: number; authorEmail?: string }) {
+  const directChannel = numberField(recipient.channel_id);
+  const nestedChannel = numberField((recipient.channel_full as Record<string, unknown> | undefined)?.id);
+  if (self.channelId && (directChannel === self.channelId || nestedChannel === self.channelId)) {
+    return true;
+  }
+  const handle = stringField(recipient.handle) ?? stringField(recipient.email);
+  return Boolean(self.authorEmail && handle && handle.toLowerCase() === self.authorEmail.toLowerCase());
 }
 
 function browserWriteVerifierExpression(input: {
@@ -395,7 +438,7 @@ function browserWriteVerifierExpression(input: {
     authorId: number;
     channelId: number;
     subject: string;
-    recipient: Record<string, unknown>;
+    recipients: Array<Record<string, unknown>>;
   };
 }) {
   return `
@@ -412,7 +455,7 @@ function browserWriteVerifierRuntime(input: {
     authorId: number;
     channelId: number;
     subject: string;
-    recipient: Record<string, unknown>;
+    recipients: Array<Record<string, unknown>>;
   };
 }) {
   const id = input.conversationId;
@@ -513,11 +556,11 @@ function browserWriteVerifierRuntime(input: {
         author_id: input.draftSeed.authorId,
         from: { channel_id: input.draftSeed.channelId },
         subject: input.draftSeed.subject,
-        recipients: [input.draftSeed.recipient],
+        recipients: input.draftSeed.recipients,
         attachments: [],
         html: `<div>${marker}</div>`,
         text: marker,
-        shared_draft: false,
+        shared_draft: true,
         virtru_encrypt: false,
         has_quote: false,
         quote_include: false,
