@@ -1,4 +1,5 @@
 import { CliError } from "../lib/cli.js";
+import { resolvePrivateConversationRouteId } from "../lib/conversationIds.js";
 import { normalizeConversation, normalizeTimeline, readCachedConversation } from "../lib/frontCache.js";
 import { createFrontPrivateClient } from "../lib/frontPrivate.js";
 import { buildFrontRoutes } from "../lib/frontRoutes.js";
@@ -17,14 +18,15 @@ export async function readConversation(args: string[], paths: FrontPaths = defau
 
   const client = await createFrontPrivateClient(paths);
   const routes = buildFrontRoutes(client.context);
+  const routeId = await resolvePrivateConversationRouteId(client, routes, id);
   const full = args.includes("--full");
   const [conversation, timeline, content, events, inboxes, followers] = await Promise.all([
-    client.getJson<Record<string, unknown>>(routes.conversation(id)),
-    client.getJson<Record<string, unknown>>(routes.timeline(id)),
-    full ? client.getJson<Record<string, unknown>>(routes.content(id)).catch((error) => ({ error: String(error) })) : undefined,
-    full ? client.getJson<Record<string, unknown>>(routes.conversationEvents(id)).catch((error) => ({ error: String(error) })) : undefined,
-    full ? client.getJson<Record<string, unknown>>(routes.conversationInboxes(id)).catch((error) => ({ error: String(error) })) : undefined,
-    full ? client.getJson<Record<string, unknown>>(routes.conversationFollowers(id)).catch((error) => ({ error: String(error) })) : undefined,
+    client.getJson<Record<string, unknown>>(routes.conversation(routeId)),
+    client.getJson<Record<string, unknown>>(routes.timeline(routeId)),
+    full ? client.getJson<Record<string, unknown>>(routes.content(routeId)).catch((error) => ({ error: String(error) })) : undefined,
+    full ? client.getJson<Record<string, unknown>>(routes.conversationEvents(routeId)).catch((error) => ({ error: String(error) })) : undefined,
+    full ? client.getJson<Record<string, unknown>>(routes.conversationInboxes(routeId)).catch((error) => ({ error: String(error) })) : undefined,
+    full ? client.getJson<Record<string, unknown>>(routes.conversationFollowers(routeId)).catch((error) => ({ error: String(error) })) : undefined,
   ]);
   const timelineValue = Array.isArray(timeline.timeline) ? timeline.timeline : timeline;
   return maybeRenderConversationRead({
