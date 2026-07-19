@@ -100,7 +100,9 @@ frontctl draft discard CONVERSATION_ID MESSAGE_UID --json
 Plain draft body flags are escaped into HTML. For formatted drafts, pass conservative HTML directly
 with `--body-html` or `--body-html-file`; comments remain plain text. `draft reply` defaults to
 reply-all and saves a shared Front draft in the conversation, excluding the active user's own Front
-channel from recipients.
+channel from recipients. Agents should pass the normal Front conversation id such as `cnv_...`;
+frontctl resolves any private app route id internally and keeps returned commands in the `cnv_...`
+form.
 
 ## Private Route Families
 
