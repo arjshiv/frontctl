@@ -162,7 +162,8 @@ non-send draft route and return `result.conversationId`, `result.messageUid`, an
 recipients/subject, so agents do not guess from stale local draft cache.
 `draft reply` defaults to reply-all and saves a shared Front draft in the conversation, so anyone
 with conversation access can see and edit it. It excludes the active user's own Front channel from
-recipients.
+recipients. Always pass the normal Front conversation id such as `cnv_...`; frontctl resolves any
+private app route id internally and keeps returned commands in the `cnv_...` form.
 For formatted drafts, write conservative HTML directly and pass `--body-html-file` or `--body-html`;
 use only ordinary content tags such as `p`, `ul`, `ol`, `li`, `blockquote`, `strong`, `em`, `code`,
 and `a`. Do not include scripts, styles, event handlers, or tracking pixels. Comments are plain text.
