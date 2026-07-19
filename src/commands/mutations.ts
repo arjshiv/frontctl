@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { CliError } from "../lib/cli.js";
+import { resolvePrivateConversationRouteId, shouldResolvePrivateConversationRouteId } from "../lib/conversationIds.js";
 import { listCachedDrafts, readCachedDraft } from "../lib/draftCache.js";
 import {
   commentPublishBody,
@@ -590,14 +591,19 @@ export async function draftCommand(args: string[], paths: FrontPaths = defaultFr
       throw new CliError("Usage: frontctl draft discard DRAFT_ID | draft discard CONVERSATION_ID MESSAGE_UID", 64);
     }
     const routes = await getRoutes(paths);
+    const mode: MutationMode = args.includes("--yes") && !args.includes("--dry-run") ? "execute" : "dry-run";
     const cachedDraft = messageUidArg ? undefined : await readCachedDraft(paths.indexedDbLevelDbPath, id);
     const conversationId = messageUidArg ? id : cachedDraft?.draft?.conversationId;
+    const routeConversationId = conversationId && mode === "execute" && shouldResolvePrivateConversationRouteId(conversationId)
+      ? await resolveNumericConversationId(conversationId, paths)
+      : conversationId;
     const messageUid = messageUidArg ?? cachedDraft?.draft?.messageUid;
     const spec: MutationSpec = {
       action: "draft.discard",
       conversationId,
       method: "DELETE",
-      url: messageUid ? discardDraftUrl(routes, conversationId, messageUid) : undefined,
+      url: messageUid ? discardDraftUrl(routes, routeConversationId, messageUid) : undefined,
+      details: routeConversationId && routeConversationId !== conversationId ? { routeConversationId } : undefined,
       canExecute: false,
       note: messageUid
         ? undefined
@@ -711,13 +717,14 @@ export async function draftCommand(args: string[], paths: FrontPaths = defaultFr
     throw new CliError("Missing draft body. Use --body, --body-file, --body-html, or --body-html-file.", 64);
   }
   if (operation === "reply") {
-    const routes = await getRoutes(paths);
     const draftUid = randomBytes(16).toString("hex");
     const mode: MutationMode = args.includes("--yes") && !args.includes("--dry-run") ? "execute" : "dry-run";
-    const { draftBody, details } = mode === "execute"
+    const prepared = mode === "execute"
       ? await buildReplyDraftBody(id, body, paths)
-      : previewReplyDraftBody(body);
-    const draftUrl = `${routes.conversationMessage(id, draftUid)}?include_conversation=true`;
+      : { ...previewReplyDraftBody(body), routeConversationId: id };
+    const { draftBody, details, routeConversationId } = prepared;
+    const routes = await getRoutes(paths);
+    const draftUrl = `${routes.conversationMessage(routeConversationId, draftUid)}?include_conversation=true`;
     return runMutation({ args, spec: await verifiedSpec({
       action: "draft.reply",
       conversationId: id,
@@ -726,6 +733,7 @@ export async function draftCommand(args: string[], paths: FrontPaths = defaultFr
       body: draftBody,
       details: {
         ...details,
+        routeConversationId: routeConversationId === id ? undefined : routeConversationId,
         draftUid,
         discardCommand: `frontctl draft discard ${id} ${draftUid} --json`,
       },
@@ -847,44 +855,13 @@ function readNumberFlag(args: string[], flag: string): number | undefined {
 }
 
 function shouldResolveConversationIdForExecute(args: string[], id: string) {
-  return args.includes("--yes") && !args.includes("--dry-run") && /^cnv_[A-Za-z0-9]+$/.test(id);
+  return args.includes("--yes") && !args.includes("--dry-run") && shouldResolvePrivateConversationRouteId(id);
 }
 
 async function resolveNumericConversationId(id: string, paths: FrontPaths) {
   const client = await createFrontPrivateClient(paths);
   const routes = buildFrontRoutes(client.context);
-  const data = await client.getJson<Record<string, unknown>>(routes.searchRaw(id));
-  const raw = Array.isArray(data.conversations)
-    ? data.conversations
-    : Array.isArray(data.conversation_search_results)
-      ? data.conversation_search_results
-      : [];
-  const ids = [...new Set(raw
-    .map(extractNumericConversationId)
-    .filter((candidate): candidate is string => Boolean(candidate)))];
-  if (ids.length === 1) {
-    return ids[0];
-  }
-  if (ids.length > 1) {
-    throw new CliError(`Conversation id ${id} resolved to multiple private ids; use one numeric id explicitly.`, 69);
-  }
-  throw new CliError(`Could not resolve conversation id ${id} to a private numeric id.`, 69);
-}
-
-function extractNumericConversationId(value: unknown): string | undefined {
-  if (!value || typeof value !== "object") {
-    return undefined;
-  }
-  const record = value as Record<string, unknown>;
-  const nested = record.conversation && typeof record.conversation === "object"
-    ? record.conversation as Record<string, unknown>
-    : undefined;
-  const candidate = record.id ?? record.conversation_id ?? nested?.id ?? nested?.conversation_id;
-  if (typeof candidate !== "number" && typeof candidate !== "string") {
-    return undefined;
-  }
-  const id = String(candidate);
-  return /^\d+$/.test(id) ? id : undefined;
+  return resolvePrivateConversationRouteId(client, routes, id);
 }
 
 async function readBodyArg(args: string[]) {
@@ -928,10 +905,11 @@ async function readDraftBodyArg(args: string[]): Promise<DraftBodyInput | undefi
 async function buildReplyDraftBody(conversationId: string, body: DraftBodyInput, paths: FrontPaths) {
   const client = await createFrontPrivateClient(paths);
   const routes = buildFrontRoutes(client.context);
+  const routeConversationId = await resolvePrivateConversationRouteId(client, routes, conversationId);
   const [boot, conversation, timelineResponse] = await Promise.all([
     client.getJson(routes.boot).then((value) => frontBootSchema.parse(value)),
-    client.getJson(routes.conversation(conversationId)).then((value) => frontConversationSchema.parse(value)),
-    client.getJson(routes.timeline(conversationId)).then((value) => frontTimelineResponseSchema.parse(value)),
+    client.getJson(routes.conversation(routeConversationId)).then((value) => frontConversationSchema.parse(value)),
+    client.getJson(routes.timeline(routeConversationId)).then((value) => frontTimelineResponseSchema.parse(value)),
   ]);
   const timeline = Array.isArray(timelineResponse)
     ? timelineResponse
@@ -956,7 +934,12 @@ async function buildReplyDraftBody(conversationId: string, body: DraftBodyInput,
   if (!recipients.length) {
     throw new CliError("Could not resolve reply-all recipients for draft reply.", 69);
   }
-  const subject = stringField(sourceMessage.subject) ?? "";
+  const subject = firstNonEmptyString(
+    sourceMessage.subject,
+    conversation.subject,
+    isObject(conversation.last_manual_message) ? conversation.last_manual_message.subject : undefined,
+    isObject(conversation.last_message) ? conversation.last_message.subject : undefined,
+  ) ?? "";
   const defaultFontStyle = stringField(
     ((boot.user as Record<string, unknown> | undefined)?.preferences as Record<string, unknown> | undefined)
       ?.defaultFontStyle,
@@ -987,6 +970,8 @@ async function buildReplyDraftBody(conversationId: string, body: DraftBodyInput,
       handle_time_increment: 0,
     },
     details: {
+      conversationId,
+      routeConversationId: routeConversationId === conversationId ? undefined : routeConversationId,
       sourceMessageId: sourceMessage.id,
       fromChannelId: channelId,
       recipients: recipients.map((recipient) => ({ role: recipient.role, handle: recipient.handle })),
@@ -996,6 +981,7 @@ async function buildReplyDraftBody(conversationId: string, body: DraftBodyInput,
       bodyInputFormat: body.inputFormat,
       version: "omitted-for-new-draft",
     },
+    routeConversationId,
   };
 }
 
@@ -1338,24 +1324,24 @@ function replyChannelId(message: Record<string, unknown>) {
 
 function replyAllRecipients(message: Record<string, unknown>, self: { channelId?: number; authorEmail?: string }) {
   const recipients = Array.isArray(message.recipients) ? message.recipients as Array<Record<string, unknown>> : [];
-  const seen = new Set<string>();
   const replyTo = recipients.find((candidate) => candidate.role === "reply-to");
   const from = isObject(message.from) ? message.from : recipients.find((candidate) => candidate.role === "from");
+  const primarySeen = new Set<string>();
   const toRecipients = [
-    formatReplyRecipient(replyTo ?? from, "to", self, seen),
+    formatReplyRecipient(replyTo ?? from, "to", self, primarySeen),
   ].filter((recipient): recipient is NonNullable<ReturnType<typeof formatReplyRecipient>> => Boolean(recipient));
-  const ccRecipients = recipients
-    .filter((candidate) => candidate.role === "to" || candidate.role === "cc")
-    .map((candidate) => formatReplyRecipient(candidate, "cc", self, seen))
-    .filter((recipient): recipient is NonNullable<ReturnType<typeof formatReplyRecipient>> => Boolean(recipient));
-  const all = [...toRecipients, ...ccRecipients];
-  if (all.length || !from || replyTo) {
-    return all;
+  if (toRecipients.length || !from || replyTo) {
+    const ccRecipients = recipients
+      .filter((candidate) => candidate.role === "to" || candidate.role === "cc")
+      .map((candidate) => formatReplyRecipient(candidate, "cc", self, primarySeen))
+      .filter((recipient): recipient is NonNullable<ReturnType<typeof formatReplyRecipient>> => Boolean(recipient));
+    return [...toRecipients, ...ccRecipients];
   }
 
+  const fallbackSeen = new Set<string>();
   const fallback = recipients
     .filter((candidate) => candidate.role === "to" || candidate.role === "cc")
-    .map((candidate, index) => formatReplyRecipient(candidate, index === 0 ? "to" : "cc", self, seen))
+    .map((candidate) => formatReplyRecipient(candidate, candidate.role === "cc" ? "cc" : "to", self, fallbackSeen))
     .filter((recipient): recipient is NonNullable<ReturnType<typeof formatReplyRecipient>> => Boolean(recipient));
   return fallback;
 }
@@ -1497,6 +1483,12 @@ function escapeHtml(value: string) {
 
 function stringField(value: unknown) {
   return typeof value === "string" ? value : undefined;
+}
+
+function firstNonEmptyString(...values: unknown[]) {
+  return values
+    .map(stringField)
+    .find((value) => value !== undefined && value.trim().length > 0);
 }
 
 function numberField(value: unknown) {
