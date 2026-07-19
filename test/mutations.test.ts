@@ -1525,6 +1525,126 @@ test("draft reply accepts --body-file without enabling send", async () => {
   assert.equal("version" in draft.request.body, false);
 });
 
+test("draft reply resolves cnv ids for private routes and preserves the conversation subject", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-draft-reply-cnv-id");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const requests = await withMockedFrontRequests(async () => {
+    const reply = await draftCommand(["reply", "cnv_18gk889d", "--body", "Threaded draft only", "--yes"], paths) as any;
+
+    assert.equal(reply.mode, "execute");
+    assert.equal(reply.canExecute, true);
+    assert.equal(reply.sendsEmail, false);
+    assert.equal(reply.conversationId, "cnv_18gk889d");
+    assert.equal(reply.details.routeConversationId, "96779857873");
+    assert.equal(reply.result.conversationId, "cnv_18gk889d");
+    assert.equal(reply.result.messageUid, "draftuid123");
+    assert.match(reply.result.discardCommand, /frontctl draft discard cnv_18gk889d draftuid123 --json/);
+  }, (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/search_raw/cnv_18gk889d")) {
+      return { conversations: [{ id: "96779857873", conversation_id: "cnv_18gk889d" }] };
+    }
+    if (url.includes("/boot/app/8")) {
+      return {
+        user: {
+          id: 6088721,
+          email: "arjun@example.com",
+          preferences: { defaultFontStyle: "" },
+        },
+      };
+    }
+    if (url.includes("/conversations/96779857873/timeline")) {
+      return {
+        timeline: [
+          {
+            type: "email",
+            id: 226523505105,
+            from: { role: "from", handle: "sender@example.com", display_name: "Sender" },
+            recipients: [
+              { role: "from", handle: "sender@example.com", display_name: "Sender" },
+              { role: "to", handle: "me@example.com", display_name: "Me", channel_id: 7599313 },
+            ],
+          },
+        ],
+      };
+    }
+    if (url.includes("/conversations/96779857873/messages/")) {
+      return { id: 226605248081, uid: "draftuid123", subject: "Conversation fallback subject" };
+    }
+    if (url.includes("/conversations/96779857873")) {
+      return { id: "96779857873", conversation_id: "cnv_18gk889d", subject: "Conversation fallback subject" };
+    }
+    return { ok: true };
+  });
+
+  assert.ok(requests.some((request) => request.method === "GET" && /\/search_raw\/cnv_18gk889d$/.test(request.url)));
+  const draftWrite = requests.find((request) => request.method === "PUT" && request.url.includes("/messages/"));
+  assert.ok(draftWrite);
+  assert.match(draftWrite.url, /\/conversations\/96779857873\/messages\/[a-f0-9]{32}\?include_conversation=true$/);
+  assert.equal((draftWrite.body as any).subject, "Conversation fallback subject");
+  assert.equal((draftWrite.body as any).in_reply_to_id, 226523505105);
+});
+
+test("draft reply-all keeps original to recipients when replying to a message sent by the active user", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-draft-reply-from-self");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const request = await withMockedFrontRequest(async () => {
+    const reply = await draftCommand(["reply", "conversation-1", "--body", "Reply-all draft only", "--yes"], paths) as any;
+
+    assert.equal(reply.mode, "execute");
+    assert.equal(reply.result.messageUid, "draftuid123");
+  }, (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/boot/app/8")) {
+      return {
+        user: {
+          id: 6088721,
+          email: "arjun@example.com",
+          preferences: { defaultFontStyle: "" },
+        },
+      };
+    }
+    if (url.includes("/conversations/conversation-1/timeline")) {
+      return {
+        timeline: [
+          {
+            type: "email",
+            id: 226523505105,
+            subject: "Self sent source",
+            from: {
+              role: "from",
+              handle: "arjun@example.com",
+              display_name: "Arjun",
+              channel_id: 7599313,
+            },
+            recipients: [
+              { role: "from", handle: "arjun@example.com", display_name: "Arjun", channel_id: 7599313 },
+              { role: "to", handle: "abe@example.com", display_name: "Abe" },
+              { role: "to", handle: "melanie@example.com", display_name: "Melanie" },
+              { role: "cc", handle: "teammate@example.com", display_name: "Teammate" },
+            ],
+          },
+        ],
+      };
+    }
+    if (url.includes("/conversations/conversation-1/messages/")) {
+      return { uid: "draftuid123", subject: "Self sent source" };
+    }
+    if (url.includes("/conversations/conversation-1")) {
+      return { id: "conversation-1", subject: "Self sent source" };
+    }
+    return { ok: true };
+  });
+
+  assert.deepEqual((request.body as any).recipients.map((recipient: { role: string; handle: string }) => [recipient.role, recipient.handle]), [
+    ["to", "abe@example.com"],
+    ["to", "melanie@example.com"],
+    ["cc", "teammate@example.com"],
+  ]);
+});
+
 test("draft list/read scan local IndexedDB without Front writes", async () => {
   const { paths } = await fakeMutationContext("frontctl-mutation-draft-cache");
   await mkdir(paths.indexedDbLevelDbPath, { recursive: true });
@@ -1589,6 +1709,29 @@ test("draft discard can be fixture-verified after resolving cached message uid",
   assert.equal(discard.conversationId, "123");
   assert.match(discard.request.path ?? "", /\/messages\/abc123def456$/);
   assert.equal(discard.verification.verified, true);
+});
+
+test("draft discard resolves cnv ids for private message routes", async () => {
+  const { paths } = await fakeMutationContext("frontctl-mutation-draft-discard-cnv-id");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH as string);
+
+  const request = await withMockedFrontRequest(async () => {
+    const discard = await draftCommand(["discard", "cnv_18gk889d", "draftuid123", "--yes"], paths) as any;
+
+    assert.equal(discard.mode, "execute");
+    assert.equal(discard.conversationId, "cnv_18gk889d");
+    assert.equal(discard.details.routeConversationId, "96779857873");
+    assert.deepEqual(discard.result, { ok: true });
+  }, (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/search_raw/cnv_18gk889d")) {
+      return { conversations: [{ id: "96779857873", conversation_id: "cnv_18gk889d" }] };
+    }
+    return { ok: true };
+  });
+
+  assert.equal(request.method, "DELETE");
+  assert.match(request.url, /\/conversations\/96779857873\/messages\/draftuid123$/);
 });
 
 async function fakeMutationContext(name: string) {
