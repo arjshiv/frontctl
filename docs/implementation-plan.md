@@ -248,6 +248,8 @@ Implemented behind non-send route gates:
   when it can resolve the cached draft message UID and verify the non-send route.
 - `frontctl draft discard CONVERSATION_ID MESSAGE_UID` deletes a known draft message UID returned
   from `frontctl draft reply --yes`, `frontctl draft compose --yes`, or `frontctl draft update --yes`.
+  Agents should use normal Front conversation ids such as `cnv_...`; frontctl resolves private app
+  route ids internally and keeps returned commands in the `cnv_...` form.
 - `frontctl send` remains hard blocked.
 - Route-level tests prove no send/finalize/deliver endpoint is exposed.
 
