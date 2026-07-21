@@ -223,6 +223,7 @@ function usage(topic?: string) {
       "For state-changing actions, frontctl writes a visible identity comment before the action so the user can distinguish agent actions from human actions.",
       "Prefer Front conversation ids. Do not invent app URLs or pass route fragments as ids.",
       "If a command says live mode is locked, run the recommended setup/unlock command instead of falling back to stale data.",
+      "If Front rejects a cached browser session, frontctl performs one bounded live-source recovery and can fall back to an open, signed-in Front app. Do not replace that with cached mail.",
     ],
     setupLoop: {
       installFromRepo: "script/bootstrap_agent_install.sh",

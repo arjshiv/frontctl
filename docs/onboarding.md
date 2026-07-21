@@ -159,9 +159,10 @@ frontctl auth unlock --source default-browser --ttl-hours 720 --json
 Explicit app/browser unlock may ask for macOS Keychain access once because it reads browser or app
 Safe Storage. Rerunning `frontctl auth unlock` while the cache is valid reuses the cache and does not
 touch Keychain. Use `frontctl auth unlock --force --ttl-hours 720 --json` only when the cached Front
-session has expired, Front returned HTTP 401 `authentication_required`, or you need to refresh it
-deliberately. On a live 401, `frontctl` clears the rejected session and prints the exact forced
-refresh command to approve before retrying the operation once.
+session has expired or you need to refresh it deliberately. On a live 401, `frontctl` clears the
+rejected session and automatically tries one bounded chain of validated live alternatives,
+including the open Front app as the final fallback. It prints an exact forced refresh command only
+when automatic recovery cannot produce a working live session.
 
 The CDP browser bridge is optional and mostly useful for development/debugging when a browser is
 launched with remote debugging:

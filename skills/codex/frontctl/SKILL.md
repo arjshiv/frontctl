@@ -34,8 +34,11 @@ is reused and normal reads do not touch Keychain.
 Never rerun unlock just to be safe when `auth check` is valid. `auth unlock` reuses a valid cache,
 and `--force` should be used only when the user explicitly wants to refresh the Front cookies.
 Exception: if a live private read or write returns HTTP 401 `authentication_required`, trust Front
-over the local cache. The CLI clears the rejected session and prints a recovery command with
-`--force`; run that exact command only after user approval, then retry the approved operation once.
+over the local cache. The CLI clears the rejected session and automatically performs one bounded
+recovery in the same command: validated no-prompt live sources first, then the open Front app as the
+final fallback. Do not manually repeat unlocks or switch to cache. If the bounded recovery fails,
+report its exact recovery command and stop. The Front app fallback may cause one Safe Storage prompt;
+a successful fallback is reused by later commands.
 
 ## Rules
 

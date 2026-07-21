@@ -135,6 +135,10 @@ Explicit cookie unlocks are fallback/debug paths. `frontctl auth unlock --source
 `--source default-browser` may ask once for the browser safe-storage item only after the user
 chooses that fallback. After that, `auth check`, `readiness`, and live reads must use the frontctl
 session cache without prompting.
+If Front rejects a cached browser session while Front.app is already open and signed in, the CLI
+must perform one bounded recovery and use the Front app as the final live source. Never ask the user
+to sign into the rejected browser before trying the app they are already using, never fall back to
+stale mail, and never loop through unlock attempts.
 For browser-backed route work, `browser-status` only proves an attachable DevTools port. Use
 `browser-probe` to prove the selected tab is authenticated. If the CLI session is valid but the tab
 is not, `browser-seed` may copy the short-lived `frontctl` session into that tab without printing

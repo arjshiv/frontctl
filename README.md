@@ -107,8 +107,11 @@ secrets behind Safe Storage. After that, normal reads reuse `~/.frontctl/session
 touch Keychain. Repeated Keychain prompts during normal reads are a bug.
 
 If Front returns HTTP 401 `authentication_required`, treat the live server response as newer than
-the local cache. `frontctl` clears the rejected session and prints a one-time recovery command with
-`--force`; approve that command, then retry the approved read or write once.
+the local cache. `frontctl` clears the rejected session and performs one bounded recovery inside the
+same command: validated no-prompt live bridges first, then agentcookie when available, then the
+currently open Front app. The Front app fallback may request its Safe Storage permission once; a
+successful recovery is cached so later commands do not ask again. It never switches to stale mail
+or loops through retries.
 
 The CDP browser bridge is an optional developer/debug path when a browser is launched with remote
 debugging:

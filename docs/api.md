@@ -26,8 +26,12 @@ fallback. It may ask macOS for Touch ID or the account password once, then write
 
 If a live private request returns HTTP 401 `authentication_required`, the server has rejected the
 cached session even if `auth check` was locally valid. The private client clears the session cache
-and reports a recovery command with `--force`; agents should run that exact command only after user
-approval, then retry the approved operation once.
+and performs one bounded recovery in the same command. It validates no-prompt CDP/browser bridges,
+tries agentcookie when available, and finally refreshes from Front.app when the app is running and
+the other sources fail validation. The original operation is replayed only after the
+replacement source passes a live boot request. Recovery never uses local mail cache and never
+loops. Front.app cookie refresh may cause one macOS Safe Storage prompt; a successful refresh is
+stored in the reusable frontctl session.
 
 The CDP bridge is the browser-runtime path. `browser-status` proves a DevTools endpoint exists,
 `browser-probe` proves the selected tab is signed into Front, and `browser-seed` can copy the valid
