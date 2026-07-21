@@ -52,7 +52,7 @@ async function readAttachment(args: string[], conversationId: string, paths: Fro
   if (!attachmentId || !output) {
     throw new CliError("Usage: frontctl attachments read CONVERSATION_ID ATTACHMENT_ID --output FILE", 64);
   }
-  const client = await createFrontPrivateClient(paths);
+  const client = await createFrontPrivateClient(paths, { requireByteDownloads: true });
   if (!client.requestBytes) {
     throw new CliError("Attachment download requires the local session-cookie transport. Run `frontctl auth check --json`.", 69);
   }

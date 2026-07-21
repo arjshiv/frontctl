@@ -14,7 +14,6 @@ export async function syncCommand(args: string[], paths: FrontPaths = defaultFro
 
   if (source === "live-private") {
     const client = await createFrontPrivateClient(paths);
-    transport = client.transport;
     const routes = buildFrontRoutes(client.context);
     const payloads = includeArchived
       ? await Promise.all([
@@ -36,6 +35,7 @@ export async function syncCommand(args: string[], paths: FrontPaths = defaultFro
         timeline: normalizeTimeline(Array.isArray(timeline.timeline) ? timeline.timeline : timeline),
       });
     }
+    transport = client.transport;
   } else {
     const cachedReads = await readCachedConversations(paths.cacheDataPath, { includeArchived, limit });
     for (const read of cachedReads) {

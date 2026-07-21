@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { readFrontSession } from "../src/lib/auth.js";
-import { createFrontPrivateClient } from "../src/lib/frontPrivate.js";
+import { createFrontPrivateClient, type FrontPrivateClient } from "../src/lib/frontPrivate.js";
 import { buildFrontRoutes } from "../src/lib/frontRoutes.js";
 import { makeFakeFrontInstall, makeTempDir, writeFakeFrontSession } from "./helpers.js";
 
@@ -112,6 +112,166 @@ test("session-cookie authentication_required clears stale cache and suggests for
       },
     );
     assert.equal(await readFrontSession(process.env.FRONTCTL_SESSION_PATH), undefined);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("session-cookie authentication_required retries once through a validated fallback client", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-private-auth-fallback"));
+  await writeFile(
+    join(paths.cacheDataPath, "route-cache"),
+    "https://app.frontapp.com/cell-00017/api/1/companies/32390a17805cd26f7349/team/6088721/conversations/inbox",
+  );
+  process.env.FRONTCTL_SESSION_PATH = join(paths.supportPath, "frontctl-session.json");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH, { source: "edge:Default" });
+
+  const previousFetch = globalThis.fetch;
+  let recoveryCalls = 0;
+  let fallbackCalls = 0;
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ error: "authentication_required" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    })) as typeof fetch;
+
+  try {
+    const context = {
+      origin: "https://app.frontapp.com",
+      cell: "cell-00017",
+      companyId: "32390a17805cd26f7349",
+      teamId: "6088721",
+    };
+    const fallbackClient: FrontPrivateClient = {
+      context,
+      transport: "cdp-bridge",
+      async getJson<T>() {
+        fallbackCalls += 1;
+        return { recovered: true } as T;
+      },
+      async requestJson<T>() {
+        fallbackCalls += 1;
+        return { recovered: true } as T;
+      },
+    };
+    const client = await createFrontPrivateClient(paths, {
+      recoverAuthentication: async () => {
+        recoveryCalls += 1;
+        return fallbackClient;
+      },
+    });
+    const routes = buildFrontRoutes(client.context);
+
+    const [result, secondResult] = await Promise.all([
+      client.getJson<{ recovered: boolean }>(routes.conversation("1")),
+      client.getJson<{ recovered: boolean }>(routes.conversation("2")),
+    ]);
+    const thirdResult = await client.getJson<{ recovered: boolean }>(routes.conversation("3"));
+
+    assert.deepEqual(result, { recovered: true });
+    assert.deepEqual(secondResult, { recovered: true });
+    assert.deepEqual(thirdResult, { recovered: true });
+    assert.equal(recoveryCalls, 1);
+    assert.equal(fallbackCalls, 3);
+    assert.equal(client.transport, "cdp-bridge");
+    assert.equal(await readFrontSession(process.env.FRONTCTL_SESSION_PATH), undefined);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("browser session rejection recommends the open Front app after bounded recovery fails", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-private-auth-fallback-failed"));
+  await writeFile(
+    join(paths.cacheDataPath, "route-cache"),
+    "https://app.frontapp.com/cell-00017/api/1/companies/32390a17805cd26f7349/team/6088721/conversations/inbox",
+  );
+  process.env.FRONTCTL_SESSION_PATH = join(paths.supportPath, "frontctl-session.json");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH, { source: "edge:Default" });
+
+  const previousFetch = globalThis.fetch;
+  let recoveryCalls = 0;
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ error: "authentication_required" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    })) as typeof fetch;
+
+  try {
+    const client = await createFrontPrivateClient(paths, {
+      recoverAuthentication: async () => {
+        recoveryCalls += 1;
+        return undefined;
+      },
+    });
+    const routes = buildFrontRoutes(client.context);
+    await assert.rejects(
+      () => client.getJson(routes.conversation("1")),
+      (error: unknown) => {
+        const message = String((error as Error).message);
+        assert.match(message, /Automatic fallback through available live sources did not succeed/);
+        assert.match(message, /auth unlock --source front-app --ttl-hours 720 --force --json/);
+        return true;
+      },
+    );
+    assert.equal(recoveryCalls, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("attachment downloads use the same one-time authenticated fallback", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-private-download-fallback"));
+  await writeFile(
+    join(paths.cacheDataPath, "route-cache"),
+    "https://app.frontapp.com/cell-00017/api/1/companies/32390a17805cd26f7349/team/6088721/conversations/inbox",
+  );
+  process.env.FRONTCTL_SESSION_PATH = join(paths.supportPath, "frontctl-session.json");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH, { source: "edge:Default" });
+
+  const previousFetch = globalThis.fetch;
+  let requiredByteDownloads = false;
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ error: "authentication_required" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    })) as typeof fetch;
+
+  try {
+    const context = {
+      origin: "https://app.frontapp.com",
+      cell: "cell-00017",
+      companyId: "32390a17805cd26f7349",
+      teamId: "6088721",
+    };
+    const fallbackClient: FrontPrivateClient = {
+      context,
+      transport: "session-cookie",
+      async getJson<T>() {
+        return {} as T;
+      },
+      async requestJson<T>() {
+        return {} as T;
+      },
+      async requestBytes() {
+        return {
+          bytes: new Uint8Array([1, 2, 3]),
+          contentType: "application/pdf",
+          filename: "attachment.pdf",
+        };
+      },
+    };
+    const client = await createFrontPrivateClient(paths, {
+      recoverAuthentication: async (_context, _session, requireByteDownloads) => {
+        requiredByteDownloads = requireByteDownloads;
+        return fallbackClient;
+      },
+    });
+    const result = await client.requestBytes?.(buildFrontRoutes(client.context).attachment("att_1"));
+
+    assert.equal(requiredByteDownloads, true);
+    assert.deepEqual([...result!.bytes], [1, 2, 3]);
+    assert.equal(result?.contentType, "application/pdf");
   } finally {
     globalThis.fetch = previousFetch;
   }
