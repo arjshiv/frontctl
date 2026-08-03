@@ -18,8 +18,9 @@ test("diagnose returns a redacted support bundle", async () => {
     assert.equal(result.summary.ok, true);
     assert.equal(result.auth.valid, true);
     assert.equal(result.summary.userReady, false);
-    assert.equal(result.summary.userReadinessState, "agent-skills-missing");
-    assert.equal(result.userReadiness.gates.length, 4);
+    assert.equal(result.summary.userReadinessState, "route-context-missing");
+    assert.equal(result.summary.routeContextAvailable, false);
+    assert.equal(result.userReadiness.gates.length, 5);
     assert.equal(result.auth.security.authorizationModel, "one-time-keychain-unlock");
     assert.equal(result.auth.security.promptsOnCheck, false);
     assert.equal(result.auth.security.promptsOnLiveRead, false);

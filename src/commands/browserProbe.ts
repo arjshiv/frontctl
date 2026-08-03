@@ -1,6 +1,6 @@
 import { CliError } from "../lib/cli.js";
 import { selectFrontDevToolsTarget, sanitizeDevToolsTarget } from "../lib/discovery.js";
-import { buildFrontRoutes, discoverFrontRouteContext } from "../lib/frontRoutes.js";
+import { buildFrontRoutes, discoverLocalFrontRouteContext } from "../lib/frontRoutes.js";
 import type { FrontPaths } from "../lib/paths.js";
 import { browserProbeRuntimeSchema } from "../lib/schemas.js";
 
@@ -13,7 +13,7 @@ export async function browserProbeCommand(args: string[], paths: FrontPaths) {
     throw new CliError("Usage: frontctl discovery browser-probe CONVERSATION_ID --remote-debugging-port PORT [--target-url-contains conversations/ID]", 64);
   }
 
-  const context = await discoverFrontRouteContext(paths.cacheDataPath);
+  const context = await discoverLocalFrontRouteContext(paths);
   if (!context) {
     throw new CliError("Could not discover Front private route context. Open Front inbox once, then rerun.", 69);
   }

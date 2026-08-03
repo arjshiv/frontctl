@@ -1,5 +1,5 @@
 export interface ReadinessGate {
-  name: "frontApp" | "frontSignIn" | "liveMode" | "agentSkills";
+  name: "frontApp" | "frontSignIn" | "liveMode" | "routeContext" | "agentSkills";
   ok: boolean;
   label: string;
   userAction: string;
@@ -7,7 +7,7 @@ export interface ReadinessGate {
 
 export interface UserReadiness {
   ready: boolean;
-  state: "ready" | "front-not-installed" | "front-sign-in-missing" | "live-mode-locked" | "agent-skills-missing";
+  state: "ready" | "front-not-installed" | "front-sign-in-missing" | "live-mode-locked" | "route-context-missing" | "agent-skills-missing";
   summary: string;
   nextAction: string;
   gates: ReadinessGate[];
@@ -18,6 +18,7 @@ export function buildUserReadiness(input: {
   localProfileVisible: boolean;
   browserSessionAvailable?: boolean;
   authValid: boolean;
+  routeContextAvailable?: boolean;
   agentsInstalled: boolean;
 }): UserReadiness {
   const frontAccessAvailable = input.frontAppInstalled || Boolean(input.browserSessionAvailable) || input.authValid;
@@ -40,6 +41,12 @@ export function buildUserReadiness(input: {
       ok: input.authValid,
       label: "Live session",
       userAction: "Approve one live-session unlock, or configure a CDP browser bridge. Run `frontctl readiness --json` for the exact command.",
+    },
+    {
+      name: "routeContext",
+      ok: input.routeContextAvailable ?? true,
+      label: "Workspace route",
+      userAction: "Open the signed-in Front app and let the inbox finish loading, then rerun `frontctl readiness --json`. Browser debugging is not required.",
     },
     {
       name: "agentSkills",
@@ -73,5 +80,6 @@ function stateForGate(name: ReadinessGate["name"]): UserReadiness["state"] {
   if (name === "frontApp") return "front-not-installed";
   if (name === "frontSignIn") return "front-sign-in-missing";
   if (name === "liveMode") return "live-mode-locked";
+  if (name === "routeContext") return "route-context-missing";
   return "agent-skills-missing";
 }

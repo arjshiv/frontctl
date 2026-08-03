@@ -2,18 +2,21 @@ import { checkFrontSession, DEFAULT_SESSION_TTL_HOURS } from "../lib/auth.js";
 import { agentcookieStatus } from "../lib/agentcookie.js";
 import { cdpBridgeStatus } from "../lib/cdpBridge.js";
 import { detectDefaultBrowser, listBrowserProfiles } from "../lib/browserProfiles.js";
+import { discoverLocalFrontRouteContext, readPersistedFrontRouteContext } from "../lib/frontRoutes.js";
 import { defaultFrontPaths, type FrontPaths } from "../lib/paths.js";
 import { buildUserReadiness } from "../lib/readiness.js";
 import { agentsStatus } from "./agents.js";
 import { doctor } from "./doctor.js";
 
 export async function readinessCommand(_args: string[], paths: FrontPaths = defaultFrontPaths()) {
-  const [doctorResult, auth, agents, agentcookie, bridge] = await Promise.all([
+  const [doctorResult, auth, agents, agentcookie, bridge, routeContext, persistedRouteContext] = await Promise.all([
     doctor(paths),
     checkFrontSession(),
     agentsStatus("all"),
     agentcookieStatus(),
     cdpBridgeStatus(),
+    discoverLocalFrontRouteContext(paths),
+    readPersistedFrontRouteContext(),
   ]);
   const defaultBrowser = detectDefaultBrowser();
   const browserProfiles = listBrowserProfiles();
@@ -30,6 +33,7 @@ export async function readinessCommand(_args: string[], paths: FrontPaths = defa
     localProfileVisible,
     browserSessionAvailable: nonPromptingLiveAvailable,
     authValid: auth.valid || bridge.proofValid,
+    routeContextAvailable: Boolean(routeContext) || bridge.proofValid,
     agentsInstalled: agents.allInstalled,
   });
 
@@ -53,6 +57,10 @@ export async function readinessCommand(_args: string[], paths: FrontPaths = defa
       promptsOnExplicitKeychainUnlock: auth.security.promptsOnExplicitKeychainUnlock,
     },
     bridge,
+    routeContext: {
+      available: Boolean(routeContext) || bridge.proofValid,
+      persistedWithoutSecrets: Boolean(persistedRouteContext),
+    },
     agents: {
       allInstalled: agents.allInstalled,
       count: agents.count,

@@ -14,7 +14,7 @@ import {
   writeCdpBridgeProof,
 } from "../lib/cdpBridge.js";
 import { CliError } from "../lib/cli.js";
-import { buildFrontRoutes, discoverFrontRouteContext } from "../lib/frontRoutes.js";
+import { buildFrontRoutes, discoverLocalFrontRouteContext } from "../lib/frontRoutes.js";
 import { defaultFrontPaths, type FrontPaths } from "../lib/paths.js";
 import { normalizeBrowserKind, type BrowserKind } from "../lib/browserProfiles.js";
 
@@ -40,7 +40,7 @@ export async function bridgeCommand(args: string[], paths: FrontPaths = defaultF
     };
   }
   if (subcommand === "test") {
-    const context = await discoverFrontRouteContext(paths.cacheDataPath)
+    const context = await discoverLocalFrontRouteContext(paths)
       ?? await discoverFrontRouteContextFromCdpBridge();
     if (!context) {
       throw new CliError("Could not discover Front private route context. Open Front inbox in a signed-in browser once, then rerun bridge test.", 69);
@@ -65,7 +65,7 @@ export async function bridgeCommand(args: string[], paths: FrontPaths = defaultF
   }
   if (subcommand === "test-apple-events") {
     const appleEventsEnv = { ...process.env, FRONTCTL_BROWSER_BRIDGE: "1" };
-    const context = await discoverFrontRouteContext(paths.cacheDataPath)
+    const context = await discoverLocalFrontRouteContext(paths)
       ?? await discoverFrontRouteContextFromBrowserBridge(appleEventsEnv);
     if (!context) {
       throw new CliError("Could not discover Front private route context. Open Front inbox once, then rerun bridge test-apple-events.", 69);

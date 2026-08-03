@@ -3,6 +3,7 @@ import { agentcookieStatus } from "../lib/agentcookie.js";
 import { cdpBridgeStatus } from "../lib/cdpBridge.js";
 import { detectDefaultBrowser, listBrowserProfiles } from "../lib/browserProfiles.js";
 import { defaultFrontPaths, type FrontPaths } from "../lib/paths.js";
+import { discoverLocalFrontRouteContext } from "../lib/frontRoutes.js";
 import { buildUserReadiness } from "../lib/readiness.js";
 import { agentsStatus, installAgentSkills, type AgentKind } from "./agents.js";
 import { authCommand } from "./auth.js";
@@ -21,12 +22,13 @@ export async function setupCommand(args: string[], paths: FrontPaths = defaultFr
 async function setupStatusCommand(args: string[], paths: FrontPaths) {
   const agent = readAgentFlag(args);
   const shouldInstallAgents = args.includes("--yes") || args.includes("--install-agents");
-  const [doctorResult, auth, agentCheck, agentcookie, bridgeStatusBefore] = await Promise.all([
+  const [doctorResult, auth, agentCheck, agentcookie, bridgeStatusBefore, routeContext] = await Promise.all([
     doctor(paths),
     checkFrontSession(),
     agentsStatus(agent),
     agentcookieStatus(),
     cdpBridgeStatus(),
+    discoverLocalFrontRouteContext(paths),
   ]);
   const browserProfiles = listBrowserProfiles();
   const explicitBrowserCookieFallbackAvailable = browserProfiles.some((profile) => profile.cookiesExists);
@@ -62,6 +64,7 @@ async function setupStatusCommand(args: string[], paths: FrontPaths) {
     localProfileVisible,
     browserSessionAvailable: nonPromptingLiveAvailable,
     authValid: liveReady,
+    routeContextAvailable: Boolean(routeContext) || bridgeStatusAfter.proofValid,
     agentsInstalled: finalAgentStatus.allInstalled,
   });
 
@@ -106,6 +109,9 @@ async function setupStatusCommand(args: string[], paths: FrontPaths) {
         : undefined,
       enableCommand: "frontctl setup --enable-live --json",
     },
+    routeContext: {
+      available: Boolean(routeContext) || bridgeStatusAfter.proofValid,
+    },
     memory,
     authSources: {
       browsers: browserProfiles.map((profile) => ({
@@ -128,7 +134,9 @@ async function setupStatusCommand(args: string[], paths: FrontPaths) {
       installCommand: `frontctl setup --agent ${agent ?? "all"} --yes --json`,
       chatgptPromptCommand: "frontctl agents prompt --agent chatgpt --json",
     },
-    nextSteps: liveReady
+    nextSteps: userReadiness.state === "route-context-missing"
+      ? ["Open the signed-in Front app, let the inbox finish loading, then run frontctl readiness --json."]
+      : liveReady
       ? doctorResult.ok
         ? [
           "frontctl inbox list --limit 20 --json",

@@ -1,5 +1,5 @@
 import { CliError } from "../lib/cli.js";
-import { buildFrontRoutes, discoverFrontRouteContext, type FrontRouteContext } from "../lib/frontRoutes.js";
+import { buildFrontRoutes, discoverLocalFrontRouteContext, type FrontRouteContext } from "../lib/frontRoutes.js";
 import { defaultFrontPaths, type FrontPaths } from "../lib/paths.js";
 import { run } from "../lib/process.js";
 import { firstPositionalArg } from "../lib/render.js";
@@ -16,9 +16,9 @@ export async function openConversation(
     throw new CliError("Missing conversation id", 64);
   }
 
-  const context = await discoverFrontRouteContext(paths.cacheDataPath);
+  const context = await discoverLocalFrontRouteContext(paths);
   if (!context) {
-    throw new CliError("Could not discover Front route context. Open Front inbox once, then rerun.", 69);
+    throw new CliError("Could not resolve Front's local workspace context. Run `frontctl readiness --json`; browser debugging is not required.", 69);
   }
 
   const targets = buildOpenTargets(context, id);

@@ -571,7 +571,7 @@ test("CLI readiness returns concise non-prompting user gates", async () => {
   assert.equal(result.ok, false);
   assert.equal(result.userReadiness.ready, false);
   assert.equal(result.userReadiness.state, "live-mode-locked");
-  assert.equal(result.userReadiness.gates.length, 4);
+  assert.equal(result.userReadiness.gates.length, 5);
   assert.equal(result.auth.promptsOnCheck, false);
   assert.equal(result.auth.promptsOnLiveRead, false);
   assert.equal(result.safety.touchesKeychain, false);

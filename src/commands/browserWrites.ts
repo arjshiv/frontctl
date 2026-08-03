@@ -2,7 +2,7 @@ import { readFrontSession } from "../lib/auth.js";
 import { CliError } from "../lib/cli.js";
 import { selectFrontDevToolsTarget, sanitizeDevToolsTarget } from "../lib/discovery.js";
 import { createFrontPrivateClient } from "../lib/frontPrivate.js";
-import { buildFrontRoutes, discoverFrontRouteContext } from "../lib/frontRoutes.js";
+import { buildFrontRoutes, discoverLocalFrontRouteContext } from "../lib/frontRoutes.js";
 import type { FrontPaths } from "../lib/paths.js";
 import { verifyAllWriteFixtures } from "../lib/writeVerification.js";
 
@@ -41,7 +41,7 @@ export async function browserSeedCommand(args: string[], paths: FrontPaths) {
   if (!session?.cookieHeader) {
     throw new CliError("No valid frontctl session cache. Run `frontctl auth check --json` and unlock once if needed.", 69);
   }
-  const context = await discoverFrontRouteContext(paths.cacheDataPath);
+  const context = await discoverLocalFrontRouteContext(paths);
   if (!context) {
     throw new CliError("Could not discover Front private route context. Open Front inbox once, then rerun.", 69);
   }
@@ -123,7 +123,7 @@ export async function verifyBrowserWritesCommand(args: string[], paths: FrontPat
   if (bad.length) {
     throw new CliError(`Deployable write routes are not verified: ${bad.map((action) => action.action).join(", ")}`, 69);
   }
-  const context = await discoverFrontRouteContext(paths.cacheDataPath);
+  const context = await discoverLocalFrontRouteContext(paths);
   if (!context) {
     throw new CliError("Could not discover Front private route context. Open Front inbox once, then rerun.", 69);
   }

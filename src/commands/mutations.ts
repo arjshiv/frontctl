@@ -11,8 +11,8 @@ import {
   internalTaskCommentPublishBody,
   internalTaskCommentSaveBody,
 } from "../lib/frontComments.js";
-import { createFrontPrivateClient, getBoot } from "../lib/frontPrivate.js";
-import { buildFrontRoutes, discoverFrontRouteContext, type FrontRoutes } from "../lib/frontRoutes.js";
+import { createFrontPrivateClient, getBoot, resolveFrontRouteContext } from "../lib/frontPrivate.js";
+import { buildFrontRoutes, type FrontRoutes } from "../lib/frontRoutes.js";
 import { runMutation, summarizeMutationResult } from "../lib/mutationRunner.js";
 import type { MutationMode, MutationSpec } from "../lib/mutationTypes.js";
 import { defaultFrontPaths, type FrontPaths } from "../lib/paths.js";
@@ -1832,9 +1832,9 @@ function parseClock(value: string) {
 }
 
 async function getRoutes(paths: FrontPaths): Promise<FrontRoutes> {
-  const context = await discoverFrontRouteContext(paths.cacheDataPath);
+  const context = await resolveFrontRouteContext(paths);
   if (!context) {
-    throw new CliError("Could not discover Front private route context. Open Front inbox once, then rerun.", 69);
+    throw new CliError("Could not resolve Front's local workspace context. Run `frontctl readiness --json`; browser debugging is not required.", 69);
   }
   return buildFrontRoutes(context);
 }

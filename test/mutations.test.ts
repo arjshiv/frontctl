@@ -1738,8 +1738,9 @@ async function fakeMutationContext(name: string) {
   const paths = await makeFakeFrontInstall(await makeTempDir(name));
   await writeFile(
     join(paths.cacheDataPath, "route-cache"),
-    "https://app.frontapp.com/cell-00017/api/1/companies/32390a17805cd26f7349/team/6088721/conversations/inbox",
+    "https://app.frontapp.com/cell-00017/api/1/companies/32390a17805cd26f7349/conversations/97217720401",
   );
+  await writeFile(join(paths.localStorageLevelDbPath, "000003.log"), "active user tea:6088721");
   const auditPath = join(paths.supportPath, "audit.jsonl");
   process.env.FRONTCTL_AUDIT_PATH = auditPath;
   process.env.FRONTCTL_SESSION_PATH = join(paths.supportPath, "frontctl-session.json");

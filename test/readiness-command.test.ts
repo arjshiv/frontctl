@@ -14,6 +14,10 @@ test("readinessCommand returns a concise ready report without touching Keychain"
   await withHome(home, async () => {
     process.env.FRONTCTL_SESSION_PATH = join(home, ".frontctl", "session.json");
     await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH);
+    await writeFile(
+      join(paths.cacheDataPath, "route-cache"),
+      "https://app.frontapp.com/cell-00017/api/1/companies/abcdef123456/team/123/conversations/inbox",
+    );
     await installAgentSkills("all", { write: true });
     const result = await readinessCommand([], paths) as any;
 
@@ -22,10 +26,29 @@ test("readinessCommand returns a concise ready report without touching Keychain"
     assert.equal(result.userReadiness.state, "ready");
     assert.equal(result.front.appInstalled, true);
     assert.equal(result.auth.valid, true);
+    assert.equal(result.routeContext.available, true);
     assert.equal(result.auth.promptsOnCheck, false);
     assert.equal(result.auth.promptsOnLiveRead, false);
     assert.equal(result.safety.touchesKeychain, false);
     assert.match(result.nextCommand, /triage inbox --limit 20/);
+  });
+});
+
+test("readiness does not report ready when live commands lack route context", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-readiness-route-missing"));
+  const home = await makeTempDir("frontctl-readiness-route-missing-home");
+  await withHome(home, async () => {
+    process.env.FRONTCTL_SESSION_PATH = join(home, ".frontctl", "session.json");
+    await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH);
+    await installAgentSkills("all", { write: true });
+
+    const result = await readinessCommand([], paths) as any;
+
+    assert.equal(result.ok, false);
+    assert.equal(result.userReadiness.ready, false);
+    assert.equal(result.userReadiness.state, "route-context-missing");
+    assert.equal(result.routeContext.available, false);
+    assert.match(result.userReadiness.nextAction, /Browser debugging is not required/);
   });
 });
 

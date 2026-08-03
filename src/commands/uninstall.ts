@@ -5,6 +5,7 @@ import { defaultAuditPath } from "../lib/audit.js";
 import { defaultSessionPath } from "../lib/auth.js";
 import { CliError } from "../lib/cli.js";
 import { pathStatus } from "../lib/fsInfo.js";
+import { defaultRouteContextPath } from "../lib/frontRoutes.js";
 import { defaultStorePath } from "../lib/store.js";
 import { discoveryFixtureRoot } from "../lib/writeVerification.js";
 
@@ -74,6 +75,11 @@ function removalTargets(options: { keepAgents: boolean; keepData: boolean }): Re
         id: "session",
         path: defaultSessionPath(),
         description: "Encrypted frontctl live-session cache.",
+      },
+      {
+        id: "routeContext",
+        path: defaultRouteContextPath(),
+        description: "Validated non-secret Front workspace route context.",
       },
       {
         id: "store",

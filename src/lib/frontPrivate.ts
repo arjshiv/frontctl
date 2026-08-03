@@ -5,8 +5,17 @@ import { clearFrontSession, forceUnlockCommandForSession, readFrontSession, unlo
 import { createBrowserBridgeClient, discoverFrontRouteContextFromBrowserBridge } from "./browserBridge.js";
 import { createCdpBridgeClient, discoverFrontRouteContextFromCdpBridge } from "./cdpBridge.js";
 import { CliError } from "./cli.js";
-import { buildFrontRoutes, discoverFrontRouteContext, type FrontRouteContext } from "./frontRoutes.js";
+import {
+  buildFrontBootRoute,
+  buildFrontRoutes,
+  discoverFrontRouteBaseContext,
+  discoverLocalFrontRouteContext,
+  writePersistedFrontRouteContext,
+  type FrontRouteBaseContext,
+  type FrontRouteContext,
+} from "./frontRoutes.js";
 import type { FrontPaths } from "./paths.js";
+import { frontRouteContextSchema } from "./schemas.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -31,16 +40,14 @@ export async function createFrontPrivateClient(
   paths: FrontPaths,
   options: FrontPrivateClientOptions = {},
 ): Promise<FrontPrivateClient> {
-  let [session, context] = await Promise.all([
-    readFrontSession(),
-    discoverFrontRouteContext(paths.cacheDataPath),
-  ]);
-
-  context ??= await discoverFrontRouteContextFromCdpBridge();
-  context ??= await discoverFrontRouteContextFromBrowserBridge();
+  let session = await readFrontSession();
+  const context = await resolveFrontRouteContext(paths, session);
 
   if (!context) {
-    throw new CliError("Could not discover Front private route context. Open Front inbox in a signed-in browser or the Front app once, then rerun.", 69);
+    throw new CliError(
+      "Could not resolve Front's local workspace context. Open the signed-in Front app and let the inbox finish loading, then rerun `frontctl readiness --json`. Browser debugging is not required.",
+      69,
+    );
   }
 
   if (!session) {
@@ -62,6 +69,7 @@ export async function createFrontPrivateClient(
         return options.recoverAuthentication?.(context, session, bytesRequired)
           ?? recoverRejectedSession(paths, context, session, bytesRequired);
       },
+      () => writePersistedFrontRouteContext(context),
     );
   }
 
@@ -81,10 +89,30 @@ export async function createFrontPrivateClient(
   );
 }
 
+export async function resolveFrontRouteContext(
+  paths: FrontPaths,
+  session: FrontSession | undefined = undefined,
+): Promise<FrontRouteContext | undefined> {
+  const local = await discoverLocalFrontRouteContext(paths);
+  if (local) return local;
+
+  const activeSession = session ?? await readFrontSession();
+  if (activeSession) {
+    const base = await discoverFrontRouteBaseContext(paths.cacheDataPath);
+    const fromBoot = base ? await resolveContextFromBoot(base, activeSession) : undefined;
+    if (fromBoot) return fromBoot;
+  }
+
+  const cdp = await discoverFrontRouteContextFromCdpBridge();
+  if (cdp) return cdp;
+  return discoverFrontRouteContextFromBrowserBridge();
+}
+
 function sessionCookieClient(
   context: FrontRouteContext,
   session: NonNullable<Awaited<ReturnType<typeof readFrontSession>>>,
   recoverAuthentication?: (requireByteDownloads: boolean) => Promise<FrontPrivateClient | undefined>,
+  onAuthenticatedRequest?: () => Promise<void>,
 ): FrontPrivateClient {
   if (!session) {
     throw new CliError(
@@ -97,6 +125,7 @@ function sessionCookieClient(
   let csrfToken = session.csrfToken;
   let fallbackClient: FrontPrivateClient | undefined;
   let recoveryPromise: Promise<FrontPrivateClient | undefined> | undefined;
+  let contextRemembered = false;
   const routes = buildFrontRoutes(context);
 
   const recoverOnce = async (requireByteDownloads: boolean) => {
@@ -114,6 +143,16 @@ function sessionCookieClient(
     }
     csrfToken = token;
     cookieHeader = upsertCookie(cookieHeader, "front.csrf", token);
+  };
+
+  const rememberContext = async () => {
+    if (contextRemembered || !onAuthenticatedRequest) {
+      return;
+    }
+    contextRemembered = true;
+    await onAuthenticatedRequest().catch(() => {
+      contextRemembered = false;
+    });
   };
 
   const ensureCsrfToken = async () => {
@@ -178,6 +217,7 @@ function sessionCookieClient(
       }
       throw new CliError(`Front private request failed with HTTP ${response.status}${summarizeErrorBody(text)}`, 69);
     }
+    await rememberContext();
     return text ? (JSON.parse(text) as T) : ({} as T);
   };
 
@@ -219,6 +259,7 @@ function sessionCookieClient(
         }
         throw new CliError(`Front private download failed with HTTP ${response.status}`, 69);
       }
+      await rememberContext();
       const disposition = response.headers.get("content-disposition") ?? undefined;
       return {
         bytes: new Uint8Array(await response.arrayBuffer()),
@@ -227,6 +268,57 @@ function sessionCookieClient(
       };
     },
   };
+}
+
+async function resolveContextFromBoot(
+  base: FrontRouteBaseContext,
+  session: FrontSession,
+): Promise<FrontRouteContext | undefined> {
+  const url = buildFrontBootRoute(base);
+  const response = await fetchFront(url, {
+    method: "GET",
+    headers: {
+      accept: "application/json",
+      cookie: session.cookieHeader,
+      origin: base.origin,
+      referer: `${base.origin}/`,
+      "user-agent": "Mozilla/5.0 frontctl-local-session",
+    },
+  }).catch(() => undefined);
+  if (!response?.ok) {
+    return undefined;
+  }
+  const boot = await response.json().catch(() => undefined);
+  const teamId = activeTeamIdFromBoot(boot);
+  if (!teamId) {
+    return undefined;
+  }
+  const context = frontRouteContextSchema.parse({ ...base, teamId });
+  await writePersistedFrontRouteContext(context).catch(() => undefined);
+  return context;
+}
+
+function activeTeamIdFromBoot(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const boot = value as Record<string, unknown>;
+  const userId = objectId(boot.user);
+  if (userId) return userId;
+  const teamId = objectId(boot.team);
+  if (teamId) return teamId;
+  if (Array.isArray(boot.teams) && boot.teams.length === 1) {
+    return objectId(boot.teams[0]);
+  }
+  return undefined;
+}
+
+function objectId(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const id = (value as Record<string, unknown>).id;
+  return typeof id === "string" || typeof id === "number" ? String(id) : undefined;
 }
 
 async function recoverRejectedSession(

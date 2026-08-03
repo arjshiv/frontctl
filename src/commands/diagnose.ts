@@ -4,6 +4,7 @@ import { checkFrontSession } from "../lib/auth.js";
 import { defaultAuditPath, listAuditEntries } from "../lib/audit.js";
 import { CliError } from "../lib/cli.js";
 import { pathStatus } from "../lib/fsInfo.js";
+import { discoverLocalFrontRouteContext } from "../lib/frontRoutes.js";
 import { defaultFrontPaths, type FrontPaths } from "../lib/paths.js";
 import { buildUserReadiness } from "../lib/readiness.js";
 import { defaultStorePath, storeStats } from "../lib/store.js";
@@ -25,7 +26,7 @@ export async function diagnoseCommand(args: string[], paths: FrontPaths = defaul
 }
 
 export async function redactedDiagnosticBundle(paths: FrontPaths = defaultFrontPaths()) {
-  const [doctorResult, auth, agents, writes, audit, storePathStatus, fixtureStatus] = await Promise.all([
+  const [doctorResult, auth, agents, writes, audit, storePathStatus, fixtureStatus, routeContext] = await Promise.all([
     doctor(paths),
     checkFrontSession(),
     agentsStatus("all"),
@@ -33,6 +34,7 @@ export async function redactedDiagnosticBundle(paths: FrontPaths = defaultFrontP
     listAuditEntries({ limit: 10 }),
     pathStatus(defaultStorePath()),
     pathStatus(discoveryFixtureRoot()),
+    discoverLocalFrontRouteContext(paths),
   ]);
   const stats = storePathStatus.exists
     ? await storeStats(defaultStorePath()).catch((error: unknown) => ({
@@ -43,6 +45,7 @@ export async function redactedDiagnosticBundle(paths: FrontPaths = defaultFrontP
     frontAppInstalled: doctorResult.checks.find((check) => check.name === "frontApp")?.ok ?? false,
     localProfileVisible: doctorResult.onboarding.readyForAgentUse,
     authValid: auth.valid,
+    routeContextAvailable: Boolean(routeContext),
     agentsInstalled: agents.allInstalled,
   });
 
@@ -58,6 +61,7 @@ export async function redactedDiagnosticBundle(paths: FrontPaths = defaultFrontP
       writeRoutesVerified: writes.allVerified,
       userReady: userReadiness.ready,
       userReadinessState: userReadiness.state,
+      routeContextAvailable: Boolean(routeContext),
       firstIssue: doctorResult.issues[0]?.remedy,
     },
     userReadiness,

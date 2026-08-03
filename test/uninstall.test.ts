@@ -8,15 +8,19 @@ import { makeTempDir } from "./helpers.js";
 test("uninstall is dry-run by default", async () => {
   await withUninstallContext("frontctl-uninstall-dry-run", async ({ root }) => {
     const sessionPath = process.env.FRONTCTL_SESSION_PATH as string;
+    const routeContextPath = join(root, ".frontctl", "route-context.json");
     await mkdir(join(sessionPath, ".."), { recursive: true });
     await writeFile(sessionPath, "{}");
+    await writeFile(routeContextPath, "{}");
 
     const result = await uninstallCommand([]) as any;
 
     assert.equal(result.mode, "dry-run");
     assert.equal(result.removed, false);
     assert.ok(result.targets.some((target: { id: string }) => target.id === "session"));
+    assert.ok(result.targets.some((target: { id: string }) => target.id === "routeContext"));
     assert.ok(await stat(sessionPath));
+    assert.ok(await stat(routeContextPath));
     assert.match(JSON.stringify(result), new RegExp(root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   });
 });
@@ -24,12 +28,14 @@ test("uninstall is dry-run by default", async () => {
 test("uninstall --yes removes frontctl state and installed skills", async () => {
   await withUninstallContext("frontctl-uninstall-yes", async ({ root }) => {
     const sessionPath = process.env.FRONTCTL_SESSION_PATH as string;
+    const routeContextPath = join(root, ".frontctl", "route-context.json");
     const codexSkillDir = join(root, ".codex", "skills", "frontctl");
     const claudeSkillDir = join(root, ".claude", "skills", "frontctl");
     await mkdir(join(sessionPath, ".."), { recursive: true });
     await mkdir(codexSkillDir, { recursive: true });
     await mkdir(claudeSkillDir, { recursive: true });
     await writeFile(sessionPath, "{}");
+    await writeFile(routeContextPath, "{}");
     await writeFile(join(codexSkillDir, "SKILL.md"), "codex");
     await writeFile(join(claudeSkillDir, "SKILL.md"), "claude");
 
@@ -38,6 +44,7 @@ test("uninstall --yes removes frontctl state and installed skills", async () => 
     assert.equal(result.mode, "execute");
     assert.equal(result.removed, true);
     await assert.rejects(stat(sessionPath));
+    await assert.rejects(stat(routeContextPath));
     await assert.rejects(stat(codexSkillDir));
     await assert.rejects(stat(claudeSkillDir));
   });

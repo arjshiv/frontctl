@@ -4,7 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { readFrontSession } from "../src/lib/auth.js";
 import { createFrontPrivateClient, type FrontPrivateClient } from "../src/lib/frontPrivate.js";
-import { buildFrontRoutes } from "../src/lib/frontRoutes.js";
+import { buildFrontRoutes, readPersistedFrontRouteContext } from "../src/lib/frontRoutes.js";
 import { makeFakeFrontInstall, makeTempDir, writeFakeFrontSession } from "./helpers.js";
 
 test("session-cookie private requests time out instead of hanging forever", async () => {
@@ -42,6 +42,71 @@ test("session-cookie private requests time out instead of hanging forever", asyn
     } else {
       process.env.FRONTCTL_HTTP_TIMEOUT_MS = previousTimeout;
     }
+  }
+});
+
+test("current Front routes resolve through local profile state and persist after a live request", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-private-current-route"));
+  await writeFile(
+    join(paths.cacheDataPath, "route-cache"),
+    "https://app.frontapp.com/cell-00017/api/1/companies/32390a17805cd26f7349/conversations/97217720401",
+  );
+  await writeFile(join(paths.localStorageLevelDbPath, "000003.log"), "tea:6088721");
+  process.env.FRONTCTL_SESSION_PATH = join(paths.supportPath, "frontctl-session.json");
+  process.env.FRONTCTL_ROUTE_CONTEXT_PATH = join(paths.supportPath, "route-context.json");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH);
+
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({ conversations: [] }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  })) as typeof fetch;
+
+  try {
+    const client = await createFrontPrivateClient(paths);
+    assert.equal(client.context.teamId, "6088721");
+    await client.getJson(buildFrontRoutes(client.context).inbox);
+    assert.deepEqual(await readPersistedFrontRouteContext(), client.context);
+  } finally {
+    globalThis.fetch = previousFetch;
+    delete process.env.FRONTCTL_ROUTE_CONTEXT_PATH;
+  }
+});
+
+test("boot metadata repairs route context when local team state is unavailable", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-private-boot-route"));
+  await writeFile(
+    join(paths.cacheDataPath, "route-cache"),
+    "https://app.frontapp.com/cell-00017/api/1/companies/32390a17805cd26f7349/conversations/97217720401",
+  );
+  process.env.FRONTCTL_SESSION_PATH = join(paths.supportPath, "frontctl-session.json");
+  process.env.FRONTCTL_ROUTE_CONTEXT_PATH = join(paths.supportPath, "route-context.json");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH);
+
+  const previousFetch = globalThis.fetch;
+  let bootCalls = 0;
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    if (String(input).endsWith("/boot/app/8")) {
+      bootCalls += 1;
+      return new Response(JSON.stringify({ user: { id: 6088721 } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return new Response(JSON.stringify({ conversations: [] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  try {
+    const client = await createFrontPrivateClient(paths);
+    assert.equal(client.context.teamId, "6088721");
+    assert.equal(bootCalls, 1);
+    assert.deepEqual(await readPersistedFrontRouteContext(), client.context);
+  } finally {
+    globalThis.fetch = previousFetch;
+    delete process.env.FRONTCTL_ROUTE_CONTEXT_PATH;
   }
 });
 

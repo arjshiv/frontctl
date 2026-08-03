@@ -10,10 +10,18 @@ const isoDateString = z.string().refine((value) => Number.isFinite(Date.parse(va
 });
 
 export const frontRouteContextSchema = z.object({
-  origin: z.string().url(),
+  origin: z.string().url().regex(/^https:\/\/(?:app|[a-z0-9-]+)\.frontapp\.com$/i),
   cell: z.string().regex(/^cell-[^/]+$/),
   companyId: z.string().min(1),
   teamId: z.string().min(1),
+}).strict();
+
+export const frontRouteBaseContextSchema = frontRouteContextSchema.omit({ teamId: true });
+
+export const frontRouteContextFileSchema = z.object({
+  version: z.literal(1),
+  validatedAt: isoDateString,
+  context: frontRouteContextSchema,
 }).strict();
 
 export const frontSessionFileSchema = z.object({
