@@ -106,6 +106,13 @@ That explicit command may ask macOS Keychain once because Chromium and Electron 
 secrets behind Safe Storage. After that, normal reads reuse `~/.frontctl/session.json` and do not
 touch Keychain. Repeated Keychain prompts during normal reads are a bug.
 
+Front's private URL shape can change between desktop releases. `frontctl` recovers the stable
+workspace identity from the current Front profile, validates it on a live request, and stores only
+that non-secret context in `~/.frontctl/route-context.json`. Reads, drafts, comments, and actions all
+use this one resolver. `frontctl readiness --json` checks both the session and route context, so it
+cannot report ready while normal commands would fail. Opening a remote-debugging browser is not part
+of normal recovery.
+
 If Front returns HTTP 401 `authentication_required`, treat the live server response as newer than
 the local cache. `frontctl` clears the rejected session and performs one bounded recovery inside the
 same command: validated no-prompt live bridges first, then agentcookie when available, then the
@@ -244,6 +251,7 @@ flowchart TD
   unlock["auth unlock"]
   keychain["Explicit Safe Storage unlock<br/>may prompt once"]
   session["Short-lived local session<br/>~/.frontctl/session.json"]
+  context["Validated workspace context<br/>~/.frontctl/route-context.json<br/>no secrets"]
   routes["Typed private route registry<br/>known non-send contracts"]
   live["Private Front web routes"]
   verify["Live write verifier<br/>real disposable thread"]
@@ -270,6 +278,10 @@ flowchart TD
   browser --> bridge
   bridge --> live
   cli --> session
+  app --> context
+  browser --> context
+  cli --> context
+  context --> routes
   session --> routes
   routes --> live
   routes --> verify
@@ -288,8 +300,9 @@ flowchart TD
   cli -.-> blocked
 ```
 
-`frontctl` discovers the same private web routes used by the signed-in Front app or browser. For
-write operations, it only enables routes that have been verified as non-send actions.
+`frontctl` discovers the same private web routes used by the signed-in Front app or browser and
+persists the validated, non-secret workspace context so Front cache churn does not break later
+commands. For write operations, it only enables routes that have been verified as non-send actions.
 
 ## Browser Verification
 

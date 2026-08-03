@@ -37,6 +37,11 @@ recovery in the same command: validated no-prompt live sources first, then the o
 final fallback. Do not manually repeat unlocks or switch to cache. If the bounded recovery fails,
 report its exact recovery command and stop. The Front app fallback may cause one Safe Storage prompt;
 a successful fallback is reused by later commands.
+Route discovery is automatic and shared by reads, drafts, comments, and actions. Current Front
+direct-conversation URLs and older team-list URLs are supported, and validated non-secret workspace
+context is reused from `~/.frontctl/route-context.json`. If `readiness` reports
+`route-context-missing`, ask the user to open the signed-in Front app and let the inbox load, then
+rerun readiness once. Do not run `frontctl discovery launch` for ordinary recovery.
 
 ## Safety
 

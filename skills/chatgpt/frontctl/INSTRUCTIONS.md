@@ -23,6 +23,11 @@ Requirements:
   repeat unlocks or switch to cache. If recovery fails, report the exact recovery command and stop.
 - Never rerun unlock just to be safe when `auth check` is valid. Unlock reuses the valid session
   cache and should not repeatedly prompt for Keychain access.
+- Route discovery is automatic and shared by reads, drafts, comments, and actions. Front's current
+  direct-conversation routes are supported and validated non-secret context is reused from
+  `~/.frontctl/route-context.json`. On `route-context-missing`, have the user open the signed-in
+  Front app and let the inbox load, then rerun readiness once. Do not launch a debug browser for
+  ordinary recovery.
 - Never use the public Front API.
 - Never send email.
 - Never print cookies, auth headers, or raw private payloads.

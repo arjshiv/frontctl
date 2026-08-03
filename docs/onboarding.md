@@ -164,6 +164,11 @@ rejected session and automatically tries one bounded chain of validated live alt
 including the open Front app as the final fallback. It prints an exact forced refresh command only
 when automatic recovery cannot produce a working live session.
 
+The first successful live request also stores Front's non-secret workspace route in
+`~/.frontctl/route-context.json`. Front cache files may rotate or switch URL shapes without breaking
+later reads or drafts. `frontctl readiness --json` verifies this context as a separate gate; it must
+not report ready when the session exists but the workspace route cannot be resolved.
+
 The CDP browser bridge is optional and mostly useful for development/debugging when a browser is
 launched with remote debugging:
 
@@ -172,14 +177,9 @@ frontctl setup --enable-live --json
 frontctl bridge status --json
 ```
 
-If no CDP browser is reachable, the setup app may show one instruction: launch a managed Edge or
-Chrome window, sign into Front, then retry.
-
-```bash
-frontctl discovery launch --remote-debugging-port 9222 --json
-```
-
-Apple Events are a fallback/debug path only. They are not the consumer onboarding path.
+`frontctl discovery launch --remote-debugging-port 9222 --json` and Apple Events are developer
+tools for proving changed private routes. They are not the consumer onboarding or ordinary recovery
+path, and an agent must not run them merely because a normal read or draft failed.
 
 `--source default-browser` auto-detects Chrome or Microsoft Edge from macOS Launch Services and
 uses the signed-in browser profile. Safari is open-only for the MVP; use optional `agentcookie`

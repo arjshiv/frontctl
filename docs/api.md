@@ -24,6 +24,12 @@ means reads and approved writes can use the reusable local session cache.
 fallback. It may ask macOS for Touch ID or the account password once, then writes
 `~/.frontctl/session.json` for normal non-prompting use.
 
+Route identity is separate from authentication. `frontctl` recognizes both legacy team-list routes
+and current direct conversation routes, combines them with the active local Front user, and stores a
+validated non-secret context in `~/.frontctl/route-context.json`. All live read and mutation command
+families use the same resolver. `readiness` requires both a usable live session and a resolvable
+workspace route.
+
 If a live private request returns HTTP 401 `authentication_required`, the server has rejected the
 cached session even if `auth check` was locally valid. The private client clears the session cache
 and performs one bounded recovery in the same command. It validates no-prompt CDP/browser bridges,
@@ -33,7 +39,7 @@ replacement source passes a live boot request. Recovery never uses local mail ca
 loops. Front.app cookie refresh may cause one macOS Safe Storage prompt; a successful refresh is
 stored in the reusable frontctl session.
 
-The CDP bridge is the browser-runtime path. `browser-status` proves a DevTools endpoint exists,
+The CDP bridge is an optional route-development path, not normal command recovery. `browser-status` proves a DevTools endpoint exists,
 `browser-probe` proves the selected tab is signed into Front, and `browser-seed` can copy the valid
 frontctl session into the selected browser tab without printing cookie values or touching Keychain.
 

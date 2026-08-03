@@ -127,9 +127,11 @@ agent judgment.
 
 ### Make Prompting Rare
 
-The right default model is no Keychain prompt at all: use the CDP browser bridge against a signed-in
-Front tab, then many non-prompting reads. If a future change makes every inbox read ask for Keychain
-access, treat it as a regression.
+The right default model is one explicit session setup at most, then many non-prompting reads through
+the reusable local session. The CLI must recover Front's current workspace identity from the local
+profile and persist the validated, non-secret route context; CDP is for route development, not
+ordinary use. If a future change makes every inbox read ask for Keychain access, treat it as a
+regression.
 
 Explicit cookie unlocks are fallback/debug paths. `frontctl auth unlock --source edge` or
 `--source default-browser` may ask once for the browser safe-storage item only after the user
@@ -139,6 +141,9 @@ If Front rejects a cached browser session while Front.app is already open and si
 must perform one bounded recovery and use the Front app as the final live source. Never ask the user
 to sign into the rejected browser before trying the app they are already using, never fall back to
 stale mail, and never loop through unlock attempts.
+If route discovery changes, fix the shared route resolver. Do not add command-specific cache parsers
+or tell agents to launch a debug browser for ordinary reads, comments, actions, or drafts. Readiness
+must fail when that shared resolver cannot produce a route context.
 For browser-backed route work, `browser-status` only proves an attachable DevTools port. Use
 `browser-probe` to prove the selected tab is authenticated. If the CLI session is valid but the tab
 is not, `browser-seed` may copy the short-lived `frontctl` session into that tab without printing
