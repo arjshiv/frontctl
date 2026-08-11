@@ -16,34 +16,40 @@ export async function resolvePrivateConversationRouteId(
   }
 
   try {
+    const data = await client.getJson<Record<string, unknown>>(routes.searchRaw(id));
+    const ids = extractSearchRouteIds(data);
+    if (ids.length === 1) {
+      return ids[0];
+    }
+  } catch {
+    // A new conversation may not be indexed yet; resolve its authenticated deep link below.
+  }
+
+  try {
     const data = await client.getJson<Record<string, unknown>>(routes.appLink(`/open/${id}`));
     const routeId = extractRouteIdFromAppLink(data.app_link, id);
     if (routeId) {
       return routeId;
     }
   } catch {
-    // Older Front builds may not expose app_link; retain search as compatibility only.
+    // Report one stable resolution error after both private live routes fail.
   }
 
-  const data = await client.getJson<Record<string, unknown>>(routes.searchRaw(id));
+  throw new CliError(
+    `Could not resolve conversation id ${id} through Front's search index or direct link route.`,
+    69,
+  );
+}
+
+function extractSearchRouteIds(data: Record<string, unknown>) {
   const raw = Array.isArray(data.conversations)
     ? data.conversations
     : Array.isArray(data.conversation_search_results)
       ? data.conversation_search_results
       : [];
-  const ids = [...new Set(raw
+  return [...new Set(raw
     .map(extractNumericConversationId)
     .filter((candidate): candidate is string => Boolean(candidate)))];
-  if (ids.length === 1) {
-    return ids[0];
-  }
-  if (ids.length > 1) {
-    throw new CliError(`Conversation id ${id} resolved to multiple private route ids; use a numeric Front route id explicitly.`, 69);
-  }
-  throw new CliError(
-    `Could not resolve conversation id ${id} through Front's direct link route or compatibility search.`,
-    69,
-  );
 }
 
 export function extractRouteIdFromAppLink(value: unknown, conversationId: string) {

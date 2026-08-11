@@ -14,34 +14,50 @@ const routes = buildFrontRoutes({
   teamId: "team",
 });
 
+test("resolves an indexed cnv id without calling Front's direct app link route", async () => {
+  const requests: string[] = [];
+  const client = fakeClient(async (url) => {
+    requests.push(url);
+    if (url === routes.searchRaw("cnv_indexed")) {
+      return { conversations: [{ conversation_id: "97839252689" }] };
+    }
+    throw new Error("app link must not run");
+  });
+
+  assert.equal(await resolvePrivateConversationRouteId(client, routes, "cnv_indexed"), "97839252689");
+  assert.deepEqual(requests, [routes.searchRaw("cnv_indexed")]);
+});
+
 test("resolves an unindexed cnv id through Front's direct app link route", async () => {
   const requests: string[] = [];
   const client = fakeClient(async (url) => {
     requests.push(url);
-    if (url === routes.appLink("/open/cnv_new123")) {
-      return {
-        app_link: "/inboxes/teammates/42/inbox/open/0/search/global/id:cnv_new123/97839252689",
-      };
+    if (url === routes.searchRaw("cnv_new123")) {
+      return { conversations: [] };
     }
-    throw new Error("search must not run");
+    return {
+      app_link: "/inboxes/teammates/42/inbox/open/0/search/global/id:cnv_new123/97839252689",
+    };
   });
 
   assert.equal(await resolvePrivateConversationRouteId(client, routes, "cnv_new123"), "97839252689");
-  assert.deepEqual(requests, [routes.appLink("/open/cnv_new123")]);
+  assert.deepEqual(requests, [routes.searchRaw("cnv_new123"), routes.appLink("/open/cnv_new123")]);
 });
 
-test("falls back to compatibility search when app link resolution is unavailable", async () => {
-  const requests: string[] = [];
-  const client = fakeClient(async (url) => {
-    requests.push(url);
-    if (url === routes.appLink("/open/cnv_legacy")) {
-      throw new Error("HTTP 404");
-    }
-    return { conversations: [{ conversation_id: "123456789" }] };
-  });
+test("falls back to the direct route when indexed lookup fails or is ambiguous", async () => {
+  for (const searchResult of [new Error("index unavailable"), {
+    conversations: [{ conversation_id: "111" }, { conversation_id: "222" }],
+  }]) {
+    const client = fakeClient(async (url) => {
+      if (url === routes.searchRaw("cnv_fallback")) {
+        if (searchResult instanceof Error) throw searchResult;
+        return searchResult;
+      }
+      return { app_link: "/search/global/id:cnv_fallback/333" };
+    });
 
-  assert.equal(await resolvePrivateConversationRouteId(client, routes, "cnv_legacy"), "123456789");
-  assert.deepEqual(requests, [routes.appLink("/open/cnv_legacy"), routes.searchRaw("cnv_legacy")]);
+    assert.equal(await resolvePrivateConversationRouteId(client, routes, "cnv_fallback"), "333");
+  }
 });
 
 test("does not accept an app link for a different conversation", () => {
