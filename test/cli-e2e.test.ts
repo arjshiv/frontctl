@@ -102,6 +102,7 @@ test("CLI --help explains the safe agent loop", async () => {
   assert.ok(result.agentQuickStart.some((line) => /frontctl ready --json/.test(line)));
   assert.ok(result.agentRules.some((line) => /Do not use Front's public API/.test(line)));
   assert.ok(result.agentRules.some((line) => /Do not send email/.test(line)));
+  assert.ok(result.agentRules.some((line) => /do not search for a numeric id/i.test(line)));
   assert.equal(result.setupLoop.oneCommandSetup, "frontctl setup complete --yes --json");
   assert.equal(result.setupLoop.liveInbox, "frontctl inbox --limit 20 --json");
   assert.ok(result.commandGroups.writesRequireApproval.some((line) => /--actor NAME --reason WHY --yes/.test(line)));

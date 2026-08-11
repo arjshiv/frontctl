@@ -28,6 +28,7 @@ export interface FrontRoutes {
   conversation: (id: string) => string;
   timeline: (id: string) => string;
   content: (id: string) => string;
+  appLink: (link: string) => string;
   searchRaw: (query: string) => string;
   searchHints: (query: string) => string;
   searchCards: (query: string, limit?: number) => string;
@@ -187,6 +188,7 @@ export function buildFrontRoutes(context: FrontRouteContext): FrontRoutes {
     conversation: (id) => `${root}/conversations/${encodeURIComponent(id)}`,
     timeline: (id) => `${root}/conversations/${encodeURIComponent(id)}/timeline`,
     content: (id) => `${root}/conversations/${encodeURIComponent(id)}/content`,
+    appLink: (link) => `${root}/app_link?link=${encodeURIComponent(link)}`,
     searchRaw: (query) => `${root}/search_raw/${encodeURIComponent(query)}`,
     searchHints: (query) => `${root}/search_hints/${encodeURIComponent(query)}`,
     searchCards: (query, limit) =>

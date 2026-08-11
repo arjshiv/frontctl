@@ -1015,13 +1015,17 @@ test("commentConversation resolves public conversation ids before executable pri
     assert.equal(result.result.activityId, "activity-1");
   }, (input: string | URL | Request) => {
     const url = String(input);
-    if (url.includes("/search_raw/cnv_18gk889d")) {
-      return { conversations: [{ id: "96779857873" }] };
+    if (url.includes("/app_link?link=%2Fopen%2Fcnv_18gk889d")) {
+      return { app_link: "/inboxes/shared/1/inbox/open/0/search/global/id:cnv_18gk889d/96779857873" };
+    }
+    if (url.includes("/search_raw/")) {
+      throw new Error("search must not run for a direct cnv id lookup");
     }
     return { ok: true, id: "activity-1" };
   });
 
-  assert.ok(requests.some((request) => request.method === "GET" && /\/search_raw\/cnv_18gk889d$/.test(request.url)));
+  assert.ok(requests.some((request) => request.method === "GET" && request.url.includes("/app_link?link=%2Fopen%2Fcnv_18gk889d")));
+  assert.ok(!requests.some((request) => request.url.includes("/search_raw/")));
   const writes = requests.filter((request) => request.method !== "GET");
   assert.equal(writes.length, 2);
   assert.match(writes[0].url, /\/conversations\/96779857873\/comments\/[a-f0-9]{32}\?include_conversation=true$/);
@@ -1542,8 +1546,11 @@ test("draft reply resolves cnv ids for private routes and preserves the conversa
     assert.match(reply.result.discardCommand, /frontctl draft discard cnv_18gk889d draftuid123 --json/);
   }, (input: string | URL | Request) => {
     const url = String(input);
-    if (url.includes("/search_raw/cnv_18gk889d")) {
-      return { conversations: [{ id: "96779857873", conversation_id: "cnv_18gk889d" }] };
+    if (url.includes("/app_link?link=%2Fopen%2Fcnv_18gk889d")) {
+      return { app_link: "/inboxes/shared/1/inbox/open/0/search/global/id:cnv_18gk889d/96779857873" };
+    }
+    if (url.includes("/search_raw/")) {
+      throw new Error("search must not run for a direct cnv id lookup");
     }
     if (url.includes("/boot/app/8")) {
       return {
@@ -1578,7 +1585,8 @@ test("draft reply resolves cnv ids for private routes and preserves the conversa
     return { ok: true };
   });
 
-  assert.ok(requests.some((request) => request.method === "GET" && /\/search_raw\/cnv_18gk889d$/.test(request.url)));
+  assert.ok(requests.some((request) => request.method === "GET" && request.url.includes("/app_link?link=%2Fopen%2Fcnv_18gk889d")));
+  assert.ok(!requests.some((request) => request.url.includes("/search_raw/")));
   const draftWrite = requests.find((request) => request.method === "PUT" && request.url.includes("/messages/"));
   assert.ok(draftWrite);
   assert.match(draftWrite.url, /\/conversations\/96779857873\/messages\/[a-f0-9]{32}\?include_conversation=true$/);
@@ -1724,8 +1732,11 @@ test("draft discard resolves cnv ids for private message routes", async () => {
     assert.deepEqual(discard.result, { ok: true });
   }, (input: string | URL | Request) => {
     const url = String(input);
-    if (url.includes("/search_raw/cnv_18gk889d")) {
-      return { conversations: [{ id: "96779857873", conversation_id: "cnv_18gk889d" }] };
+    if (url.includes("/app_link?link=%2Fopen%2Fcnv_18gk889d")) {
+      return { app_link: "/inboxes/shared/1/inbox/open/0/search/global/id:cnv_18gk889d/96779857873" };
+    }
+    if (url.includes("/search_raw/")) {
+      throw new Error("search must not run for a direct cnv id lookup");
     }
     return { ok: true };
   });

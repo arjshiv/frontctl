@@ -119,6 +119,7 @@ test("buildFrontRoutes creates private app routes without public API paths", () 
   assert.equal(routes.boot, "https://app.frontapp.com/cell-00017/api/1/companies/company/boot/app/8");
   assert.equal(routes.inbox, "https://app.frontapp.com/cell-00017/api/1/companies/company/team/team/conversations/inbox");
   assert.equal(routes.conversation("abc 123"), "https://app.frontapp.com/cell-00017/api/1/companies/company/conversations/abc%20123");
+  assert.equal(routes.appLink("/open/cnv_123"), "https://app.frontapp.com/cell-00017/api/1/companies/company/app_link?link=%2Fopen%2Fcnv_123");
   assert.equal(routes.message("abc 123"), "https://app.frontapp.com/cell-00017/api/1/companies/company/messages/abc%20123");
   assert.equal(routes.conversationMessage("abc 123", "draft uid"), "https://app.frontapp.com/cell-00017/api/1/companies/company/conversations/abc%20123/messages/draft%20uid");
   assert.equal(routes.searchCards("Test@Example.com", 5), "https://app.frontapp.com/cell-00017/api/1/companies/company/search_card/test%40example.com?limit=5");
@@ -141,6 +142,7 @@ test("buildFrontRoutes does not expose send/finalize/deliver routes", () => {
     routes.conversation("123"),
     routes.timeline("123"),
     routes.content("123"),
+    routes.appLink("/open/cnv_123"),
     routes.searchRaw("hello"),
     routes.searchHints("hello"),
     routes.searchCards("hello"),

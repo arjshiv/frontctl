@@ -221,7 +221,7 @@ function usage(topic?: string) {
       "Do not send email. `frontctl send` is intentionally blocked; drafts are allowed.",
       "Do not use cache for current inbox state unless the user explicitly asks for offline/cache analysis.",
       "For state-changing actions, frontctl writes a visible identity comment before the action so the user can distinguish agent actions from human actions.",
-      "Prefer Front conversation ids. Do not invent app URLs or pass route fragments as ids.",
+      "Pass Front conversation ids such as `cnv_...` directly. frontctl resolves them live; do not search for a numeric id, inspect the local index, open a browser, invent app URLs, or pass route fragments merely to resolve one.",
       "If a command says live mode is locked, run the recommended setup/unlock command instead of falling back to stale data.",
       "If Front rejects a cached browser session, frontctl performs one bounded live-source recovery and can fall back to an open, signed-in Front app. Do not replace that with cached mail.",
     ],
