@@ -145,8 +145,8 @@ If route discovery changes, fix the shared route resolver. Do not add command-sp
 or tell agents to launch a debug browser for ordinary reads, comments, actions, or drafts. Readiness
 must fail when that shared resolver cannot produce a route context.
 Likewise, pass user-facing `cnv_...` ids directly to commands. The shared conversation-id resolver
-must use Front's authenticated deep-link route first so newly created, not-yet-search-indexed
-conversations work. Search is compatibility fallback only; local indexes and browsers are not id
+must use Front's authenticated search index first, then the authenticated deep-link route when a
+conversation is new, missing, or ambiguous in the index. Local cached mail and browsers are not id
 translation mechanisms.
 For browser-backed route work, `browser-status` only proves an attachable DevTools port. Use
 `browser-probe` to prove the selected tab is authenticated. If the CLI session is valid but the tab

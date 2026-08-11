@@ -369,9 +369,9 @@ Draft list/read are local read-only IndexedDB scans. Draft reply returns `result
 `--yes` is explicitly approved. Draft reply defaults to reply-all and saves a shared Front draft in
 the conversation, excluding the active user's own Front channel from recipients. Agents should pass
 normal Front conversation ids such as `cnv_...` directly; frontctl resolves private app route ids
-through Front's live authenticated deep-link route even when a conversation is not search-indexed.
-Do not search, read the local index, or open a browser merely to translate the id. Returned commands
-stay in the `cnv_...` form. Reply draft,
+through Front's authenticated search index first and its live deep-link route if the conversation is
+not indexed yet. Do not manually search, read stale local mail, or open a browser merely to
+translate the id. Returned commands stay in the `cnv_...` form. Reply draft,
 standalone compose, discard, and test-conversation commands default to preview and require explicit
 `--yes` before they can write through Front's private routes. Optional endpoint discovery must write
 sanitized fixtures only; do not share raw HAR files.

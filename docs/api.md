@@ -111,10 +111,10 @@ Plain draft body flags are escaped into HTML. For formatted drafts, pass conserv
 with `--body-html` or `--body-html-file`; comments remain plain text. `draft reply` defaults to
 reply-all and saves a shared Front draft in the conversation, excluding the active user's own Front
 channel from recipients. Agents should pass the normal Front conversation id such as `cnv_...`
-directly. frontctl first uses Front's authenticated deep-link resolver, which works before the
-conversation appears in search, and retains search only as compatibility for older Front builds.
-Do not query `search ids`, the local index, or a browser merely to translate a supplied conversation
-id. Returned commands remain in the user-facing `cnv_...` form.
+directly. frontctl checks Front's authenticated search index first, then uses the authenticated
+deep-link resolver if the conversation is new, missing, or ambiguous in the index. Do not manually
+query `search ids`, stale local mail, or a browser merely to translate a supplied conversation id.
+Returned commands remain in the user-facing `cnv_...` form.
 
 ## Private Route Families
 
@@ -122,7 +122,7 @@ The route registry treats these as known non-send private Front route families:
 
 | Capability | Route family | Notes |
 | --- | --- | --- |
-| Conversation ID resolution | `GET /app_link?link=/open/cnv_...` | Direct live lookup; search is compatibility fallback only |
+| Conversation ID resolution | `GET /search_raw/:cnv`, then `GET /app_link?link=/open/cnv_...` | Authenticated index first; direct live fallback on miss or ambiguity |
 | Thread state | `PATCH /conversations` | Archive, unarchive, snooze, unsnooze, assign, unassign, move, tags, followers |
 | Trash/restore | tracker status update through `PATCH /conversations` | Uses Front tracker-status semantics, not ordinary status payloads |
 | Comments | `/conversations/:id/timeline` | Identity comments and explicit internal notes |
