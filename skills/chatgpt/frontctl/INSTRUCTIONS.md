@@ -28,6 +28,9 @@ Requirements:
   `~/.frontctl/route-context.json`. On `route-context-missing`, have the user open the signed-in
   Front app and let the inbox load, then rerun readiness once. Do not launch a debug browser for
   ordinary recovery.
+- When the user supplies a `cnv_...` conversation id, pass it directly to the requested command.
+  frontctl resolves it through Front's authenticated deep-link route even before search indexing.
+  Do not run `search ids`, inspect the local index, or open a browser merely to translate that id.
 - Never use the public Front API.
 - Never send email.
 - Never print cookies, auth headers, or raw private payloads.
@@ -101,8 +104,9 @@ conversation id and message uid returned by compose/reply/update plus explicit r
 do not guess from stale local draft cache.
 `draft reply` defaults to reply-all and saves a shared Front draft in the conversation, so anyone
 with conversation access can see and edit it. It excludes the active user's own Front channel from
-recipients. Always pass the normal Front conversation id such as `cnv_...`; frontctl resolves any
-private app route id internally and keeps returned commands in the `cnv_...` form.
+recipients. Always pass the normal Front conversation id such as `cnv_...` directly; frontctl
+resolves its private app route id live without requiring search indexing and keeps returned commands
+in the `cnv_...` form.
 For formatted drafts, write conservative HTML directly and pass `--body-html-file` or `--body-html`;
 use ordinary content tags such as `p`, `ul`, `ol`, `li`, `blockquote`, `strong`, `em`, `code`, and
 `a`. Do not include scripts, styles, event handlers, or tracking pixels. Comments are plain text.

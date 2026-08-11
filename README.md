@@ -191,7 +191,10 @@ Executable non-send drafts:
 
 - `draft reply`, `draft compose`, `draft create`, `draft update`, and `draft forward` save drafts only and return a discard command. `frontctl send` remains blocked.
 - `draft reply` defaults to reply-all and saves a shared Front draft in the conversation, so teammates with access can see and edit it. It excludes the active user's own channel from recipients.
-- Agents should pass the normal Front conversation id such as `cnv_...`; frontctl resolves any private app route id internally and keeps returned commands in the `cnv_...` form.
+- Agents should pass the normal Front conversation id such as `cnv_...` directly. frontctl resolves
+  Front's numeric private route id through the authenticated deep-link route, without depending on
+  search indexing, local cache, or a browser. Do not run `search ids` just to resolve a supplied
+  conversation id. Returned commands stay in the user-facing `cnv_...` form.
 - For formatted drafts, pass conservative HTML directly with `--body-html` or `--body-html-file`;
   comments remain plain text.
 
