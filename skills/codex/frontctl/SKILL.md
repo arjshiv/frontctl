@@ -10,10 +10,15 @@ user's authenticated Front app profile, not the public Front API.
 
 ## First Step
 
+The agent bootstrap installs the canonical executable at `~/.local/bin/frontctl`. If that file
+exists, use that absolute path for every command in this skill. Do not use `/usr/local/bin/frontctl`
+or `/opt/frontctl/bin/frontctl`; those may be stale package copies. In the examples below,
+`frontctl` means the canonical executable.
+
 Run:
 
 ```bash
-frontctl doctor --json
+~/.local/bin/frontctl doctor --json
 ```
 
 If `doctor.ok` is false, report the failing checks and stop before touching mail state.
@@ -24,7 +29,9 @@ When reporting setup state, prefer `userReadiness.ready`, `userReadiness.state`,
 `userReadiness.nextAction` from `frontctl readiness --json`, `frontctl setup --json`, or
 `frontctl diagnose --json`.
 For live private reads, run `frontctl auth check --json` first. If it is valid, run the requested
-read command directly. If it is not valid, run `frontctl readiness --json` once and stop: report the
+command directly. A missing CDP proof, closed debug port, or unavailable browser bridge is irrelevant
+when auth is valid. Do not inspect browsers, check drafts, unlock again, or configure CDP. If auth is
+not valid, run `frontctl readiness --json` once and stop: report the
 `authSources.*.unlockCommand` the user can approve. Do not run `frontctl setup --enable-live`,
 `frontctl discovery launch`, Apple Events, browser permission helpers, `auth unlock`, or any cache
 fallback unless the user explicitly asks for that setup/debug action. The normal recovery path is a
@@ -70,21 +77,6 @@ frontctl cookies inspect --json
 frontctl asar inspect --json
 frontctl onboarding --json
 frontctl readiness --json
-frontctl browser list --json
-frontctl browser inspect --browser edge --json
-frontctl discovery launch --remote-debugging-port 9222 --print-only --json
-frontctl discovery relaunch-front --remote-debugging-port 9222 --json
-frontctl discovery browser-status --remote-debugging-port 9222 --json
-frontctl discovery browser-probe CONVERSATION_ID --remote-debugging-port 9222 --target-url-contains conversations/CONVERSATION_ID --json
-frontctl discovery browser-seed --remote-debugging-port 9222 --target-url-contains conversations/CONVERSATION_ID --yes --json
-frontctl discovery guide --json
-frontctl discovery guide ACTION --json
-frontctl discovery capture --remote-debugging-port 9222 --target-url-contains conversations/CONVERSATION_ID --reload --duration-ms 15000 --install --name ACTION --json
-frontctl discovery sanitize --input capture.har --output sanitized.json --json
-frontctl discovery fixtures install sanitized.json --json
-frontctl discovery verify-writes --json
-frontctl discovery verify-live-writes CONVERSATION_ID --yes --json
-frontctl discovery verify-browser-writes CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --tag-id TAG_ID --yes --json
 frontctl audit list --json
 ```
 
@@ -236,7 +228,10 @@ Before `tag add` or `tag remove`, run `frontctl tag list --json` or `frontctl ta
 Use an alias, id, or unique name from the result, then inspect `details.tag.resolvedAlias` in the
 preview. Ambiguous names fail; do not guess.
 
-If `frontctl discovery verify-writes --json` reports a route mismatch, guide the user through
+The following discovery workflow is developer-only. Do not use it to recover ordinary reads,
+drafts, comments, or actions, and do not enter it merely because a CDP port is unavailable. Only use
+it when the user explicitly asks to capture or verify private route contracts.
+If `frontctl discovery verify-writes --json` reports a route mismatch during that explicit work, guide the user through
 `frontctl discovery browser-status --json` and `frontctl discovery browser-probe CONVERSATION_ID --remote-debugging-port PORT --target-url-contains conversations/CONVERSATION_ID --json`.
 `browser-status` only proves a local DevTools endpoint is reachable; `browser-probe` proves whether
 the selected browser tab is authenticated to Front. If the probe reports `authentication_required`,

@@ -147,6 +147,17 @@ chmod 755 "$LINK"
 
 "$LINK" --version >/dev/null
 
+CANONICAL_HELP="$("$LINK" --help --json)"
+STALE_COMMANDS=""
+for CANDIDATE in /opt/homebrew/bin/frontctl /usr/local/bin/frontctl /opt/frontctl/bin/frontctl; do
+  [ -x "$CANDIDATE" ] || continue
+  CANDIDATE_HELP="$("$CANDIDATE" --help --json 2>/dev/null || true)"
+  if [ "$CANDIDATE_HELP" != "$CANONICAL_HELP" ]; then
+    STALE_COMMANDS="${STALE_COMMANDS}${STALE_COMMANDS:+, }$CANDIDATE"
+    printf '\nwarning: stale frontctl command detected at %s\n' "$CANDIDATE" >&2
+  fi
+done
+
 SETUP_ARGS="complete --agent $AGENT --yes --json"
 if [ "$NO_PERMISSION_PREFLIGHT" = "1" ]; then
   SETUP_ARGS="$SETUP_ARGS --no-permission-preflight"
@@ -198,6 +209,8 @@ cat <<EOF
 frontctl bootstrap summary
 --------------------------
 installed: $LINK
+canonical command: $LINK
+stale duplicate commands: ${STALE_COMMANDS:-none}
 ready: $READY
 future setup checks prompt: $PROMPTS_ON_CHECK
 future live reads prompt: $PROMPTS_ON_LIVE
@@ -206,7 +219,7 @@ setup proof: $SETUP_JSON_PATH
 live proof details: ${LIVE_PROOF_PATH:-none}
 
 Next agent prompt:
-Use frontctl on this Mac. Run frontctl ready --json, then frontctl inbox --limit 20 --json. Do not send email and do not use the public Front API.
+Use $LINK on this Mac. Run $LINK ready --json, then $LINK inbox --limit 20 --json. If ready, do not unlock again or configure CDP. Do not send email and do not use the public Front API.
 EOF
 
 if [ "$READY" != "true" ]; then

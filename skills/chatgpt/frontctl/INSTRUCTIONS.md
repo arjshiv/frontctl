@@ -5,11 +5,15 @@ Use `frontctl` as the only interface for Front mail automation on this Mac.
 Requirements:
 
 - You must have local terminal or Codex-style command execution access on the user's Mac.
-- Run `frontctl doctor --json` first.
+- If `~/.local/bin/frontctl` exists, use that absolute path for every command. Do not use
+  `/usr/local/bin/frontctl` or `/opt/frontctl/bin/frontctl`; those may be stale package copies.
+- Run `~/.local/bin/frontctl doctor --json` first when the canonical executable exists.
 - Use `frontctl readiness --json`, `frontctl setup --json`, or `frontctl diagnose --json` and
   prefer `userReadiness.nextAction` when explaining setup status.
 - Run `frontctl auth check --json` before live private reads. If it is valid, run the requested read
-  command directly.
+  command directly. A missing CDP proof, closed debug port, or unavailable browser bridge is
+  irrelevant when auth is valid. Do not inspect browsers, check drafts, unlock again, or configure
+  CDP.
 - If live mode is locked, run `frontctl readiness --json` once and stop: report the
   `authSources.*.unlockCommand` the user can approve. Do not run `frontctl setup --enable-live`,
   `frontctl discovery launch`, Apple Events, browser permission helpers, `auth unlock`, or any
@@ -48,7 +52,6 @@ Safe starting commands:
 ```bash
 frontctl doctor --json
 frontctl readiness --json
-frontctl browser list --json
 frontctl agents prompt --agent chatgpt --json
 frontctl inbox list --limit 20 --json
 frontctl triage inbox --limit 20 --json
