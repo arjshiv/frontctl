@@ -28,31 +28,41 @@ export function buildUserReadiness(input: {
       name: "frontApp",
       ok: frontAccessAvailable,
       label: "Front access",
-      userAction: "Install Front for macOS, or sign into Front in Chrome or Microsoft Edge.",
+      userAction: frontAccessAvailable
+        ? "No action needed. Front access is available."
+        : "Install Front for macOS, or sign into Front in Chrome or Microsoft Edge.",
     },
     {
       name: "frontSignIn",
       ok: signedInSessionAvailable,
       label: "Front sign-in",
-      userAction: "Open Front, Chrome, or Microsoft Edge and sign into Front, then wait for the inbox to load.",
+      userAction: signedInSessionAvailable
+        ? "No action needed. A signed-in Front profile is available."
+        : "Open Front, Chrome, or Microsoft Edge and sign into Front, then wait for the inbox to load.",
     },
     {
       name: "liveMode",
       ok: input.authValid,
       label: "Live session",
-      userAction: "Approve one live-session unlock, or configure a CDP browser bridge. Run `frontctl readiness --json` for the exact command.",
+      userAction: input.authValid
+        ? "No action needed. Reuse the valid live session; do not unlock again or configure CDP."
+        : "Approve one live-session unlock recommended by `frontctl readiness --json`.",
     },
     {
       name: "routeContext",
       ok: input.routeContextAvailable ?? true,
       label: "Workspace route",
-      userAction: "Open the signed-in Front app and let the inbox finish loading, then rerun `frontctl readiness --json`. Browser debugging is not required.",
+      userAction: (input.routeContextAvailable ?? true)
+        ? "No action needed. Front workspace routing is available."
+        : "Open the signed-in Front app and let the inbox finish loading, then rerun `frontctl readiness --json`. Browser debugging is not required.",
     },
     {
       name: "agentSkills",
       ok: input.agentsInstalled,
       label: "Agent skills",
-      userAction: "Click Install Agent Skills or run `frontctl setup --agent all --yes --json`.",
+      userAction: input.agentsInstalled
+        ? "No action needed. Agent skills are installed."
+        : "Click Install Agent Skills or run `frontctl setup --agent all --yes --json`.",
     },
   ];
 

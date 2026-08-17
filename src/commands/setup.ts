@@ -58,7 +58,7 @@ async function setupStatusCommand(args: string[], paths: FrontPaths) {
       ? `frontctl auth unlock --source default-browser --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`
       : localProfileVisible
         ? `frontctl auth unlock --source front-app --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`
-        : "frontctl discovery launch --remote-debugging-port 9222 --json";
+        : "frontctl readiness --json";
   const userReadiness = buildUserReadiness({
     frontAppInstalled,
     localProfileVisible,
@@ -103,11 +103,13 @@ async function setupStatusCommand(args: string[], paths: FrontPaths) {
     bridge: {
       status: bridgeStatusAfter,
       test: bridgeTest,
+      requiredForNormalCommands: false,
+      shouldAttempt: false,
       enableSkipped: enableLiveRequested && liveAlreadyAvailableBeforeBridge,
-      enableNote: enableLiveRequested && liveAlreadyAvailableBeforeBridge
-        ? "Live reads are already available through a non-prompting session or existing CDP proof; no browser permission setup was attempted."
-        : undefined,
-      enableCommand: "frontctl setup --enable-live --json",
+      enableNote: liveReady
+        ? "Live commands are already available. Do not configure or launch CDP."
+        : "CDP is developer-only; use the recommended session unlock for normal setup.",
+      enableCommand: liveReady ? undefined : "frontctl setup --enable-live --json",
     },
     routeContext: {
       available: Boolean(routeContext) || bridgeStatusAfter.proofValid,
@@ -153,7 +155,7 @@ async function setupStatusCommand(args: string[], paths: FrontPaths) {
     userReadiness,
     failureMode: legacyFailureMode(userReadiness.state),
     agentPrompt:
-      "Use the frontctl skill. Run frontctl doctor --json and frontctl ready --json. If setup is ready, run frontctl inbox --limit 20 --json. Do not send email, do not use the public Front API, and ask before any write.",
+      "Use the frontctl skill. Run frontctl doctor --json and frontctl ready --json. If setup is ready, run frontctl inbox --limit 20 --json or the requested command directly: do not unlock again or configure CDP. Do not send email, do not use the public Front API, and ask before any write.",
   };
 }
 

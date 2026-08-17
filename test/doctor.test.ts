@@ -15,6 +15,9 @@ test("doctor reports ok for a complete fake Front install", async () => {
   assert.equal(result.safety.publicApiUsed, false);
   assert.equal(result.safety.sendsEmail, false);
   assert.equal(result.onboarding.readyForAgentUse, true);
+  assert.equal(result.onboarding.nextCommand, "frontctl readiness --json");
+  assert.match(result.onboarding.note, /reuses valid authentication/);
+  assert.match(result.onboarding.note, /Browser debugging is not required/);
 });
 
 test("doctor reports not ok when core paths are absent", async () => {

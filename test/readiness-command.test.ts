@@ -30,6 +30,18 @@ test("readinessCommand returns a concise ready report without touching Keychain"
     assert.equal(result.auth.promptsOnCheck, false);
     assert.equal(result.auth.promptsOnLiveRead, false);
     assert.equal(result.safety.touchesKeychain, false);
+    assert.equal(result.normalCommands.ready, true);
+    assert.equal(result.normalCommands.requireUnlock, false);
+    assert.equal(result.normalCommands.requireCdp, false);
+    assert.equal(result.normalCommands.preferredTransport, "session-cookie");
+    assert.match(result.normalCommands.instruction, /Do not unlock again.*do not inspect or configure CDP/i);
+    assert.equal(result.bridge.requiredForNormalCommands, false);
+    assert.equal(result.bridge.shouldAttempt, false);
+    assert.match(result.bridge.note, /do not configure or launch CDP/i);
+    assert.equal(result.authSources.recommendedUnlockCommand, undefined);
+    assert.equal(result.authSources.frontApp.unlockCommand, undefined);
+    assert.equal(result.authSources.agentcookie.unlockCommand, undefined);
+    assert.equal(result.authSources.browsers.every((browser: { unlockCommand?: string }) => browser.unlockCommand === undefined), true);
     assert.match(result.nextCommand, /triage inbox --limit 20/);
   });
 });

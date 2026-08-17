@@ -58,9 +58,9 @@ export async function doctor(paths: FrontPaths = defaultFrontPaths()) {
     },
     onboarding: {
       readyForAgentUse: ok,
-      nextCommand: ok ? "frontctl setup --json" : "frontctl doctor --json",
+      nextCommand: ok ? "frontctl readiness --json" : "frontctl doctor --json",
       note: ok
-        ? "Front is installed and the local profile is visible. Run setup, then auth unlock for live reads and approved actions."
+        ? "Front is installed and the local profile is visible. Run readiness; it reuses valid authentication and recommends one unlock only when needed. Browser debugging is not required."
         : issues[0]?.remedy ?? "Install and sign in to Front desktop before asking an agent to manage Front mail.",
     },
   };

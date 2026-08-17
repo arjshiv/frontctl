@@ -13,6 +13,8 @@ test("buildUserReadiness reports ready only when every user gate passes", () => 
   assert.equal(result.ready, true);
   assert.equal(result.state, "ready");
   assert.equal(result.gates.every((gate) => gate.ok), true);
+  assert.equal(result.gates.every((gate) => /No action needed/.test(gate.userAction)), true);
+  assert.match(result.gates.find((gate) => gate.name === "liveMode")?.userAction ?? "", /do not unlock again or configure CDP/i);
   assert.match(result.nextAction, /Do not send email/);
 });
 
@@ -29,7 +31,8 @@ test("buildUserReadiness accepts browser session access without Front.app", () =
   assert.equal(result.state, "live-mode-locked");
   assert.equal(result.gates.find((gate) => gate.name === "frontApp")?.ok, true);
   assert.equal(result.gates.find((gate) => gate.name === "frontSignIn")?.ok, true);
-  assert.match(result.nextAction, /live-session unlock|CDP browser bridge/);
+  assert.match(result.nextAction, /live-session unlock/);
+  assert.doesNotMatch(result.nextAction, /CDP/i);
 });
 
 test("buildUserReadiness returns the first actionable missing setup gate", () => {

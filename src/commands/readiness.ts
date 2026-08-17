@@ -36,6 +36,7 @@ export async function readinessCommand(_args: string[], paths: FrontPaths = defa
     routeContextAvailable: Boolean(routeContext) || bridge.proofValid,
     agentsInstalled: agents.allInstalled,
   });
+  const liveAlreadyAvailable = auth.valid || bridge.proofValid;
 
   return {
     ok: userReadiness.ready,
@@ -56,7 +57,16 @@ export async function readinessCommand(_args: string[], paths: FrontPaths = defa
       promptsOnUnlock: auth.security.promptsOnUnlock,
       promptsOnExplicitKeychainUnlock: auth.security.promptsOnExplicitKeychainUnlock,
     },
-    bridge,
+    bridge: {
+      ...bridge,
+      requiredForNormalCommands: false,
+      shouldAttempt: false,
+      note: auth.valid
+        ? "Optional developer transport only. The reusable Front session is valid; do not configure or launch CDP for reads, drafts, comments, or actions."
+        : bridge.proofValid
+          ? "An existing CDP proof can provide live transport. Do not relaunch or reconfigure the browser."
+          : "Optional developer transport only. Normal recovery uses the recommended session unlock, not browser debugging.",
+    },
     routeContext: {
       available: Boolean(routeContext) || bridge.proofValid,
       persistedWithoutSecrets: Boolean(persistedRouteContext),
@@ -69,7 +79,9 @@ export async function readinessCommand(_args: string[], paths: FrontPaths = defa
       frontApp: {
         available: frontAppInstalled && localProfileVisible,
         valid: auth.valid,
-        unlockCommand: `frontctl auth unlock --source front-app --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`,
+        unlockCommand: liveAlreadyAvailable
+          ? undefined
+          : `frontctl auth unlock --source front-app --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`,
       },
       defaultBrowser,
       browsers: browserProfiles.map((profile) => ({
@@ -77,7 +89,7 @@ export async function readinessCommand(_args: string[], paths: FrontPaths = defa
         profile: profile.profile,
         cookiesExists: profile.cookiesExists,
         supportsCookieImport: profile.supportsCookieImport,
-        unlockCommand: profile.cookiesExists
+        unlockCommand: !liveAlreadyAvailable && profile.cookiesExists
           ? `frontctl auth unlock --source ${profile.browser} --profile ${shellQuote(profile.profile)} --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`
           : undefined,
       })),
@@ -85,7 +97,9 @@ export async function readinessCommand(_args: string[], paths: FrontPaths = defa
         installed: agentcookie.installed,
         plainCookiesExists: agentcookie.plainCookiesExists,
         frontCookiesAvailable: agentcookie.frontCookiesAvailable,
-        unlockCommand: `frontctl auth unlock --source agentcookie --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`,
+        unlockCommand: liveAlreadyAvailable
+          ? undefined
+          : `frontctl auth unlock --source agentcookie --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`,
       },
       explicitBrowserCookieFallbackAvailable,
       nonPromptingLiveAvailable,
@@ -97,6 +111,15 @@ export async function readinessCommand(_args: string[], paths: FrontPaths = defa
         explicitBrowserCookieFallbackAvailable,
         frontAppInstalled && localProfileVisible,
       ),
+    },
+    normalCommands: {
+      ready: userReadiness.ready,
+      requireUnlock: !liveAlreadyAvailable,
+      requireCdp: false,
+      preferredTransport: auth.valid ? "session-cookie" : bridge.proofValid ? "cdp-bridge" : undefined,
+      instruction: liveAlreadyAvailable
+        ? "Run the requested frontctl command directly. Do not unlock again and do not inspect or configure CDP."
+        : "Run only authSources.recommendedUnlockCommand, then retry once.",
     },
     safety: {
       publicApiUsed: false,
@@ -120,7 +143,7 @@ function nextCommandFor(state: ReturnType<typeof buildUserReadiness>["state"], u
     return "frontctl triage inbox --limit 20 --json";
   }
   if (state === "live-mode-locked") {
-    return unlockCommand ?? "frontctl discovery launch --remote-debugging-port 9222 --json";
+    return unlockCommand ?? "frontctl doctor --json";
   }
   if (state === "agent-skills-missing") {
     return "frontctl setup --agent all --yes --json";
@@ -150,7 +173,7 @@ function recommendedUnlockCommand(
   if (frontAppUnlockAvailable) {
     return `frontctl auth unlock --source front-app --ttl-hours ${DEFAULT_SESSION_TTL_HOURS} --json`;
   }
-  return "frontctl discovery launch --remote-debugging-port 9222 --json";
+  return undefined;
 }
 
 function shellQuote(value: string) {
