@@ -46,6 +46,10 @@ All setup surfaces should use the same readiness states from `frontctl readiness
 - `agent-skills-missing`: run `frontctl setup complete --yes --json`.
 - `ready`: paste the agent prompt and start with read-only triage.
 
+In `ready`, all setup instructions are terminal: run the requested command. The readiness payload
+must say `normalCommands.requireUnlock: false` and `normalCommands.requireCdp: false`, and it must
+not expose unlock commands that invite an agent to restart setup.
+
 Do not expose stack traces, storage paths, cookie names, or raw command output as the main user
 message. Keep those in the details pane and support bundle.
 
@@ -76,16 +80,16 @@ secrets with a macOS Safe Storage key, and reading that key is exactly what caus
 prompts when the binary is not already trusted. Default flows should either use an existing
 reusable frontctl session, read an agentcookie plaintext sidecar, or fail closed.
 
-For the “I already have Front open in Edge” case, the product-grade answer is the CDP browser bridge:
-evaluate the request inside the live signed-in Front tab and ask that tab to call the same private
-web routes. That avoids disk cookie decryption entirely. It is a first-class auth source, separate
-from `--source default-browser`, because it depends on the browser being open and signed in rather
-than on Keychain access to the browser profile.
+CDP is a developer route-capture and verification transport. It is not consumer authentication or
+normal recovery. Chrome and Edge may reject remote debugging on a real signed-in profile, so agents
+must not launch or relaunch browsers merely because a debug port is absent. Normal commands use the
+reusable `frontctl` session and persisted route context; one bounded 401 recovery may use the open
+Front app when necessary.
 
-The consumer setup path should launch or reuse a managed Edge/Chrome instance with
-`--remote-debugging-port`, then verify a signed-in Front tab with `frontctl bridge test --json`.
-AppleScript/Apple Events are fallback/debug tooling only; they should not be required for normal
-installation.
+The canonical agent install is user-owned at `~/.local/bin/frontctl`. Bootstrap should warn about
+incompatible copies in `/usr/local/bin` or `/opt/frontctl/bin`, and installed skills should use the
+canonical absolute path. Fixing a stale root-owned package is optional cleanup, not a prerequisite
+for using Front.
 
 Browser onboarding should gracefully report the local state: no Front app installed is acceptable
 when Chrome or Edge has a signed-in Front profile; Safari should explain that cookie import needs

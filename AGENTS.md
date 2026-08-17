@@ -137,6 +137,14 @@ Explicit cookie unlocks are fallback/debug paths. `frontctl auth unlock --source
 `--source default-browser` may ask once for the browser safe-storage item only after the user
 chooses that fallback. After that, `auth check`, `readiness`, and live reads must use the frontctl
 session cache without prompting.
+The agent bootstrap's canonical executable is `~/.local/bin/frontctl`. Agent skills must use that
+absolute path when it exists and must not fall through to stale root-owned copies in
+`/usr/local/bin` or `/opt/frontctl/bin`. Bootstrap must detect and report duplicate incompatible
+executables without requesting administrator access.
+When `auth check` or `readiness` reports a valid reusable session, that result is terminal setup
+proof. Healthy machine-readable output must omit unlock commands and explicitly say that CDP is not
+required. Agents must run the requested command directly instead of diagnosing browsers, checking
+drafts, or refreshing authentication.
 If Front rejects a cached browser session while Front.app is already open and signed in, the CLI
 must perform one bounded recovery and use the Front app as the final live source. Never ask the user
 to sign into the rejected browser before trying the app they are already using, never fall back to

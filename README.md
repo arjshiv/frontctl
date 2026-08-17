@@ -50,6 +50,11 @@ Codex/Claude skills, preflights the one live-session permission prompt when need
 installed binary against a disposable Front test thread. Do not use `sudo`; it would install state
 and skills under the wrong home directory.
 
+`~/.local/bin/frontctl` is the canonical agent executable. The bootstrap checks common system-wide
+locations and warns when an older copy could shadow it. Agents should keep using the canonical
+absolute path; a healthy `frontctl readiness --json` result means they must run the requested
+command directly without unlocking again or inspecting CDP.
+
 For non-technical users, ship the macOS DMG:
 
 1. Open `frontctl-<version>.dmg`.

@@ -37,6 +37,10 @@ cd "$HOME/.local/src/frontctl"
 script/bootstrap_agent_install.sh
 ```
 
+The bootstrap installs the canonical command at `~/.local/bin/frontctl`. It also warns if an older
+system-wide copy exists. Agents should use the canonical absolute path instead of asking for an
+administrator password to replace a stale root-owned install.
+
 Current local install from this repo:
 
 ```bash
@@ -180,6 +184,10 @@ frontctl bridge status --json
 `frontctl discovery launch --remote-debugging-port 9222 --json` and Apple Events are developer
 tools for proving changed private routes. They are not the consumer onboarding or ordinary recovery
 path, and an agent must not run them merely because a normal read or draft failed.
+
+When `frontctl readiness --json` reports `normalCommands.ready: true`, setup is finished. The agent
+must run the requested read, draft, comment, or action directly. It must not unlock again, inspect
+browser debug ports, check for drafts before a relaunch, or ask the user to reauthenticate.
 
 `--source default-browser` auto-detects Chrome or Microsoft Edge from macOS Launch Services and
 uses the signed-in browser profile. Safari is open-only for the MVP; use optional `agentcookie`
