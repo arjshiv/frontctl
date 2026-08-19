@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readAgentcookieFrontCookies } from "./agentcookie.js";
-import { clearFrontSession, forceUnlockCommandForSession, readFrontSession, unlockFrontSession, unlockFrontSessionFromPlainCookies, type FrontSession } from "./auth.js";
+import { clearFrontSession, forceUnlockCommandForSession, persistFrontSession, readFrontSession, unlockFrontSession, unlockFrontSessionFromPlainCookies, type FrontSession } from "./auth.js";
 import { createBrowserBridgeClient, discoverFrontRouteContextFromBrowserBridge } from "./browserBridge.js";
 import { createCdpBridgeClient, discoverFrontRouteContextFromCdpBridge } from "./cdpBridge.js";
 import { CliError } from "./cli.js";
@@ -136,13 +136,10 @@ function sessionCookieClient(
     return fallbackClient;
   };
 
-  const rememberSetCookie = (setCookie: string | null) => {
-    const token = extractFrontCsrfCookie(setCookie);
-    if (!token) {
-      return;
-    }
-    csrfToken = token;
-    cookieHeader = upsertCookie(cookieHeader, "front.csrf", token);
+  const rememberSetCookies = async (headers: Headers) => {
+    await persistResponseSessionCookies(session, headers);
+    cookieHeader = session.cookieHeader;
+    csrfToken = session.csrfToken;
   };
 
   const rememberContext = async () => {
@@ -169,7 +166,9 @@ function sessionCookieClient(
         "user-agent": "Mozilla/5.0 frontctl-local-session",
       },
     });
-    rememberSetCookie(response.headers.get("set-cookie"));
+    if (response.ok) {
+      await rememberSetCookies(response.headers);
+    }
     await response.arrayBuffer();
   };
 
@@ -202,7 +201,6 @@ function sessionCookieClient(
       },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
-    rememberSetCookie(response.headers.get("set-cookie"));
     const text = await response.text();
     if (!response.ok) {
       if (isAuthenticationRequired(response.status, text)) {
@@ -217,6 +215,7 @@ function sessionCookieClient(
       }
       throw new CliError(`Front private request failed with HTTP ${response.status}${summarizeErrorBody(text)}`, 69);
     }
+    await rememberSetCookies(response.headers);
     await rememberContext();
     return text ? (JSON.parse(text) as T) : ({} as T);
   };
@@ -244,7 +243,6 @@ function sessionCookieClient(
           "user-agent": "Mozilla/5.0 frontctl-local-session",
         },
       });
-      rememberSetCookie(response.headers.get("set-cookie"));
       if (!response.ok) {
         const text = await response.text();
         if (isAuthenticationRequired(response.status, text) && recoverAuthentication) {
@@ -259,6 +257,7 @@ function sessionCookieClient(
         }
         throw new CliError(`Front private download failed with HTTP ${response.status}`, 69);
       }
+      await rememberSetCookies(response.headers);
       await rememberContext();
       const disposition = response.headers.get("content-disposition") ?? undefined;
       return {
@@ -288,6 +287,7 @@ async function resolveContextFromBoot(
   if (!response?.ok) {
     return undefined;
   }
+  await persistResponseSessionCookies(session, response.headers);
   const boot = await response.json().catch(() => undefined);
   const teamId = activeTeamIdFromBoot(boot);
   if (!teamId) {
@@ -476,12 +476,63 @@ export async function getBoot(paths: FrontPaths) {
   return client.getJson<Record<string, unknown>>(buildFrontRoutes(client.context).boot);
 }
 
-function extractFrontCsrfCookie(setCookie: string | null) {
-  if (!setCookie) {
-    return undefined;
+const FRONT_SESSION_COOKIE_NAMES = ["front.id", "front.id.sig", "front.csrf"] as const;
+
+function extractFrontSessionCookies(headers: Headers) {
+  const values = (headers as Headers & { getSetCookie?: () => string[] }).getSetCookie?.()
+    ?? [headers.get("set-cookie")].filter((value): value is string => Boolean(value));
+  const cookies = new Map<string, string>();
+  for (const value of values) {
+    for (const name of FRONT_SESSION_COOKIE_NAMES) {
+      const escapedName = name.replaceAll(".", "\\.");
+      const match = value.match(new RegExp(`(?:^|,\\s*)${escapedName}=([^;,]*)`));
+      if (match) cookies.set(name, match[1]);
+    }
   }
-  const match = setCookie.match(/(?:^|,\s*)front\.csrf=([^;,]+)/);
-  return match ? decodeURIComponent(match[1]) : undefined;
+  return cookies;
+}
+
+async function persistResponseSessionCookies(session: FrontSession, headers: Headers) {
+  const updates = extractFrontSessionCookies(headers);
+  if (updates.size === 0) return;
+  let changed = false;
+  for (const [name, value] of updates) {
+    if (readCookie(session.cookieHeader, name) === value) continue;
+    session.cookieHeader = upsertCookie(session.cookieHeader, name, value);
+    changed = true;
+  }
+  const rawCsrfToken = updates.get("front.csrf");
+  if (rawCsrfToken !== undefined) {
+    const nextCsrfToken = decodeCookieValue(rawCsrfToken);
+    if (session.csrfToken !== nextCsrfToken) {
+      session.csrfToken = nextCsrfToken;
+      changed = true;
+    }
+  }
+  const cookieNames = [...new Set([...session.cookieNames, ...updates.keys()])];
+  if (cookieNames.length !== session.cookieNames.length) {
+    session.cookieNames = cookieNames;
+    changed = true;
+  }
+  if (!changed) return;
+  await persistFrontSession(session);
+}
+
+function readCookie(cookieHeader: string, name: string) {
+  const prefix = `${name}=`;
+  return cookieHeader
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix))
+    ?.slice(prefix.length);
+}
+
+function decodeCookieValue(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function upsertCookie(cookieHeader: string, name: string, value: string) {

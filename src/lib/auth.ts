@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createCipheriv, createDecipheriv, createHash, pbkdf2Sync, randomBytes } from "node:crypto";
-import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, readFile, rename, rm, unlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { run } from "./process.js";
@@ -279,6 +279,13 @@ export async function clearFrontSession(sessionPath = defaultSessionPath()) {
   };
 }
 
+export async function persistFrontSession(
+  session: FrontSession,
+  sessionPath = defaultSessionPath(),
+) {
+  await writeFrontSession(sessionPath, session);
+}
+
 export function forceUnlockCommandForSession(session?: Pick<FrontSession, "source">) {
   const source = session?.source;
   if (source?.startsWith("agentcookie")) {
@@ -448,8 +455,14 @@ async function writeFrontSession(sessionPath: string, session: FrontSession) {
     tag: cipher.getAuthTag().toString("base64"),
     ciphertext: ciphertext.toString("base64"),
   }) as SessionFile;
-  await writeFile(sessionPath, JSON.stringify(file, null, 2), { mode: 0o600 });
-  await chmod(sessionPath, 0o600);
+  const temporaryPath = `${sessionPath}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
+  try {
+    await writeFile(temporaryPath, JSON.stringify(file, null, 2), { mode: 0o600 });
+    await chmod(temporaryPath, 0o600);
+    await rename(temporaryPath, sessionPath);
+  } finally {
+    await unlink(temporaryPath).catch(() => {});
+  }
 }
 
 function sessionEncryptionKey() {

@@ -73,6 +73,56 @@ test("current Front routes resolve through local profile state and persist after
   }
 });
 
+test("successful private requests reuse and persist rotated Front session cookies", async () => {
+  const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-private-session-rotation"));
+  await writeFile(
+    join(paths.cacheDataPath, "route-cache"),
+    "https://app.frontapp.com/cell-00017/api/1/companies/32390a17805cd26f7349/team/6088721/conversations/inbox",
+  );
+  process.env.FRONTCTL_SESSION_PATH = join(paths.supportPath, "frontctl-session.json");
+  await writeFakeFrontSession(process.env.FRONTCTL_SESSION_PATH, {
+    cookieHeader: "front.id=old-id; front.id.sig=old-signature",
+  });
+
+  const previousFetch = globalThis.fetch;
+  const requestCookies: string[] = [];
+  const requestCsrfTokens: Array<string | null> = [];
+  let call = 0;
+  globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+    requestCookies.push(new Headers(init?.headers).get("cookie") ?? "");
+    requestCsrfTokens.push(new Headers(init?.headers).get("x-front-xsrf"));
+    call += 1;
+    const headers = new Headers({ "content-type": "application/json" });
+    if (call === 1) {
+      headers.append("set-cookie", "front.id=rotated-id; Path=/; HttpOnly");
+      headers.append("set-cookie", "front.id.sig=rotated-signature; Path=/; HttpOnly");
+      headers.append("set-cookie", "front.csrf=rotated%20csrf; Path=/");
+    }
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers });
+  }) as typeof fetch;
+
+  try {
+    const client = await createFrontPrivateClient(paths);
+    const route = buildFrontRoutes(client.context).conversation("1");
+    await client.getJson(route);
+    await client.getJson(route);
+
+    assert.equal(requestCookies[0], "front.id=old-id; front.id.sig=old-signature");
+    assert.match(requestCookies[1], /front\.id=rotated-id/);
+    assert.match(requestCookies[1], /front\.id\.sig=rotated-signature/);
+    assert.match(requestCookies[1], /front\.csrf=rotated%20csrf/);
+    assert.equal(requestCsrfTokens[1], "rotated csrf");
+
+    const persisted = await readFrontSession(process.env.FRONTCTL_SESSION_PATH);
+    assert.match(persisted?.cookieHeader ?? "", /front\.id=rotated-id/);
+    assert.match(persisted?.cookieHeader ?? "", /front\.id\.sig=rotated-signature/);
+    assert.match(persisted?.cookieHeader ?? "", /front\.csrf=rotated%20csrf/);
+    assert.equal(persisted?.csrfToken, "rotated csrf");
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("boot metadata repairs route context when local team state is unavailable", async () => {
   const paths = await makeFakeFrontInstall(await makeTempDir("frontctl-private-boot-route"));
   await writeFile(
