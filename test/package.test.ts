@@ -199,12 +199,14 @@ test("package metadata publishes the frontctl bin and build lifecycle", async ()
   assert.match(chatgptPrompt, /frontctl memory init --limit 500 --json/);
   assert.match(chatgptPrompt, /frontctl workflows daily --actor ChatGPT --json/);
   assert.match(chatgptPrompt, /--actor ChatGPT/);
+  assert.match(chatgptPrompt, /automatically persist Front's\s+rotated session cookies/s);
 
   const claudeSkill = await readFile("skills/claude/frontctl/SKILL.md", "utf8");
   assert.match(claudeSkill, /~\/\.local\/bin\/frontctl/);
   assert.match(claudeSkill, /Do not use `\/usr\/local\/bin\/frontctl`/);
   assert.match(claudeSkill, /missing CDP proof.*irrelevant/s);
   assert.match(claudeSkill, /discovery workflow is developer-only/);
+  assert.match(claudeSkill, /automatically apply Front's rotated session cookies/);
 
   const bootstrapInstaller = await readFile("script/bootstrap_agent_install.sh", "utf8");
   assert.match(bootstrapInstaller, /CANONICAL_HELP/);

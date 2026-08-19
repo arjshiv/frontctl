@@ -38,6 +38,9 @@ fallback unless the user explicitly asks for that setup/debug action. The normal
 single user-approved unlock such as
 `frontctl auth unlock --source default-browser --ttl-hours 720 --json`; the resulting local session
 is reused and normal reads do not touch Keychain.
+Successful private requests automatically apply Front's rotated session cookies and atomically
+refresh the encrypted local session. Do not ask for another unlock merely because time has passed
+or Front rotated cookies; only an actual bounded live 401 recovery can invalidate the session.
 Never rerun unlock just to be safe when `auth check` is valid. `auth unlock` reuses a valid cache,
 and `--force` should be used only when the user explicitly wants to refresh the Front cookies.
 Exception: if a live private read or write returns HTTP 401 `authentication_required`, trust Front

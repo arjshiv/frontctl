@@ -20,7 +20,9 @@ Requirements:
   cache fallback unless the user explicitly asks for that setup/debug action. The normal recovery
   path is a single user-approved unlock such as
   `frontctl auth unlock --source default-browser --ttl-hours 720 --json`; normal reads reuse that
-  local session and do not touch Keychain. Exception: if a live private read or write returns HTTP
+  local session and do not touch Keychain. Successful requests automatically persist Front's
+  rotated session cookies; do not request another unlock merely because time passed or cookies
+  rotated. Exception: if a live private read or write returns HTTP
   401 `authentication_required`, trust Front over the local cache. The CLI clears the rejected
   session and automatically performs one bounded recovery in the same command: validated
   no-prompt live sources first, then the open Front app as the final fallback. Do not manually
