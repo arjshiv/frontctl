@@ -137,6 +137,11 @@ Explicit cookie unlocks are fallback/debug paths. `frontctl auth unlock --source
 `--source default-browser` may ask once for the browser safe-storage item only after the user
 chooses that fallback. After that, `auth check`, `readiness`, and live reads must use the frontctl
 session cache without prompting.
+Front rotates `front.id`, `front.id.sig`, and `front.csrf` during successful private requests. The
+private client must apply those response cookies immediately and atomically persist the refreshed
+encrypted session. A reusable session cannot be implemented as a frozen cookie snapshot; doing so
+makes the local TTL misleading and causes unnecessary unlock prompts while Front.app remains signed
+in.
 The agent bootstrap's canonical executable is `~/.local/bin/frontctl`. Agent skills must use that
 absolute path when it exists and must not fall through to stale root-owned copies in
 `/usr/local/bin` or `/opt/frontctl/bin`. Bootstrap must detect and report duplicate incompatible

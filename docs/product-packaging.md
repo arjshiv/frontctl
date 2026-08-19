@@ -73,7 +73,9 @@ The expected prompt model is:
 
 Repeated Keychain prompts during setup checks or live reads are a product bug. The fix is to use the
 reusable encrypted session cache written by `auth unlock`, not to train the user to keep approving
-prompts.
+prompts. Because Front rotates its authentication cookies during successful private requests, the
+cache must be refreshed from those response cookies atomically. It cannot remain the original
+cookie snapshot for the full advertised TTL.
 
 Do not auto-export browser cookies as a fallback. Chrome, Edge, and Electron encrypt browser cookie
 secrets with a macOS Safe Storage key, and reading that key is exactly what causes repeated Keychain

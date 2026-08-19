@@ -24,6 +24,11 @@ means reads and approved writes can use the reusable local session cache.
 fallback. It may ask macOS for Touch ID or the account password once, then writes
 `~/.frontctl/session.json` for normal non-prompting use.
 
+Front rotates `front.id`, `front.id.sig`, and `front.csrf` on successful private responses.
+`frontctl` applies those response cookies to the current command and atomically updates the
+encrypted session file, so the next process continues the live session without another Keychain
+read. The 720-hour local expiry is a maximum cache lifetime, not a frozen-cookie guarantee.
+
 Route identity is separate from authentication. `frontctl` recognizes both legacy team-list routes
 and current direct conversation routes, combines them with the active local Front user, and stores a
 validated non-secret context in `~/.frontctl/route-context.json`. All live read and mutation command

@@ -168,6 +168,10 @@ rejected session and automatically tries one bounded chain of validated live alt
 including the open Front app as the final fallback. It prints an exact forced refresh command only
 when automatic recovery cannot produce a working live session.
 
+Normal successful requests automatically carry forward Front's rotated authentication cookies and
+atomically refresh the encrypted local session. An agent should not ask for another unlock based on
+session age, a changed response cookie, or a missing browser debug port.
+
 The first successful live request also stores Front's non-secret workspace route in
 `~/.frontctl/route-context.json`. Front cache files may rotate or switch URL shapes without breaking
 later reads or drafts. `frontctl readiness --json` verifies this context as a separate gate; it must

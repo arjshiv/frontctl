@@ -109,7 +109,9 @@ frontctl auth unlock --source default-browser --ttl-hours 720 --json
 
 That explicit command may ask macOS Keychain once because Chromium and Electron encrypt cookie
 secrets behind Safe Storage. After that, normal reads reuse `~/.frontctl/session.json` and do not
-touch Keychain. Repeated Keychain prompts during normal reads are a bug.
+touch Keychain. Successful private responses rotate Front's session cookies; `frontctl` immediately
+reuses them and atomically persists the refreshed encrypted session for later commands. Repeated
+Keychain prompts during normal reads are a bug.
 
 Front's private URL shape can change between desktop releases. `frontctl` recovers the stable
 workspace identity from the current Front profile, validates it on a live request, and stores only
